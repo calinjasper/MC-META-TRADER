@@ -1,0 +1,96 @@
+// AmiBroker AFL Example - Sending Signals to Trading Platform
+// 
+// This example shows how to send trading signals from AmiBroker
+// to the trading platform's signal server using HTTP requests.
+//
+// Requirements:
+// - AmiBroker with HTTP plugin or use URLDownloadToFile function
+// - Trading platform signal server running on localhost:8080
+
+// Signal Server Configuration
+SignalServerURL = "http://localhost:8080/signal";
+Symbol = "EURUSD";  // Change to your symbol
+
+// Example 1: Simple BUY Signal (Format 1 - GET)
+function SendBuySignal(Symbol, Quantity)
+{
+    URL = SignalServerURL + "?symbol=" + Symbol + "&action=BUY&qty=" + WriteVal(Quantity, 1.2);
+    URLDownloadToFile(URL, "C:\\temp\\signal_response.txt");
+    return True;
+}
+
+// Example 2: BUY Signal with SL/TP (Format 2 - GET)
+function SendBuySignalWithSLTP(Symbol, Quantity, SL, TP)
+{
+    URL = SignalServerURL + "?symbol=" + Symbol + 
+          "&action=BUY&qty=" + WriteVal(Quantity, 1.2) +
+          "&sl=" + WriteVal(SL, 1.5) +
+          "&tp=" + WriteVal(TP, 1.5);
+    URLDownloadToFile(URL, "C:\\temp\\signal_response.txt");
+    return True;
+}
+
+// Example 3: SELL Signal
+function SendSellSignal(Symbol, Quantity)
+{
+    URL = SignalServerURL + "?symbol=" + Symbol + "&action=SELL&qty=" + WriteVal(Quantity, 1.2);
+    URLDownloadToFile(URL, "C:\\temp\\signal_response.txt");
+    return True;
+}
+
+// Example 4: Exit Signal
+function SendExitSignal(Symbol)
+{
+    URL = SignalServerURL + "?symbol=" + Symbol + "&action=EXIT";
+    URLDownloadToFile(URL, "C:\\temp\\signal_response.txt");
+    return True;
+}
+
+// Trading Logic Example
+SetTradeDelays(0, 0, 0, 0);
+SetPositionSize(1, spsShares);
+
+// Example Strategy: RSI-based signals
+RSI_Period = 14;
+RSI_Oversold = 30;
+RSI_Overbought = 70;
+
+RSI_Value = RSI(RSI_Period);
+
+// Buy when RSI crosses above oversold
+BuySignal = Cross(RSI_Value, RSI_Oversold);
+
+// Sell when RSI crosses below overbought
+SellSignal = Cross(RSI_Overbought, RSI_Value);
+
+// Send signals
+if (BuySignal)
+{
+    Quantity = 0.01;  // Lot size
+    CurrentPrice = Close;
+    SL = CurrentPrice * 0.98;  // 2% stop loss
+    TP = CurrentPrice * 1.04;  // 4% take profit
+    
+    SendBuySignalWithSLTP(Symbol, Quantity, SL, TP);
+    Buy = 1;  // Also mark in AmiBroker
+}
+
+if (SellSignal)
+{
+    Quantity = 0.01;
+    CurrentPrice = Close;
+    SL = CurrentPrice * 1.02;  // 2% stop loss (above for SELL)
+    TP = CurrentPrice * 0.96;  // 4% take profit (below for SELL)
+    
+    SendSellSignal(Symbol, Quantity);
+    Sell = 1;  // Also mark in AmiBroker
+}
+
+// Plot signals
+Plot(RSI_Value, "RSI", colorBlue);
+Plot(RSI_Oversold, "Oversold", colorRed, styleLine);
+Plot(RSI_Overbought, "Overbought", colorRed, styleLine);
+
+PlotShapes(BuySignal * shapeUpArrow, colorGreen, 0, Low, -15);
+PlotShapes(SellSignal * shapeDownArrow, colorRed, 0, High, -15);
+
