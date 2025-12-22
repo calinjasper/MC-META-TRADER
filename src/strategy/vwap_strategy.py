@@ -19,7 +19,16 @@ logger = logging.getLogger(__name__)
 class VWAPCondition:
     """Represents a single VWAP-based condition"""
     
-    def __init__(self, price_reference: str, operator: str, vwap_field: str = None, value: float = None):
+    def __init__(
+        self,
+        price_reference: str,
+        operator: str,
+        vwap_field: str = None,
+        value: float = None,
+        left_field: str = None,
+        right_field: str = None,
+        connector: str = "OR",
+    ):
         """
         Initialize a VWAP condition
         
@@ -28,11 +37,16 @@ class VWAPCondition:
             operator: ">", "<", ">=", "<=", "==", "Crosses Above", "Crosses Under", "Within Band", "Outside Band"
             vwap_field: "vwap", "upper_band_1", "upper_band_1.5", "upper_band_2", "lower_band_1", etc.
             value: Comparison value (optional, used for direct comparisons)
+            left_field/right_field: operands selected in UI
+            connector: logical connector to next condition
         """
         self.price_reference = price_reference
         self.operator = operator
         self.vwap_field = vwap_field
         self.value = value
+        self.left_field = left_field or "price"
+        self.right_field = right_field or vwap_field
+        self.connector = connector or "OR"
         self.previous_state = None  # For cross detection
         self.previous_band_value = None  # Track previous band value for accurate cross detection
     
@@ -53,88 +67,94 @@ class VWAPCondition:
         elif self.value is not None:
             return self.value
         return None
+
+    def _resolve_operand(self, field: str, current_price: float, vwap_data: Dict) -> Optional[float]:
+        if field == "price":
+            return current_price
+        if field == "vwap":
+            return vwap_data.get('vwap') if vwap_data else None
+        if field and field.startswith("upper_band_"):
+            std_dev = float(field.replace('upper_band_', ''))
+            return vwap_data.get('bands', {}).get(std_dev, {}).get('upper') if vwap_data else None
+        if field and field.startswith("lower_band_"):
+            std_dev = float(field.replace('lower_band_', ''))
+            return vwap_data.get('bands', {}).get(std_dev, {}).get('lower') if vwap_data else None
+        return self.value
     
     def evaluate(self, current_price: float, vwap_data: Dict, previous_price: Optional[float] = None) -> bool:
         """Evaluate the condition"""
-        threshold = self.get_threshold(vwap_data)
-        if threshold is None:
+        left_val = self._resolve_operand(self.left_field, current_price, vwap_data)
+        right_val = self._resolve_operand(self.right_field, current_price, vwap_data)
+        if left_val is None or right_val is None:
             return False
         
         # Handle special operators
         if self.operator == "Within Band":
-            # Check if price is within a band (requires vwap_field to specify band)
-            if self.vwap_field and 'band' in self.vwap_field:
-                std_dev = float(self.vwap_field.replace('upper_band_', '').replace('lower_band_', ''))
-                bands = vwap_data.get('bands', {}).get(std_dev, {})
+            if self.right_field and 'band' in self.right_field:
+                std_dev = float(self.right_field.replace('upper_band_', '').replace('lower_band_', ''))
+                bands = vwap_data.get('bands', {}).get(std_dev, {}) if vwap_data else {}
                 upper = bands.get('upper')
                 lower = bands.get('lower')
-                if upper and lower:
-                    return lower <= current_price <= upper
+                if upper is not None and lower is not None:
+                    return lower <= left_val <= upper
             return False
         
-        elif self.operator == "Outside Band":
-            # Check if price is outside a band
-            if self.vwap_field and 'band' in self.vwap_field:
-                std_dev = float(self.vwap_field.replace('upper_band_', '').replace('lower_band_', ''))
-                bands = vwap_data.get('bands', {}).get(std_dev, {})
+        if self.operator == "Outside Band":
+            if self.right_field and 'band' in self.right_field:
+                std_dev = float(self.right_field.replace('upper_band_', '').replace('lower_band_', ''))
+                bands = vwap_data.get('bands', {}).get(std_dev, {}) if vwap_data else {}
                 upper = bands.get('upper')
                 lower = bands.get('lower')
-                if upper and lower:
-                    return current_price > upper or current_price < lower
+                if upper is not None and lower is not None:
+                    return left_val > upper or left_val < lower
             return False
         
-        elif self.operator == "Crosses Above":
-            # Simple logic: detect if price crosses from below to above the band
-            # If previous_price is available, check for actual cross
+        if self.operator == "Crosses Above":
             if previous_price is not None:
-                # Price was below the threshold
-                was_below = previous_price < threshold
-                # Price is now above the threshold
-                is_above = current_price > threshold
-                
+                was_below = previous_price < right_val
+                is_above = left_val > right_val
                 if was_below and is_above:
-                    # Price crossed from below to above - trigger BUY
                     self.previous_state = True
-                    self.previous_band_value = threshold  # Update for next check
+                    self.previous_band_value = right_val
                     return True
-            
-            # Update state for next evaluation
-            self.previous_state = current_price > threshold
-            self.previous_band_value = threshold  # Store current band value
+            self.previous_state = left_val > right_val
+            self.previous_band_value = right_val
             return False
         
-        elif self.operator == "Crosses Under":
-            # Simple logic: detect if price crosses from above to below the band
-            # If previous_price is available, check for actual cross
+        if self.operator == "Crosses Under":
             if previous_price is not None:
-                # Price was above the threshold
-                was_above = previous_price > threshold
-                # Price is now below the threshold
-                is_below = current_price < threshold
-                
+                was_above = previous_price > right_val
+                is_below = left_val < right_val
                 if was_above and is_below:
-                    # Price crossed from above to below - trigger SELL
                     self.previous_state = False
-                    self.previous_band_value = threshold  # Update for next check
+                    self.previous_band_value = right_val
                     return True
-            
-            # Update state for next evaluation
-            self.previous_state = current_price < threshold
-            self.previous_band_value = threshold  # Store current band value
+            self.previous_state = left_val < right_val
+            self.previous_band_value = right_val
+            return False
+
+        if self.operator == "Any_Cross":
+            if previous_price is not None:
+                crossed_up = previous_price < right_val <= left_val
+                crossed_down = previous_price > right_val >= left_val
+                if crossed_up or crossed_down:
+                    self.previous_state = left_val >= right_val
+                    return True
+            self.previous_state = left_val >= right_val
             return False
         
         # Handle simple comparison operators
-        elif self.operator == ">":
-            return current_price > threshold
-        elif self.operator == "<":
-            return current_price < threshold
-        elif self.operator == ">=":
-            return current_price >= threshold
-        elif self.operator == "<=":
-            return current_price <= threshold
-        elif self.operator == "==":
+        if self.operator == ">":
+            return left_val > right_val
+        if self.operator == "<":
+            return left_val < right_val
+        if self.operator == ">=":
+            return left_val >= right_val
+        if self.operator == "<=":
+            return left_val <= right_val
+        if self.operator == "==":
             epsilon = 0.00001
-            return abs(current_price - threshold) < epsilon
+            return abs(left_val - right_val) < epsilon
         
         return False
     
@@ -144,7 +164,10 @@ class VWAPCondition:
             'price_reference': self.price_reference,
             'operator': self.operator,
             'vwap_field': self.vwap_field,
-            'value': self.value
+            'value': self.value,
+            'left_field': self.left_field,
+            'right_field': self.right_field,
+            'connector': self.connector
         }
     
     @classmethod
@@ -154,7 +177,10 @@ class VWAPCondition:
             price_reference=data.get('price_reference', 'Current Price'),
             operator=data.get('operator', '>'),
             vwap_field=data.get('vwap_field'),
-            value=data.get('value')
+            value=data.get('value'),
+            left_field=data.get('left_field'),
+            right_field=data.get('right_field'),
+            connector=data.get('connector', data.get('logical_connector', 'OR'))
         )
 
 
@@ -478,6 +504,24 @@ class VWAPStrategy(BaseStrategy):
             return 'SELL'
         
         return None
+
+    def _evaluate_condition_chain(self, conditions: List[VWAPCondition], current_price: float, vwap_data: Dict) -> bool:
+        if not conditions:
+            return False
+        cumulative = None
+        prev_connector = None
+        for cond in conditions:
+            result = cond.evaluate(current_price, vwap_data, self.previous_price)
+            if cumulative is None:
+                cumulative = result
+            else:
+                connector = prev_connector or "OR"
+                if connector == "AND":
+                    cumulative = cumulative and result
+                else:
+                    cumulative = cumulative or result
+            prev_connector = cond.connector or "OR"
+        return bool(cumulative)
     
     def generate_signal(self, market_data: Dict) -> Optional[str]:
         """
@@ -571,37 +615,22 @@ class VWAPStrategy(BaseStrategy):
             self.previous_price = current_price
             return signal
         
-        # Check simple buy/sell conditions (similar to OHLC strategy)
-        logger.info(f"Strategy {self.name}: Checking {len(self.buy_conditions)} buy conditions")
-        for idx, condition in enumerate(self.buy_conditions):
-            try:
-                condition_met = condition.evaluate(current_price, vwap_data, self.previous_price)
-                threshold = condition.get_threshold(vwap_data)
-                threshold_str = f"{threshold:.5f}" if threshold is not None else 'N/A'
-                logger.info(f"Strategy {self.name} Buy Condition {idx+1}: {condition.operator} {condition.vwap_field or condition.value}, "
-                           f"Threshold={threshold_str}, Current={current_price:.5f}, Met={condition_met}")
-                if condition_met:
-                    logger.info(f"Strategy {self.name}: ✅ Buy condition {idx+1} MET! {condition.operator} {condition.vwap_field or condition.value}, "
-                              f"Current Price={current_price:.5f}, Threshold={threshold_str}")
-                    self.previous_price = current_price
-                    return 'BUY'
-            except Exception as e:
-                logger.error(f"Error evaluating buy condition {idx+1} in {self.name}: {e}", exc_info=True)
+        # Check simple buy/sell conditions (chain with AND/OR)
+        try:
+            if self._evaluate_condition_chain(self.buy_conditions, current_price, vwap_data):
+                logger.info(f"Strategy {self.name}: ✅ Buy conditions met")
+                self.previous_price = current_price
+                return 'BUY'
+        except Exception as e:
+            logger.error(f"Error evaluating buy conditions in {self.name}: {e}", exc_info=True)
         
-        for idx, condition in enumerate(self.sell_conditions):
-            try:
-                condition_met = condition.evaluate(current_price, vwap_data, self.previous_price)
-                threshold = condition.get_threshold(vwap_data)
-                threshold_str = f"{threshold:.5f}" if threshold is not None else 'N/A'
-                logger.info(f"Strategy {self.name} Sell Condition {idx+1}: {condition.operator} {condition.vwap_field or condition.value}, "
-                           f"Threshold={threshold_str}, Current={current_price:.5f}, Met={condition_met}")
-                if condition_met:
-                    logger.info(f"Strategy {self.name}: Sell condition {idx+1} MET! {condition.operator} {condition.vwap_field or condition.value}, "
-                              f"Current Price={current_price:.5f}, Threshold={threshold_str}")
-                    self.previous_price = current_price
-                    return 'SELL'
-            except Exception as e:
-                logger.error(f"Error evaluating sell condition in {self.name}: {e}", exc_info=True)
+        try:
+            if self._evaluate_condition_chain(self.sell_conditions, current_price, vwap_data):
+                logger.info(f"Strategy {self.name}: ✅ Sell conditions met")
+                self.previous_price = current_price
+                return 'SELL'
+        except Exception as e:
+            logger.error(f"Error evaluating sell conditions in {self.name}: {e}", exc_info=True)
         
         self.previous_price = current_price
         return None

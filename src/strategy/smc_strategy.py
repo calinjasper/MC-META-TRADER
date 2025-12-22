@@ -73,6 +73,8 @@ class SMCStrategy(BaseStrategy):
         pivot_left: int = 2,
         pivot_right: int = 2,
         emit_on: str = "CHoCH",  # "CHoCH" | "BOS" | "BOTH"
+        buy_filters: Optional[List[Dict]] = None,
+        sell_filters: Optional[List[Dict]] = None,
     ):
         super().__init__(name, symbol)
         self.timeframe = timeframe
@@ -81,6 +83,10 @@ class SMCStrategy(BaseStrategy):
         self.pivot_left = int(pivot_left)
         self.pivot_right = int(pivot_right)
         self.emit_on = emit_on
+
+        # Post-filter chains (AND/OR) for buy/sell
+        self.buy_filters: List[Dict] = buy_filters or []
+        self.sell_filters: List[Dict] = sell_filters or []
 
         # Display-friendly description (used by StrategyPanel if present)
         self.entry_conditions_text = [f"SMC: emit={self.emit_on}, pivots={self.pivot_left}/{self.pivot_right}"]
@@ -91,11 +97,18 @@ class SMCStrategy(BaseStrategy):
         self.last_pivot_low: Optional[Pivot] = None
         self.last_structure_event: Optional[str] = None  # "BOS" | "CHoCH" | None
 
+        # For filter cross detection
+        self._prev_filter_price: Optional[float] = None
+
         # Optional MT5 connector (for fetching correct timeframe candles)
         self.mt5_connector = None
 
     def set_mt5_connector(self, mt5_connector) -> None:
         self.mt5_connector = mt5_connector
+
+    def set_filters(self, buy_filters: List[Dict], sell_filters: List[Dict]) -> None:
+        self.buy_filters = buy_filters or []
+        self.sell_filters = sell_filters or []
 
     def _get_candles(self, count: int = 300) -> List[Dict]:
         """Get candles on the strategy timeframe. Uses MT5Connector if available, else falls back to market_data rates."""
@@ -160,6 +173,79 @@ class SMCStrategy(BaseStrategy):
 
         return None
 
+    def _resolve_operand(self, field: str, current_price: float, ohlc: Dict) -> Optional[float]:
+        if field == "price":
+            return current_price
+        if not ohlc:
+            return None
+        o = ohlc.get("open")
+        h = ohlc.get("high")
+        l = ohlc.get("low")
+        c = ohlc.get("close")
+        if field == "open":
+            return o
+        if field == "high":
+            return h
+        if field == "low":
+            return l
+        if field == "close":
+            return c
+        if field == "hl2" and h is not None and l is not None:
+            return (h + l) / 2.0
+        if field == "hlc3" and h is not None and l is not None and c is not None:
+            return (h + l + c) / 3.0
+        if field == "ohlc4" and o is not None and h is not None and l is not None and c is not None:
+            return (o + h + l + c) / 4.0
+        return None
+
+    def _evaluate_filter_condition(self, cond: Dict, current_price: float, ohlc: Dict, prev_price: Optional[float]) -> bool:
+        left = self._resolve_operand(cond.get("left_field"), current_price, ohlc)
+        right = self._resolve_operand(cond.get("right_field"), current_price, ohlc)
+        if left is None or right is None:
+            return False
+        op = cond.get("operator")
+        if op == ">":
+            return left > right
+        if op == "<":
+            return left < right
+        if op == ">=":
+            return left >= right
+        if op == "<=":
+            return left <= right
+        if op == "==":
+            return abs(left - right) < 1e-5
+        if op == "Crosses Above":
+            if prev_price is None:
+                return False
+            return prev_price < right <= left
+        if op == "Crosses Under":
+            if prev_price is None:
+                return False
+            return prev_price > right >= left
+        if op == "Any_Cross":
+            if prev_price is None:
+                return False
+            return (prev_price < right <= left) or (prev_price > right >= left)
+        return False
+
+    def _evaluate_filter_chain(self, filters: List[Dict], current_price: float, ohlc: Dict) -> bool:
+        if not filters:
+            return True
+        cumulative = None
+        prev_connector = None
+        for cond in filters:
+            res = self._evaluate_filter_condition(cond, current_price, ohlc, self._prev_filter_price)
+            if cumulative is None:
+                cumulative = res
+            else:
+                connector = prev_connector or "OR"
+                if connector == "AND":
+                    cumulative = cumulative and res
+                else:
+                    cumulative = cumulative or res
+            prev_connector = cond.get("connector", "OR")
+        return bool(cumulative)
+
     def generate_signal(self, market_data: Dict) -> Optional[str]:
         # Candle source
         candles = self._get_candles(count=300)
@@ -176,6 +262,7 @@ class SMCStrategy(BaseStrategy):
         close = float(closes[-1])
         structure = self._detect_structure(close)
         if not structure:
+            self._prev_filter_price = close
             return None
 
         event, direction = structure
@@ -190,10 +277,25 @@ class SMCStrategy(BaseStrategy):
 
         # Emit signals
         if self.emit_on == "CHoCH" and event != "CHoCH":
+            self._prev_filter_price = close
             return None
         if self.emit_on == "BOS" and event != "BOS":
+            self._prev_filter_price = close
             return None
 
+        # Post filter on current bar using last candle ohlc
+        last_ohlc = {
+            "open": float(opens[-1]) if opens else None,
+            "high": float(highs[-1]) if highs else None,
+            "low": float(lows[-1]) if lows else None,
+            "close": close,
+        }
+        filters = self.buy_filters if direction == "UP" else self.sell_filters
+        if not self._evaluate_filter_chain(filters, close, last_ohlc):
+            self._prev_filter_price = close
+            return None
+
+        self._prev_filter_price = close
         return "BUY" if direction == "UP" else "SELL"
 
     def to_dict(self) -> Dict:
@@ -205,6 +307,8 @@ class SMCStrategy(BaseStrategy):
                 "pivot_left": self.pivot_left,
                 "pivot_right": self.pivot_right,
                 "emit_on": self.emit_on,
+                "buy_filters": self.buy_filters,
+                "sell_filters": self.sell_filters,
                 # Persisted state is optional; we keep only configuration.
             }
         )
@@ -219,6 +323,8 @@ class SMCStrategy(BaseStrategy):
             pivot_left=data.get("pivot_left", 2),
             pivot_right=data.get("pivot_right", 2),
             emit_on=data.get("emit_on", "CHoCH"),
+            buy_filters=data.get("buy_filters", []),
+            sell_filters=data.get("sell_filters", []),
         )
         strategy.enabled = data.get("enabled", False)
         strategy.set_mt5_connector(mt5_connector)

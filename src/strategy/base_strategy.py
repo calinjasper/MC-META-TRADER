@@ -73,6 +73,9 @@ class BaseStrategy(ABC):
         self.enable_wt: bool = False
         self.wt_value: float = 0.0  # gap in price points (or % if wt_is_percentage=True)
         self.wt_is_percentage: bool = False
+
+        # Trade direction
+        self.trade_direction: str = "both"  # "both" | "long" | "short"
     
     def add_indicator(self, name: str, indicator: any) -> None:
         """Add an indicator to the strategy"""
@@ -343,5 +346,18 @@ class BaseStrategy(ABC):
 
             # Position preservation
             'preserve_position': getattr(self, 'preserve_position', False),
+
+            # Re-Entry configuration
+            'reentry_on_sl_enabled': getattr(self, 'reentry_on_sl_enabled', False),
+            'reentry_on_sl_mode': getattr(self, 'reentry_on_sl_mode', None),
+            'reentry_on_sl_count': getattr(self, 'reentry_on_sl_count', 0),
+            'reentry_on_sl_used': getattr(self, 'reentry_on_sl_used', 0),
+            'reentry_on_tp_enabled': getattr(self, 'reentry_on_tp_enabled', False),
+            'reentry_on_tp_mode': getattr(self, 'reentry_on_tp_mode', None),
+            'reentry_on_tp_count': getattr(self, 'reentry_on_tp_count', 0),
+            'reentry_on_tp_used': getattr(self, 'reentry_on_tp_used', 0),
+
+            # Trade direction
+            'trade_direction': getattr(self, 'trade_direction', 'both'),
         }
 
