@@ -172,6 +172,32 @@ class SystemLogsPanel(QWidget):
         except Exception as ex:
             QMessageBox.warning(self, "Export CSV", f"Failed to export CSV: {ex}")
 
+    def export_csv_to_path(self, file_path: Path, use_filtered: bool = False) -> int:
+        """
+        Export system logs to the provided file path (used for auto-save on exit).
+        
+        Args:
+            file_path: Destination CSV path.
+            use_filtered: If True, exports current filtered view; otherwise exports all entries.
+        
+        Returns:
+            Number of rows written.
+        """
+        entries = [e for e in self._rows if self._matches(e)] if use_filtered else list(system_log_service.get_entries())
+        if not entries:
+            return 0
+
+        headers = ["Timestamp", "Type", "User", "Strategy", "Portfolio", "Message"]
+        file_path = Path(file_path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(file_path, "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.writer(f)
+            w.writerow(headers)
+            for e in entries:
+                w.writerow([e.timestamp, e.log_type, e.user, e.strategy, e.portfolio, e.message])
+        return len(entries)
+
     def _set_item(self, row: int, col: int, text: str, entry: SystemLogEntry):
         item = QTableWidgetItem(text or "")
         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)

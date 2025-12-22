@@ -111,6 +111,12 @@ class StrategyPersistence:
                 strategy_dict['entry_conditions_text'] = strategy.entry_conditions_text
             else:
                 strategy_dict['entry_conditions_text'] = []
+
+            # Save buy/sell condition texts if present
+            if hasattr(strategy, 'buy_conditions_text'):
+                strategy_dict['buy_conditions_text'] = getattr(strategy, 'buy_conditions_text', [])
+            if hasattr(strategy, 'sell_conditions_text'):
+                strategy_dict['sell_conditions_text'] = getattr(strategy, 'sell_conditions_text', [])
             
             # Save trade monitoring mode
             strategy_dict['trade_monitoring_mode'] = getattr(strategy, 'trade_monitoring_mode', 'LTP')
@@ -232,6 +238,10 @@ class StrategyPersistence:
             strategy.entry_conditions_text = entry_conditions_text
             
             logger.info(f"Loading strategy {name}: {len(entry_conditions_text)} entry conditions")
+
+            # Restore buy/sell text
+            strategy.buy_conditions_text = strategy_dict.get('buy_conditions_text', [])
+            strategy.sell_conditions_text = strategy_dict.get('sell_conditions_text', [])
             
             # Load trade monitoring mode
             strategy.trade_monitoring_mode = strategy_dict.get('trade_monitoring_mode', 'LTP')
@@ -279,6 +289,60 @@ class StrategyPersistence:
                 else:
                     logger.error(f"Failed to parse condition {i+1}: {condition_text}")
             
+            # Recreate buy/sell condition functions
+            def create_side_condition(condition_text: str, signal: str):
+                try:
+                    operators = ['>=', '<=', '==', '>', '<']
+                    operator = None
+                    operator_pos = -1
+                    for op in operators:
+                        pos = condition_text.find(op)
+                        if pos >= 0:
+                            operator = op
+                            operator_pos = pos
+                            break
+                    if operator is None:
+                        return None
+                    indicator_part = condition_text[:operator_pos].strip()
+                    value_str = condition_text[operator_pos + len(operator):].strip()
+                    value = float(value_str)
+
+                    def condition(data: Dict):
+                        indicators = data.get('indicators', {})
+                        indicator_value = indicators.get(indicator_part)
+                        if indicator_value is None:
+                            return None
+                        if operator == '>':
+                            ok = indicator_value > value
+                        elif operator == '<':
+                            ok = indicator_value < value
+                        elif operator == '>=':
+                            ok = indicator_value >= value
+                        elif operator == '<=':
+                            ok = indicator_value <= value
+                        elif operator == '==':
+                            ok = abs(indicator_value - value) < 0.0001
+                        else:
+                            ok = False
+                        return signal if ok else None
+
+                    return condition
+                except Exception as e:
+                    logger.error(f"Error parsing side condition '{condition_text}': {e}")
+                    return None
+
+            strategy.buy_condition_funcs = []
+            for ctext in strategy.buy_conditions_text:
+                cond = create_side_condition(ctext, "BUY")
+                if cond:
+                    strategy.buy_condition_funcs.append(cond)
+
+            strategy.sell_condition_funcs = []
+            for ctext in strategy.sell_conditions_text:
+                cond = create_side_condition(ctext, "SELL")
+                if cond:
+                    strategy.sell_condition_funcs.append(cond)
+
             logger.info(f"Strategy {name} loaded with {len(strategy.entry_conditions)} entry conditions")
             
             return strategy

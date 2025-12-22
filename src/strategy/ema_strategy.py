@@ -20,65 +20,89 @@ logger = logging.getLogger(__name__)
 class EMACondition:
     """Represents a single EMA-based condition (Current Price vs EMA)."""
 
-    def __init__(self, price_reference: str, operator: str, ema_field: str = None, value: float = None):
+    def __init__(
+        self,
+        price_reference: str,
+        operator: str,
+        ema_field: str = None,
+        value: float = None,
+        left_field: str = None,
+        right_field: str = None,
+        connector: str = "OR",
+    ):
         """
         Args:
             price_reference: Typically "Current Price"
             operator: ">", "<", ">=", "<=", "==", "Crosses Above", "Crosses Under"
             ema_field: One of "ema_1" | "ema_2" | "ema_3" | "ema_4"
             value: Optional explicit numeric value (fallback)
+            left_field/right_field: operands selected in UI
+            connector: logical connector to next condition
         """
         self.price_reference = price_reference
         self.operator = operator
         self.ema_field = ema_field
         self.value = value
+        self.left_field = left_field or "price"
+        self.right_field = right_field or ema_field
+        self.connector = connector or "OR"
         self.previous_state = None  # For cross detection
 
-    def get_threshold(self, ema_values: Dict) -> Optional[float]:
-        """Get the threshold value for comparison."""
-        if self.ema_field:
-            return ema_values.get(self.ema_field)
-        if self.value is not None:
-            return self.value
-        return None
+    def _resolve_operand(self, field: str, current_price: float, ema_values: Dict) -> Optional[float]:
+        if field == "price":
+            return current_price
+        if field and field.startswith("ema_"):
+            return ema_values.get(field)
+        return self.value
 
     def evaluate(self, current_price: float, ema_values: Dict, previous_price: Optional[float] = None) -> bool:
         """Evaluate condition against latest EMA snapshot."""
-        threshold = self.get_threshold(ema_values)
-        if threshold is None:
+        left_val = self._resolve_operand(self.left_field, current_price, ema_values)
+        right_val = self._resolve_operand(self.right_field, current_price, ema_values)
+        if left_val is None or right_val is None:
             return False
 
         if self.operator == "Crosses Above":
             if previous_price is not None:
-                was_below = previous_price < threshold
-                is_above = current_price >= threshold
+                was_below = previous_price < right_val
+                is_above = left_val >= right_val
                 if was_below and is_above:
                     self.previous_state = True
                     return True
-            self.previous_state = current_price >= threshold
+            self.previous_state = left_val >= right_val
             return False
 
         if self.operator == "Crosses Under":
             if previous_price is not None:
-                was_above = previous_price > threshold
-                is_below = current_price <= threshold
+                was_above = previous_price > right_val
+                is_below = left_val <= right_val
                 if was_above and is_below:
                     self.previous_state = False
                     return True
-            self.previous_state = current_price > threshold
+            self.previous_state = left_val > right_val
+            return False
+
+        if self.operator == "Any_Cross":
+            if previous_price is not None:
+                crossed_up = previous_price < right_val <= left_val
+                crossed_down = previous_price > right_val >= left_val
+                if crossed_up or crossed_down:
+                    self.previous_state = left_val >= right_val
+                    return True
+            self.previous_state = left_val >= right_val
             return False
 
         if self.operator == ">":
-            return current_price > threshold
+            return left_val > right_val
         if self.operator == "<":
-            return current_price < threshold
+            return left_val < right_val
         if self.operator == ">=":
-            return current_price >= threshold
+            return left_val >= right_val
         if self.operator == "<=":
-            return current_price <= threshold
+            return left_val <= right_val
         if self.operator == "==":
             epsilon = 0.00001
-            return abs(current_price - threshold) < epsilon
+            return abs(left_val - right_val) < epsilon
 
         return False
 
@@ -88,6 +112,9 @@ class EMACondition:
             "operator": self.operator,
             "ema_field": self.ema_field,
             "value": self.value,
+            "left_field": self.left_field,
+            "right_field": self.right_field,
+            "connector": self.connector,
         }
 
     @classmethod
@@ -97,6 +124,9 @@ class EMACondition:
             operator=data.get("operator", ">"),
             ema_field=data.get("ema_field"),
             value=data.get("value"),
+            left_field=data.get("left_field"),
+            right_field=data.get("right_field"),
+            connector=data.get("connector", data.get("logical_connector", "OR")),
         )
 
 
@@ -217,6 +247,24 @@ class EMAStrategy(BaseStrategy):
         self._last_snapshot_at = now
         return snap
 
+    def _evaluate_condition_chain(self, conditions: List[EMACondition], current_price: float, ema_values: Dict) -> bool:
+        if not conditions:
+            return False
+        cumulative = None
+        prev_connector = None
+        for cond in conditions:
+            result = cond.evaluate(current_price, ema_values, self.previous_price)
+            if cumulative is None:
+                cumulative = result
+            else:
+                connector = prev_connector or "OR"
+                if connector == "AND":
+                    cumulative = cumulative and result
+                else:
+                    cumulative = cumulative or result
+            prev_connector = cond.connector or "OR"
+        return bool(cumulative)
+
     def generate_signal(self, market_data: Dict) -> Optional[str]:
         tick = market_data.get("tick")
         if not tick:
@@ -235,33 +283,21 @@ class EMAStrategy(BaseStrategy):
         ema_values = self._compute_ema_values(candles)
 
         # BUY conditions take priority over SELL, consistent with OHLC strategy
-        for idx, condition in enumerate(self.buy_conditions):
-            try:
-                threshold = condition.get_threshold(ema_values)
-                if condition.evaluate(current_price, ema_values, self.previous_price):
-                    threshold_str = f"{threshold:.5f}" if threshold is not None else "N/A"
-                    logger.info(
-                        f"EMAStrategy {self.name}: ✅ Buy condition {idx+1} MET! "
-                        f"Current={current_price:.5f} {condition.operator} EMA={threshold_str}"
-                    )
-                    self.previous_price = current_price
-                    return "BUY"
-            except Exception as e:
-                logger.error(f"EMAStrategy {self.name}: Error evaluating buy condition {idx+1}: {e}", exc_info=True)
+        try:
+            if self._evaluate_condition_chain(self.buy_conditions, current_price, ema_values):
+                logger.info(f"EMAStrategy {self.name}: ✅ Buy conditions met")
+                self.previous_price = current_price
+                return "BUY"
+        except Exception as e:
+            logger.error(f"EMAStrategy {self.name}: Error evaluating buy conditions: {e}", exc_info=True)
 
-        for idx, condition in enumerate(self.sell_conditions):
-            try:
-                threshold = condition.get_threshold(ema_values)
-                if condition.evaluate(current_price, ema_values, self.previous_price):
-                    threshold_str = f"{threshold:.5f}" if threshold is not None else "N/A"
-                    logger.info(
-                        f"EMAStrategy {self.name}: ✅ Sell condition {idx+1} MET! "
-                        f"Current={current_price:.5f} {condition.operator} EMA={threshold_str}"
-                    )
-                    self.previous_price = current_price
-                    return "SELL"
-            except Exception as e:
-                logger.error(f"EMAStrategy {self.name}: Error evaluating sell condition {idx+1}: {e}", exc_info=True)
+        try:
+            if self._evaluate_condition_chain(self.sell_conditions, current_price, ema_values):
+                logger.info(f"EMAStrategy {self.name}: ✅ Sell conditions met")
+                self.previous_price = current_price
+                return "SELL"
+        except Exception as e:
+            logger.error(f"EMAStrategy {self.name}: Error evaluating sell conditions: {e}", exc_info=True)
 
         self.previous_price = current_price
         return None

@@ -4,11 +4,11 @@ UI for configuring and managing OHLC-based trading bot
 """
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
-                             QLineEdit, QComboBox, QDoubleSpinBox,
-                             QPushButton, QGroupBox, QListWidget, QListWidgetItem,
+                             QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox,
+                             QPushButton, QGroupBox, QTimeEdit,
                              QMessageBox, QLabel, QScrollArea, QTextEdit,
                              QCheckBox)
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QTime
 from typing import Dict, Optional
 import logging
 
@@ -21,6 +21,7 @@ from ..strategy.vwap_strategy import VWAPStrategy, VWAPCondition
 from ..strategy.smc_strategy import SMCStrategy
 from ..strategy.ema_strategy import EMAStrategy, EMACondition
 from ..strategy.supertrend_strategy import SuperTrendStrategy
+from ..strategy.mixed_condition import MixedCondition
 from .market_data_panel import MarketDataPanel
 from .system_log_service import system_log_service
 
@@ -29,6 +30,91 @@ logger = logging.getLogger(__name__)
 
 class TradingBotPanel(QWidget):
     """Trading bot panel for OHLC-based price conditions"""
+
+    class ConditionRow(QWidget):
+        """Single condition row with operands, operator and AND/OR toggle."""
+
+        def __init__(self, parent_panel: 'TradingBotPanel', is_buy: bool):
+            super().__init__()
+            self.parent_panel = parent_panel
+            self.is_buy = is_buy
+            self._build_ui()
+
+        def _build_ui(self):
+            layout = QHBoxLayout(self)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(6)
+
+            self.enable_check = QCheckBox()
+            self.enable_check.setChecked(True)
+            layout.addWidget(self.enable_check)
+
+            self.left_combo = QComboBox()
+            layout.addWidget(self.left_combo)
+
+            self.operator_combo = QComboBox()
+            layout.addWidget(self.operator_combo)
+
+            self.right_combo = QComboBox()
+            layout.addWidget(self.right_combo)
+
+            self.or_check = QCheckBox("OR")
+            self.or_check.setToolTip("If checked, combine with next row using OR; otherwise AND.")
+            layout.addWidget(self.or_check)
+
+            layout.addStretch()
+
+        def set_options(self, operands: list, operators: list):
+            """Populate operand/operator combos."""
+            def fill_combo(combo: QComboBox, items: list):
+                current = combo.currentData()
+                combo.clear()
+                for text, value in items:
+                    combo.addItem(text, value)
+                if current is not None:
+                    idx = combo.findData(current)
+                    if idx >= 0:
+                        combo.setCurrentIndex(idx)
+
+            fill_combo(self.left_combo, operands)
+            fill_combo(self.right_combo, operands)
+
+            current_op = self.operator_combo.currentData()
+            self.operator_combo.clear()
+            for text, value in operators:
+                self.operator_combo.addItem(text, value)
+            if current_op is not None:
+                idx = self.operator_combo.findData(current_op)
+                if idx >= 0:
+                    self.operator_combo.setCurrentIndex(idx)
+
+        def get_data(self) -> Dict:
+            return {
+                "enabled": self.enable_check.isChecked(),
+                "left_field": self.left_combo.currentData(),
+                "right_field": self.right_combo.currentData(),
+                "operator": self.operator_combo.currentData(),
+                "connector": "OR" if self.or_check.isChecked() else "AND",
+            }
+
+        def set_data(self, data: Dict):
+            self.enable_check.setChecked(data.get("enabled", True))
+            if "left_field" in data:
+                idx = self.left_combo.findData(data["left_field"])
+                if idx >= 0:
+                    self.left_combo.setCurrentIndex(idx)
+            if "right_field" in data:
+                idx = self.right_combo.findData(data["right_field"])
+                if idx >= 0:
+                    self.right_combo.setCurrentIndex(idx)
+            if "operator" in data:
+                idx = self.operator_combo.findData(data["operator"])
+                if idx >= 0:
+                    self.operator_combo.setCurrentIndex(idx)
+            if data.get("connector", "AND") == "OR":
+                self.or_check.setChecked(True)
+            else:
+                self.or_check.setChecked(False)
     
     def __init__(self, data_feed: DataFeed, strategy_manager: StrategyManager,
                  mt5: MT5Connector, market_data_panel: MarketDataPanel):
@@ -42,6 +128,8 @@ class TradingBotPanel(QWidget):
         self.current_bot: Optional[BaseStrategy] = None
         self.editing_bot_name: Optional[str] = None
         self.strategy_type: str = 'ohlc'  # 'ohlc' | 'vwap' | 'smc' | 'ema'
+        self.buy_rows = []
+        self.sell_rows = []
         
         # Status update timer
         self.status_timer = QTimer()
@@ -88,6 +176,20 @@ class TradingBotPanel(QWidget):
         strategy_type_group.setLayout(strategy_type_layout)
         layout.addWidget(strategy_type_group)
         
+        # Strategy Direction
+        direction_group = QGroupBox("Strategy Direction")
+        direction_layout = QFormLayout()
+
+        self.direction_combo = QComboBox()
+        self.direction_combo.addItem("Long & Short", "both")
+        self.direction_combo.addItem("Long-only", "long")
+        self.direction_combo.addItem("Short-only", "short")
+        self.direction_combo.currentIndexChanged.connect(self._on_direction_changed)
+        direction_layout.addRow("Direction:", self.direction_combo)
+
+        direction_group.setLayout(direction_layout)
+        layout.addWidget(direction_group)
+
         # Basic Information
         basic_group = QGroupBox("Basic Information")
         basic_layout = QFormLayout()
@@ -261,45 +363,17 @@ class TradingBotPanel(QWidget):
         self.buy_group = QGroupBox("Buy Conditions")
         buy_layout = QVBoxLayout()
         
-        # Condition builder
-        condition_builder_layout = QHBoxLayout()
-        
-        # Price is fixed to "Current Price"
-        condition_builder_layout.addWidget(QLabel("Price:"))
-        price_label = QLabel("Current Price")
-        price_label.setStyleSheet("font-weight: bold; padding: 5px;")
-        condition_builder_layout.addWidget(price_label)
-        
-        # Operator dropdown
-        self.buy_operator_combo = QComboBox()
-        self.buy_operator_combo.addItem("Greater Than (>)", ">")
-        self.buy_operator_combo.addItem("Less Than (<)", "<")
-        self.buy_operator_combo.addItem("Greater or Equal (>=)", ">=")
-        self.buy_operator_combo.addItem("Less or Equal (<=)", "<=")
-        self.buy_operator_combo.addItem("Equal To (==)", "==")
-        self.buy_operator_combo.addItem("Crosses Above", "Crosses Above")
-        self.buy_operator_combo.addItem("Crosses Under", "Crosses Under")
-        condition_builder_layout.addWidget(QLabel("Operator:"))
-        condition_builder_layout.addWidget(self.buy_operator_combo)
-        
-        # Value dropdown (Previous OHLC options)
-        condition_builder_layout.addWidget(QLabel("Value:"))
-        self.buy_value_combo = QComboBox()
-        self.buy_value_combo.addItem("Previous Open", "open")
-        self.buy_value_combo.addItem("Previous High", "high")
-        self.buy_value_combo.addItem("Previous Low", "low")
-        self.buy_value_combo.addItem("Previous Close", "close")
-        condition_builder_layout.addWidget(self.buy_value_combo)
-        
-        add_buy_btn = QPushButton("Add Buy Condition")
-        add_buy_btn.clicked.connect(self.add_buy_condition)
-        condition_builder_layout.addWidget(add_buy_btn)
-        
-        buy_layout.addLayout(condition_builder_layout)
-        
-        # Buy conditions list
-        self.buy_conditions_list = QListWidget()
-        buy_layout.addWidget(self.buy_conditions_list)
+        buy_buttons = QHBoxLayout()
+        add_buy_btn = QPushButton("Add Buy Condition Row")
+        add_buy_btn.clicked.connect(lambda: self.add_condition_row(True))
+        buy_buttons.addWidget(add_buy_btn)
+        buy_buttons.addStretch()
+        buy_layout.addLayout(buy_buttons)
+
+        self.buy_rows_layout = QVBoxLayout()
+        self.buy_rows_layout.setSpacing(6)
+        buy_layout.addLayout(self.buy_rows_layout)
+        buy_layout.addStretch()
         
         self.buy_group.setLayout(buy_layout)
         layout.addWidget(self.buy_group)
@@ -308,45 +382,17 @@ class TradingBotPanel(QWidget):
         self.sell_group = QGroupBox("Sell Conditions")
         sell_layout = QVBoxLayout()
         
-        # Condition builder
-        sell_condition_builder_layout = QHBoxLayout()
-        
-        # Price is fixed to "Current Price"
-        sell_condition_builder_layout.addWidget(QLabel("Price:"))
-        sell_price_label = QLabel("Current Price")
-        sell_price_label.setStyleSheet("font-weight: bold; padding: 5px;")
-        sell_condition_builder_layout.addWidget(sell_price_label)
-        
-        # Operator dropdown
-        self.sell_operator_combo = QComboBox()
-        self.sell_operator_combo.addItem("Greater Than (>)", ">")
-        self.sell_operator_combo.addItem("Less Than (<)", "<")
-        self.sell_operator_combo.addItem("Greater or Equal (>=)", ">=")
-        self.sell_operator_combo.addItem("Less or Equal (<=)", "<=")
-        self.sell_operator_combo.addItem("Equal To (==)", "==")
-        self.sell_operator_combo.addItem("Crosses Above", "Crosses Above")
-        self.sell_operator_combo.addItem("Crosses Under", "Crosses Under")
-        sell_condition_builder_layout.addWidget(QLabel("Operator:"))
-        sell_condition_builder_layout.addWidget(self.sell_operator_combo)
-        
-        # Value dropdown (Previous OHLC options)
-        sell_condition_builder_layout.addWidget(QLabel("Value:"))
-        self.sell_value_combo = QComboBox()
-        self.sell_value_combo.addItem("Previous Open", "open")
-        self.sell_value_combo.addItem("Previous High", "high")
-        self.sell_value_combo.addItem("Previous Low", "low")
-        self.sell_value_combo.addItem("Previous Close", "close")
-        sell_condition_builder_layout.addWidget(self.sell_value_combo)
-        
-        add_sell_btn = QPushButton("Add Sell Condition")
-        add_sell_btn.clicked.connect(self.add_sell_condition)
-        sell_condition_builder_layout.addWidget(add_sell_btn)
-        
-        sell_layout.addLayout(sell_condition_builder_layout)
-        
-        # Sell conditions list
-        self.sell_conditions_list = QListWidget()
-        sell_layout.addWidget(self.sell_conditions_list)
+        sell_buttons = QHBoxLayout()
+        add_sell_btn = QPushButton("Add Sell Condition Row")
+        add_sell_btn.clicked.connect(lambda: self.add_condition_row(False))
+        sell_buttons.addWidget(add_sell_btn)
+        sell_buttons.addStretch()
+        sell_layout.addLayout(sell_buttons)
+
+        self.sell_rows_layout = QVBoxLayout()
+        self.sell_rows_layout.setSpacing(6)
+        sell_layout.addLayout(self.sell_rows_layout)
+        sell_layout.addStretch()
         
         self.sell_group.setLayout(sell_layout)
         layout.addWidget(self.sell_group)
@@ -355,6 +401,33 @@ class TradingBotPanel(QWidget):
         risk_group = QGroupBox("Risk Management")
         risk_layout = QVBoxLayout()
         
+        # Stop Loss / Take Profit
+        sltp_group = QGroupBox("Stop Loss / Take Profit")
+        sltp_layout = QFormLayout()
+
+        self.sl_type_combo = QComboBox()
+        self.sl_type_combo.addItem("Price (Points)", "points")
+        sltp_layout.addRow("SL Type:", self.sl_type_combo)
+
+        self.sl_value_spin = QDoubleSpinBox()
+        self.sl_value_spin.setMinimum(0.0)
+        self.sl_value_spin.setMaximum(100000.0)
+        self.sl_value_spin.setDecimals(2)
+        self.sl_value_spin.setValue(20.0)
+        self.sl_value_spin.setSuffix(" points")
+        sltp_layout.addRow("Stop Loss:", self.sl_value_spin)
+
+        self.tp_value_spin = QDoubleSpinBox()
+        self.tp_value_spin.setMinimum(0.0)
+        self.tp_value_spin.setMaximum(100000.0)
+        self.tp_value_spin.setDecimals(2)
+        self.tp_value_spin.setValue(40.0)
+        self.tp_value_spin.setSuffix(" points")
+        sltp_layout.addRow("Take Profit:", self.tp_value_spin)
+
+        sltp_group.setLayout(sltp_layout)
+        risk_layout.addWidget(sltp_group)
+
         # Trailing Stop-Loss Section
         trailing_sl_group = QGroupBox("Trailing Stop-Loss")
         trailing_sl_layout = QFormLayout()
@@ -525,6 +598,57 @@ class TradingBotPanel(QWidget):
             "Each strategy can have max 1 BUY and 1 SELL position per symbol."
         )
         position_preserve_layout.addRow("", self.preserve_position_check)
+
+        # Re-Entry on Stop Loss
+        self.sl_reentry_enabled = QCheckBox("Enable Re-Entry on SL")
+        position_preserve_layout.addRow(self.sl_reentry_enabled)
+
+        self.sl_reentry_mode_combo = QComboBox()
+        self.sl_reentry_mode_combo.addItem("RE-ASAP", "RE_ASAP")
+        self.sl_reentry_mode_combo.addItem("RE-ASAP Reverse", "RE_ASAP_REVERSE")
+        self.sl_reentry_mode_combo.addItem("RE-COST", "RE_COST")
+        self.sl_reentry_mode_combo.addItem("RE-COST Reverse", "RE_COST_REVERSE")
+        position_preserve_layout.addRow("SL Re-Entry Mode:", self.sl_reentry_mode_combo)
+
+        self.sl_reentry_count_spin = QSpinBox()
+        self.sl_reentry_count_spin.setMinimum(0)
+        self.sl_reentry_count_spin.setMaximum(20)
+        self.sl_reentry_count_spin.setValue(0)
+        position_preserve_layout.addRow("SL Re-Entry Max Count:", self.sl_reentry_count_spin)
+
+        # Re-Entry on Take Profit
+        self.tp_reentry_enabled = QCheckBox("Enable Re-Entry on TP")
+        position_preserve_layout.addRow(self.tp_reentry_enabled)
+
+        self.tp_reentry_mode_combo = QComboBox()
+        self.tp_reentry_mode_combo.addItem("RE-ASAP", "RE_ASAP")
+        self.tp_reentry_mode_combo.addItem("RE-ASAP Reverse", "RE_ASAP_REVERSE")
+        self.tp_reentry_mode_combo.addItem("RE-COST", "RE_COST")
+        self.tp_reentry_mode_combo.addItem("RE-COST Reverse", "RE_COST_REVERSE")
+        position_preserve_layout.addRow("TP Re-Entry Mode:", self.tp_reentry_mode_combo)
+
+        self.tp_reentry_count_spin = QSpinBox()
+        self.tp_reentry_count_spin.setMinimum(0)
+        self.tp_reentry_count_spin.setMaximum(20)
+        self.tp_reentry_count_spin.setValue(0)
+        position_preserve_layout.addRow("TP Re-Entry Max Count:", self.tp_reentry_count_spin)
+
+        # Trading Hours
+        self.time_enabled_check = QCheckBox("Enable time restrictions")
+        self.time_enabled_check.stateChanged.connect(self._on_time_toggle)
+        position_preserve_layout.addRow(self.time_enabled_check)
+
+        self.start_time_edit = QTimeEdit()
+        self.start_time_edit.setDisplayFormat("HH:mm")
+        self.start_time_edit.setTime(QTime(9, 0))
+        self.start_time_edit.setEnabled(False)
+        position_preserve_layout.addRow("Start Time:", self.start_time_edit)
+
+        self.end_time_edit = QTimeEdit()
+        self.end_time_edit.setDisplayFormat("HH:mm")
+        self.end_time_edit.setTime(QTime(17, 0))
+        self.end_time_edit.setEnabled(False)
+        position_preserve_layout.addRow("End Time:", self.end_time_edit)
         
         position_preserve_group.setLayout(position_preserve_layout)
         risk_layout.addWidget(position_preserve_group)
@@ -687,9 +811,9 @@ class TradingBotPanel(QWidget):
         """Update session combo based on strategy type"""
         self.session_combo.clear()
         if self.strategy_type == 'vwap':
-            self.session_combo.addItem("NY Session", "NY")
-            self.session_combo.addItem("London Session", "London")
-            self.session_combo.addItem("Asia Session", "Asia")
+            self.session_combo.addItem("NY Session (18:30–03:30 IST)", "NY")
+            self.session_combo.addItem("London Session (13:30–22:30 IST)", "London")
+            self.session_combo.addItem("Asia Session (05:30–14:30 IST)", "Asia")
             self.session_combo.addItem("All Sessions", "All")
             self.session_combo.setCurrentIndex(0)  # Default to NY
         elif self.strategy_type == 'smc':
@@ -705,10 +829,10 @@ class TradingBotPanel(QWidget):
             self.session_combo.addItem("All Candles", "All")
             self.session_combo.setCurrentIndex(0)
         else:  # ohlc
-            self.session_combo.addItem("Daily", "daily")
-            self.session_combo.addItem("Asian Session", "asian")
-            self.session_combo.addItem("European Session", "european")
-            self.session_combo.addItem("US Session", "us")
+            self.session_combo.addItem("Daily (24h Mon–Fri)", "daily")
+            self.session_combo.addItem("Asian Session (05:30–14:30 IST)", "asian")
+            self.session_combo.addItem("European Session (13:30–22:30 IST)", "european")
+            self.session_combo.addItem("US Session (18:30–03:30 IST)", "us")
             self.session_combo.setCurrentIndex(0)  # Default to Daily
     
     def _on_strategy_type_changed(self, index: int):
@@ -731,9 +855,9 @@ class TradingBotPanel(QWidget):
         self.smc_status_label.setVisible(is_smc)
         self.ohlc_label.setVisible((not is_vwap) and (not is_smc) and (not is_ema) and (not is_supertrend))
 
-        # Hide manual condition builders for SMC/SuperTrend (they emit signals directly)
-        self.buy_group.setVisible((not is_smc) and (not is_supertrend))
-        self.sell_group.setVisible((not is_smc) and (not is_supertrend))
+        # Hide manual condition builders for SuperTrend (SMC now can use filters)
+        self.buy_group.setVisible((not is_supertrend))
+        self.sell_group.setVisible((not is_supertrend))
         
         # Update value combo boxes for VWAP
         self._update_value_combos()
@@ -743,158 +867,119 @@ class TradingBotPanel(QWidget):
             self.clear_form()
     
     def _update_value_combos(self):
-        """Update value combo boxes based on strategy type"""
-        # Update buy value combo
-        self.buy_value_combo.clear()
+        """Update operand/operator options based on strategy type for all rows."""
+        operands = self._get_operand_options()
+        operators = [
+            ("Greater_Than", ">"),
+            ("Lower_Than", "<"),
+            ("Equals", "=="),
+            ("Crossover", "Crosses Above"),
+            ("Crossunder", "Crosses Under"),
+            ("Any_Cross", "Any_Cross"),
+        ]
+
+        # VWAP specific extra operators
         if self.strategy_type == 'vwap':
-            self.buy_value_combo.addItem("VWAP", "vwap")
-            self.buy_value_combo.addItem("Upper Band (1 STD)", "upper_band_1")
-            self.buy_value_combo.addItem("Upper Band (1.5 STD)", "upper_band_1.5")
-            self.buy_value_combo.addItem("Upper Band (2 STD)", "upper_band_2")
-            self.buy_value_combo.addItem("Lower Band (1 STD)", "lower_band_1")
-            self.buy_value_combo.addItem("Lower Band (1.5 STD)", "lower_band_1.5")
-            self.buy_value_combo.addItem("Lower Band (2 STD)", "lower_band_2")
-        elif self.strategy_type == 'ema':
+            operators.extend([
+                ("Within_Band", "Within Band"),
+                ("Outside_Band", "Outside Band"),
+            ])
+
+        for row in self.buy_rows + self.sell_rows:
+            row.set_options(operands, operators)
+
+    def _get_operand_options(self):
+        """Operand options depending on strategy type."""
+        base = [
+            ("Current Price", "price"),
+            ("Open", "open"),
+            ("High", "high"),
+            ("Low", "low"),
+            ("Close", "close"),
+            ("(H + L)/2", "hl2"),
+            ("(H + L + C)/3", "hlc3"),
+            ("(O + H + L + C)/4", "ohlc4"),
+        ]
+        if self.strategy_type == 'ema':
             p1 = int(self.ema_20_spin.value())
             p2 = int(self.ema_50_spin.value())
             p3 = int(self.ema_100_spin.value())
             p4 = int(self.ema_200_spin.value())
-            self.buy_value_combo.addItem(f"EMA ({p1})", "ema_1")
-            self.buy_value_combo.addItem(f"EMA ({p2})", "ema_2")
-            self.buy_value_combo.addItem(f"EMA ({p3})", "ema_3")
-            self.buy_value_combo.addItem(f"EMA ({p4})", "ema_4")
-        else:  # ohlc / smc (SMC hides these groups anyway)
-            self.buy_value_combo.addItem("Previous Open", "open")
-            self.buy_value_combo.addItem("Previous High", "high")
-            self.buy_value_combo.addItem("Previous Low", "low")
-            self.buy_value_combo.addItem("Previous Close", "close")
-        
-        # Update sell value combo
-        self.sell_value_combo.clear()
+            base.extend([
+                (f"EMA ({p1})", "ema_1"),
+                (f"EMA ({p2})", "ema_2"),
+                (f"EMA ({p3})", "ema_3"),
+                (f"EMA ({p4})", "ema_4"),
+            ])
         if self.strategy_type == 'vwap':
-            self.sell_value_combo.addItem("VWAP", "vwap")
-            self.sell_value_combo.addItem("Upper Band (1 STD)", "upper_band_1")
-            self.sell_value_combo.addItem("Upper Band (1.5 STD)", "upper_band_1.5")
-            self.sell_value_combo.addItem("Upper Band (2 STD)", "upper_band_2")
-            self.sell_value_combo.addItem("Lower Band (1 STD)", "lower_band_1")
-            self.sell_value_combo.addItem("Lower Band (1.5 STD)", "lower_band_1.5")
-            self.sell_value_combo.addItem("Lower Band (2 STD)", "lower_band_2")
-        elif self.strategy_type == 'ema':
-            p1 = int(self.ema_20_spin.value())
-            p2 = int(self.ema_50_spin.value())
-            p3 = int(self.ema_100_spin.value())
-            p4 = int(self.ema_200_spin.value())
-            self.sell_value_combo.addItem(f"EMA ({p1})", "ema_1")
-            self.sell_value_combo.addItem(f"EMA ({p2})", "ema_2")
-            self.sell_value_combo.addItem(f"EMA ({p3})", "ema_3")
-            self.sell_value_combo.addItem(f"EMA ({p4})", "ema_4")
-        else:  # ohlc / smc (SMC hides these groups anyway)
-            self.sell_value_combo.addItem("Previous Open", "open")
-            self.sell_value_combo.addItem("Previous High", "high")
-            self.sell_value_combo.addItem("Previous Low", "low")
-            self.sell_value_combo.addItem("Previous Close", "close")
-        
-        # Update operators for VWAP (add "Within Band" and "Outside Band")
-        if self.strategy_type == 'vwap':
-            # Check if operators already include these
-            buy_ops = [self.buy_operator_combo.itemText(i) for i in range(self.buy_operator_combo.count())]
-            if "Within Band" not in buy_ops:
-                self.buy_operator_combo.addItem("Within Band", "Within Band")
-                self.buy_operator_combo.addItem("Outside Band", "Outside Band")
-                self.sell_operator_combo.addItem("Within Band", "Within Band")
-                self.sell_operator_combo.addItem("Outside Band", "Outside Band")
+            base.extend([
+                ("VWAP", "vwap"),
+                ("Upper Band (1 STD)", "upper_band_1"),
+                ("Upper Band (1.5 STD)", "upper_band_1.5"),
+                ("Upper Band (2 STD)", "upper_band_2"),
+                ("Lower Band (1 STD)", "lower_band_1"),
+                ("Lower Band (1.5 STD)", "lower_band_1.5"),
+                ("Lower Band (2 STD)", "lower_band_2"),
+            ])
+        return base
+
+    def _reset_condition_rows(self):
+        """Clear all condition rows."""
+        for layout in [self.buy_rows_layout, self.sell_rows_layout]:
+            while layout.count():
+                item = layout.takeAt(0)
+                widget = item.widget()
+                if widget:
+                    widget.setParent(None)
+        self.buy_rows = []
+        self.sell_rows = []
+
+    def add_condition_row(self, is_buy: bool, preset: Dict = None):
+        """Add a condition row to buy or sell list."""
+        row = TradingBotPanel.ConditionRow(self, is_buy)
+        if is_buy:
+            self.buy_rows.append(row)
+            self.buy_rows_layout.addWidget(row)
         else:
-            # Remove VWAP-specific operators if present
-            for i in range(self.buy_operator_combo.count() - 1, -1, -1):
-                if self.buy_operator_combo.itemText(i) in ["Within Band", "Outside Band"]:
-                    self.buy_operator_combo.removeItem(i)
-            for i in range(self.sell_operator_combo.count() - 1, -1, -1):
-                if self.sell_operator_combo.itemText(i) in ["Within Band", "Outside Band"]:
-                    self.sell_operator_combo.removeItem(i)
-    
-    def add_buy_condition(self):
-        """Add a buy condition"""
-        if self.strategy_type == 'smc':
-            QMessageBox.information(self, "SMC", "SMC bots do not use manual Buy conditions. Configure SMC settings instead.")
-            return
-        operator = self.buy_operator_combo.currentData()
-        value_field = self.buy_value_combo.currentData()
-        value_text = self.buy_value_combo.currentText()
-        
-        if self.strategy_type == 'vwap':
-            condition_text = f"Current Price {operator} {value_text}"
-            item = QListWidgetItem(condition_text)
-            item.setData(Qt.ItemDataRole.UserRole, {
-                'price_reference': 'Current Price',
-                'operator': operator,
-                'vwap_field': value_field,
-                'value': None
-            })
-        elif self.strategy_type == 'ema':
-            condition_text = f"Current Price {operator} {value_text}"
-            item = QListWidgetItem(condition_text)
-            item.setData(Qt.ItemDataRole.UserRole, {
-                'price_reference': 'Current Price',
-                'operator': operator,
-                'ema_field': value_field,
-                'value': None
-            })
-        else:  # ohlc
-            condition_text = f"Current Price {operator} {value_text}"
-            item = QListWidgetItem(condition_text)
-            item.setData(Qt.ItemDataRole.UserRole, {
-                'price_reference': 'Current Price',
-                'operator': operator,
-                'ohlc_field': value_field,
-                'value': None
-            })
-        self.buy_conditions_list.addItem(item)
-    
-    def add_sell_condition(self):
-        """Add a sell condition"""
-        if self.strategy_type == 'smc':
-            QMessageBox.information(self, "SMC", "SMC bots do not use manual Sell conditions. Configure SMC settings instead.")
-            return
-        operator = self.sell_operator_combo.currentData()
-        value_field = self.sell_value_combo.currentData()
-        value_text = self.sell_value_combo.currentText()
-        
-        if self.strategy_type == 'vwap':
-            condition_text = f"Current Price {operator} {value_text}"
-            item = QListWidgetItem(condition_text)
-            item.setData(Qt.ItemDataRole.UserRole, {
-                'price_reference': 'Current Price',
-                'operator': operator,
-                'vwap_field': value_field,
-                'value': None
-            })
-        elif self.strategy_type == 'ema':
-            condition_text = f"Current Price {operator} {value_text}"
-            item = QListWidgetItem(condition_text)
-            item.setData(Qt.ItemDataRole.UserRole, {
-                'price_reference': 'Current Price',
-                'operator': operator,
-                'ema_field': value_field,
-                'value': None
-            })
-        else:  # ohlc
-            condition_text = f"Current Price {operator} {value_text}"
-            item = QListWidgetItem(condition_text)
-            item.setData(Qt.ItemDataRole.UserRole, {
-                'price_reference': 'Current Price',
-                'operator': operator,
-                'ohlc_field': value_field,
-                'value': None
-            })
-        self.sell_conditions_list.addItem(item)
+            self.sell_rows.append(row)
+            self.sell_rows_layout.addWidget(row)
+        row.set_options(self._get_operand_options(), [
+            ("Greater_Than", ">"),
+            ("Lower_Than", "<"),
+            ("Equals", "=="),
+            ("Crossover", "Crosses Above"),
+            ("Crossunder", "Crosses Under"),
+            ("Any_Cross", "Any_Cross"),
+            ("Within_Band", "Within Band"),
+            ("Outside_Band", "Outside Band"),
+        ] if self.strategy_type == 'vwap' else [
+            ("Greater_Than", ">"),
+            ("Lower_Than", "<"),
+            ("Equals", "=="),
+            ("Crossover", "Crosses Above"),
+            ("Crossunder", "Crosses Under"),
+            ("Any_Cross", "Any_Cross"),
+        ])
+        if preset:
+            row.set_data(preset)
+
+    def _ensure_minimum_rows(self):
+        """Ensure at least one row exists for buy/sell sections."""
+        if len(self.buy_rows) == 0:
+            self.add_condition_row(True)
+        if len(self.sell_rows) == 0:
+            self.add_condition_row(False)
     
     def clear_form(self):
         """Clear the form"""
         self.name_input.clear()
-        self.buy_conditions_list.clear()
-        self.sell_conditions_list.clear()
+        self._reset_condition_rows()
+        self._ensure_minimum_rows()
         self.editing_bot_name = None
         self.current_bot = None
+
+        # Reset direction
+        self.direction_combo.setCurrentIndex(self.direction_combo.findData("both"))
         
         # Reset risk management fields
         self.enable_trailing_sl_check.setCurrentIndex(0)  # Disabled
@@ -921,6 +1006,25 @@ class TradingBotPanel(QWidget):
         if hasattr(self, 'wt_is_percentage_check'):
             self.wt_is_percentage_check.setChecked(False)
             self.wt_is_percentage_check.setEnabled(False)
+
+        # Reset SL/TP
+        self.sl_type_combo.setCurrentIndex(0)
+        self.sl_value_spin.setValue(20.0)
+        self.tp_value_spin.setValue(40.0)
+
+        # Reset re-entry and time controls
+        self.sl_reentry_enabled.setChecked(False)
+        self.sl_reentry_mode_combo.setCurrentIndex(0)
+        self.sl_reentry_count_spin.setValue(0)
+
+        self.tp_reentry_enabled.setChecked(False)
+        self.tp_reentry_mode_combo.setCurrentIndex(0)
+        self.tp_reentry_count_spin.setValue(0)
+
+        self.time_enabled_check.setChecked(False)
+        self.start_time_edit.setTime(QTime(9, 0))
+        self.end_time_edit.setTime(QTime(17, 0))
+        self._on_time_toggle(0)
         
         self.update_status()
     
@@ -947,6 +1051,18 @@ class TradingBotPanel(QWidget):
         """Update suffix when switching between points and percent mode."""
         is_pct = self.wt_is_percentage_check.isChecked()
         self.wt_value_spin.setSuffix(" %" if is_pct else " points")
+
+    def _on_direction_changed(self, index: int):
+        """Show/hide buy/sell blocks based on direction selection."""
+        direction = self.direction_combo.currentData()
+        self.buy_group.setVisible(direction in ("both", "long"))
+        self.sell_group.setVisible(direction in ("both", "short"))
+
+    def _on_time_toggle(self, state: int):
+        """Enable/disable time range edits based on toggle."""
+        enabled = self.time_enabled_check.isChecked()
+        self.start_time_edit.setEnabled(enabled)
+        self.end_time_edit.setEnabled(enabled)
     
     def save_bot(self):
         """Save the trading bot"""
@@ -966,10 +1082,22 @@ class TradingBotPanel(QWidget):
         
         # Validate conditions (SMC doesn't use manual condition lists)
         strategy_type = self.strategy_type_combo.currentData()
-        if strategy_type not in ('smc', 'supertrend'):
-            if self.buy_conditions_list.count() == 0 and self.sell_conditions_list.count() == 0:
-                QMessageBox.warning(self, "Validation Error", "Please add at least one buy or sell condition")
-                return
+        direction = self.direction_combo.currentData()
+        if strategy_type not in ('supertrend'):
+            active_buy = [r for r in self.buy_rows if r.get_data().get("enabled")]
+            active_sell = [r for r in self.sell_rows if r.get_data().get("enabled")]
+            if direction in ("both", None):
+                if len(active_buy) == 0 and len(active_sell) == 0 and strategy_type != 'smc':
+                    QMessageBox.warning(self, "Validation Error", "Please add at least one buy or sell condition")
+                    return
+            elif direction == "long":
+                if len(active_buy) == 0:
+                    QMessageBox.warning(self, "Validation Error", "Please add at least one buy condition for Long-only direction")
+                    return
+            elif direction == "short":
+                if len(active_sell) == 0:
+                    QMessageBox.warning(self, "Validation Error", "Please add at least one sell condition for Short-only direction")
+                    return
         
         # Get timeframe and session type
         timeframe = self.timeframe_combo.currentData()
@@ -1028,7 +1156,7 @@ class TradingBotPanel(QWidget):
                     use_wilder_atr=bool(self.supertrend_atr_method_combo.currentData()),
                 )
                 bot.set_mt5_connector(self.mt5)
-            else:  # ohlc
+            else:  # ohlc or smc (smc handled above but keep fallback)
                 bot = OHLCPriceStrategy(name, symbol, session_type, timeframe)
                 bot.set_market_data_panel(self.market_data_panel)
         
@@ -1038,63 +1166,88 @@ class TradingBotPanel(QWidget):
         if hasattr(bot, 'sell_conditions'):
             bot.sell_conditions.clear()
         
-        # Add buy/sell conditions (only for VWAP / OHLC)
+        # Add buy/sell conditions (only for VWAP / OHLC / EMA). For SMC we store filters below.
+        smc_filters = {"buy": [], "sell": []}
         if strategy_type not in ('smc', 'supertrend'):
-            # Add buy conditions
-            for i in range(self.buy_conditions_list.count()):
-                item = self.buy_conditions_list.item(i)
-                cond_data = item.data(Qt.ItemDataRole.UserRole)
-                
-                if strategy_type == 'vwap':
-                    condition = VWAPCondition(
-                        price_reference=cond_data['price_reference'],
-                        operator=cond_data['operator'],
-                        vwap_field=cond_data.get('vwap_field'),
-                        value=cond_data.get('value')
-                    )
-                elif strategy_type == 'ema':
-                    condition = EMACondition(
-                        price_reference=cond_data['price_reference'],
-                        operator=cond_data['operator'],
-                        ema_field=cond_data.get('ema_field'),
-                        value=cond_data.get('value')
-                    )
-                else:  # ohlc
-                    condition = OHLCPriceCondition(
-                        price_reference=cond_data['price_reference'],
-                        operator=cond_data['operator'],
-                        ohlc_field=cond_data.get('ohlc_field'),
-                        value=cond_data.get('value')
-                    )
-                bot.add_buy_condition(condition)
-            
-            # Add sell conditions
-            for i in range(self.sell_conditions_list.count()):
-                item = self.sell_conditions_list.item(i)
-                cond_data = item.data(Qt.ItemDataRole.UserRole)
-                
-                if strategy_type == 'vwap':
-                    condition = VWAPCondition(
-                        price_reference=cond_data['price_reference'],
-                        operator=cond_data['operator'],
-                        vwap_field=cond_data.get('vwap_field'),
-                        value=cond_data.get('value')
-                    )
-                elif strategy_type == 'ema':
-                    condition = EMACondition(
-                        price_reference=cond_data['price_reference'],
-                        operator=cond_data['operator'],
-                        ema_field=cond_data.get('ema_field'),
-                        value=cond_data.get('value')
-                    )
-                else:  # ohlc
-                    condition = OHLCPriceCondition(
-                        price_reference=cond_data['price_reference'],
-                        operator=cond_data['operator'],
-                        ohlc_field=cond_data.get('ohlc_field'),
-                        value=cond_data.get('value')
-                    )
-                bot.add_sell_condition(condition)
+            def _add_conditions(rows, add_func):
+                added = 0
+                for idx, row in enumerate(rows):
+                    data = row.get_data()
+                    if not data.get("enabled"):
+                        continue
+                    connector = data.get("connector", "AND")
+                    left_field = data.get("left_field")
+                    right_field = data.get("right_field")
+                    operator = data.get("operator")
+                    if not left_field or not right_field or not operator:
+                        logger.warning(f"Skipping incomplete condition at row {idx+1}")
+                        continue
+                    if strategy_type == 'vwap':
+                        condition = VWAPCondition(
+                                price_reference='Current Price',
+                                operator=operator,
+                                vwap_field=right_field,
+                                value=None,
+                                left_field=left_field,
+                                right_field=right_field,
+                                connector=connector
+                        )
+                    elif strategy_type == 'ema':
+                        condition = EMACondition(
+                                price_reference='Current Price',
+                                operator=operator,
+                                ema_field=right_field if right_field.startswith("ema_") else None,
+                                value=None,
+                                left_field=left_field,
+                                right_field=right_field,
+                                connector=connector
+                        )
+                    else:  # ohlc
+                        condition = OHLCPriceCondition(
+                                price_reference='Current Price',
+                                operator=operator,
+                                ohlc_field=right_field if right_field in ['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4'] else None,
+                                value=None,
+                                left_field=left_field,
+                                right_field=right_field,
+                                connector=connector
+                            )
+                    add_func(condition)
+                    added += 1
+                return added
+
+            added_buy = _add_conditions(self.buy_rows, bot.add_buy_condition)
+            added_sell = _add_conditions(self.sell_rows, bot.add_sell_condition)
+            if direction in ("both", None):
+                if added_buy == 0 and added_sell == 0:
+                    QMessageBox.warning(self, "Validation Error", "No valid conditions added. Please complete the fields.")
+                    return
+            elif direction == "long":
+                if added_buy == 0:
+                    QMessageBox.warning(self, "Validation Error", "No valid buy conditions added for Long-only direction.")
+                    return
+            elif direction == "short":
+                if added_sell == 0:
+                    QMessageBox.warning(self, "Validation Error", "No valid sell conditions added for Short-only direction.")
+                    return
+        else:
+            # Collect SMC filter conditions for post-filtering
+            def _collect(rows, target_key):
+                for row in rows:
+                    data = row.get_data()
+                    if not data.get("enabled"):
+                        continue
+                    if not data.get("left_field") or not data.get("right_field") or not data.get("operator"):
+                        continue
+                    smc_filters[target_key].append({
+                        "left_field": data.get("left_field"),
+                        "right_field": data.get("right_field"),
+                        "operator": data.get("operator"),
+                        "connector": data.get("connector", "AND"),
+                    })
+
+            _collect(self.buy_rows, "buy")
+            _collect(self.sell_rows, "sell")
         
         # Set risk management configuration
         bot.enable_trailing_sl = self.enable_trailing_sl_check.currentData()
@@ -1113,6 +1266,33 @@ class TradingBotPanel(QWidget):
         
         # Set position preservation
         bot.preserve_position = self.preserve_position_check.isChecked()
+
+        # Strategy direction
+        bot.trade_direction = direction or "both"
+
+        # SL/TP configuration (points)
+        bot.sl_type = "Price (Points)"
+        bot.sl_value = self.sl_value_spin.value()
+        bot.use_ratio = False
+        bot.tp_value = self.tp_value_spin.value()
+
+        # Re-Entry configuration
+        bot.reentry_on_sl_enabled = self.sl_reentry_enabled.isChecked()
+        bot.reentry_on_sl_mode = self.sl_reentry_mode_combo.currentData() if bot.reentry_on_sl_enabled else None
+        bot.reentry_on_sl_count = self.sl_reentry_count_spin.value() if bot.reentry_on_sl_enabled else 0
+        bot.reentry_on_sl_used = 0
+
+        bot.reentry_on_tp_enabled = self.tp_reentry_enabled.isChecked()
+        bot.reentry_on_tp_mode = self.tp_reentry_mode_combo.currentData() if bot.reentry_on_tp_enabled else None
+        bot.reentry_on_tp_count = self.tp_reentry_count_spin.value() if bot.reentry_on_tp_enabled else 0
+        bot.reentry_on_tp_used = 0
+
+        # Trading hours
+        bot.time_rules = []
+        if self.time_enabled_check.isChecked():
+            start_time = self.start_time_edit.time().toPyTime()
+            end_time = self.end_time_edit.time().toPyTime()
+            bot.add_time_rule(start_time, end_time)
         
         # Ensure symbol is in data feed
         if symbol not in self.data_feed.symbols:
@@ -1169,6 +1349,10 @@ class TradingBotPanel(QWidget):
                     strategy=name,
                 )
                 QMessageBox.warning(self, "Error", f"Bot '{name}' already exists")
+        
+        # Attach SMC filters if applicable
+        if strategy_type == 'smc' and hasattr(bot, "set_filters"):
+            bot.set_filters(smc_filters.get("buy", []), smc_filters.get("sell", []))
         
         self.current_bot = bot
         self.update_status()

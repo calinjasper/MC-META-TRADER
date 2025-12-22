@@ -283,3 +283,54 @@ class TradeBookPanel(QWidget):
             logger.error(f"Error exporting trade book: {e}", exc_info=True)
             QMessageBox.critical(self, "Error", f"Failed to export CSV:\n{str(e)}")
 
+    def export_to_csv_path(self, file_path: Path) -> int:
+        """
+        Export trade book to a CSV file path (used for auto-save on exit).
+        
+        Args:
+            file_path: Destination CSV path.
+        
+        Returns:
+            Number of rows written.
+        """
+        trades = []
+        try:
+            trades = self.order_manager.trade_history.get_all_trades() if hasattr(self.order_manager, "trade_history") else []
+        except Exception as e:
+            logger.error(f"Error retrieving trades for export: {e}", exc_info=True)
+
+        file_path = Path(file_path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(file_path, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "Strategy Name", "Entry Date", "Entry Time", "Entry Price",
+                "Entry Condition", "Exit Time", "Exit Price", "Exit Reason", "Symbol"
+            ])
+
+            for trade in trades:
+                entry_time = trade.get('entry_time')
+                if isinstance(entry_time, (int, float)):
+                    entry_time = datetime.fromtimestamp(entry_time)
+                entry_date_str = entry_time.strftime('%Y-%m-%d') if isinstance(entry_time, datetime) else "--"
+                entry_time_str = entry_time.strftime('%H:%M:%S') if isinstance(entry_time, datetime) else "--"
+
+                exit_time = trade.get('exit_time')
+                if isinstance(exit_time, (int, float)):
+                    exit_time = datetime.fromtimestamp(exit_time)
+                exit_time_str = exit_time.strftime('%H:%M:%S') if isinstance(exit_time, datetime) else "--"
+
+                writer.writerow([
+                    trade.get('strategy_name', '--'),
+                    entry_date_str,
+                    entry_time_str,
+                    f"{trade.get('entry_price', 0.0):.5f}" if trade.get('entry_price', 0.0) else "--",
+                    trade.get('entry_condition', '--'),
+                    exit_time_str,
+                    f"{trade.get('exit_price', 0.0):.5f}" if trade.get('exit_price', 0.0) else "--",
+                    trade.get('exit_reason') or trade.get('exit_condition', '--') or "Manual",
+                    trade.get('symbol', '--')
+                ])
+        return len(trades)
+

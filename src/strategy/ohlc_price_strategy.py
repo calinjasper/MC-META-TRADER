@@ -15,31 +15,65 @@ logger = logging.getLogger(__name__)
 class OHLCPriceCondition:
     """Represents a single price condition"""
     
-    def __init__(self, price_reference: str, operator: str, ohlc_field: str = None, value: float = None):
+    def __init__(
+        self,
+        price_reference: str,
+        operator: str,
+        ohlc_field: str = None,
+        value: float = None,
+        left_field: str = None,
+        right_field: str = None,
+        connector: str = "OR",
+    ):
         """
         Initialize a price condition
         
         Args:
             price_reference: "Current Price" or "Previous OHLC"
             operator: ">", "<", ">=", "<=", "==", "Crosses Above", "Crosses Under"
-            ohlc_field: "open", "high", "low", "close" (required if price_reference is "Previous OHLC")
+            ohlc_field: "open", "high", "low", "close" (legacy field)
             value: Comparison value (optional, used for direct comparisons)
+            left_field/right_field: operands selected in the UI
+            connector: logical connector to next condition ("AND" | "OR")
         """
         self.price_reference = price_reference
         self.operator = operator
         self.ohlc_field = ohlc_field
         self.value = value
+        self.left_field = left_field or "price"
+        self.right_field = right_field or ohlc_field
+        self.connector = connector or "OR"
         self.previous_state = None  # For cross detection: True if was above, False if was below
     
-    def get_threshold(self, ohlc_data: Dict) -> Optional[float]:
-        """Get the threshold value for comparison"""
-        # If ohlc_field is set, use OHLC value (regardless of price_reference)
-        if self.ohlc_field:
-            return ohlc_data.get(self.ohlc_field)
-        # Otherwise, use the direct value (for Current Price comparisons with specific values)
-        elif self.value is not None:
-            return self.value
-        return None
+    def _resolve_operand(self, field: str, current_price: float, ohlc_data: Dict) -> Optional[float]:
+        if field == "price":
+            return current_price
+        if not ohlc_data:
+            return None
+        if field == "open":
+            return ohlc_data.get('open')
+        if field == "high":
+            return ohlc_data.get('high')
+        if field == "low":
+            return ohlc_data.get('low')
+        if field == "close":
+            return ohlc_data.get('close')
+        if field == "hl2":
+            h = ohlc_data.get('high')
+            l = ohlc_data.get('low')
+            return (h + l) / 2.0 if h is not None and l is not None else None
+        if field == "hlc3":
+            h = ohlc_data.get('high')
+            l = ohlc_data.get('low')
+            c = ohlc_data.get('close')
+            return (h + l + c) / 3.0 if None not in (h, l, c) else None
+        if field == "ohlc4":
+            o = ohlc_data.get('open')
+            h = ohlc_data.get('high')
+            l = ohlc_data.get('low')
+            c = ohlc_data.get('close')
+            return (o + h + l + c) / 4.0 if None not in (o, h, l, c) else None
+        return self.value
     
     def evaluate(self, current_price: float, ohlc_data: Dict, previous_price: Optional[float] = None) -> bool:
         """
@@ -49,54 +83,55 @@ class OHLCPriceCondition:
             current_price: Current market price
             ohlc_data: Dictionary with 'open', 'high', 'low', 'close' keys
             previous_price: Previous price for cross detection
-            
-        Returns:
-            True if condition is met
         """
-        threshold = self.get_threshold(ohlc_data)
-        if threshold is None:
+        left_val = self._resolve_operand(self.left_field, current_price, ohlc_data)
+        right_val = self._resolve_operand(self.right_field, current_price, ohlc_data)
+        if left_val is None or right_val is None:
             return False
         
         # Handle cross detection operators
         if self.operator == "Crosses Above":
             if previous_price is not None:
-                # Check if price crossed from below to above
-                was_below = previous_price < threshold
-                is_above = current_price >= threshold
+                was_below = previous_price < right_val
+                is_above = left_val >= right_val
                 if was_below and is_above:
-                    # Reset state to prevent re-triggering
                     self.previous_state = True
                     return True
-            # Update state
-            self.previous_state = current_price >= threshold
+            self.previous_state = left_val >= right_val
             return False
         
-        elif self.operator == "Crosses Under":
+        if self.operator == "Crosses Under":
             if previous_price is not None:
-                # Check if price crossed from above to below
-                was_above = previous_price > threshold
-                is_below = current_price <= threshold
+                was_above = previous_price > right_val
+                is_below = left_val <= right_val
                 if was_above and is_below:
-                    # Reset state to prevent re-triggering
                     self.previous_state = False
                     return True
-            # Update state
-            self.previous_state = current_price > threshold
+            self.previous_state = left_val > right_val
+            return False
+
+        if self.operator == "Any_Cross":
+            if previous_price is not None:
+                crossed_up = previous_price < right_val <= left_val
+                crossed_down = previous_price > right_val >= left_val
+                if crossed_up or crossed_down:
+                    self.previous_state = left_val >= right_val
+                    return True
+            self.previous_state = left_val >= right_val
             return False
         
         # Handle simple comparison operators
-        elif self.operator == ">":
-            return current_price > threshold
-        elif self.operator == "<":
-            return current_price < threshold
-        elif self.operator == ">=":
-            return current_price >= threshold
-        elif self.operator == "<=":
-            return current_price <= threshold
-        elif self.operator == "==":
-            # Use epsilon for float comparison
+        if self.operator == ">":
+            return left_val > right_val
+        if self.operator == "<":
+            return left_val < right_val
+        if self.operator == ">=":
+            return left_val >= right_val
+        if self.operator == "<=":
+            return left_val <= right_val
+        if self.operator == "==":
             epsilon = 0.00001
-            return abs(current_price - threshold) < epsilon
+            return abs(left_val - right_val) < epsilon
         
         return False
     
@@ -106,7 +141,10 @@ class OHLCPriceCondition:
             'price_reference': self.price_reference,
             'operator': self.operator,
             'ohlc_field': self.ohlc_field,
-            'value': self.value
+            'value': self.value,
+            'left_field': self.left_field,
+            'right_field': self.right_field,
+            'connector': self.connector
         }
     
     @classmethod
@@ -116,7 +154,10 @@ class OHLCPriceCondition:
             price_reference=data.get('price_reference', 'Current Price'),
             operator=data.get('operator', '>'),
             ohlc_field=data.get('ohlc_field'),
-            value=data.get('value')
+            value=data.get('value'),
+            left_field=data.get('left_field'),
+            right_field=data.get('right_field'),
+            connector=data.get('connector', data.get('logical_connector', 'OR'))
         )
 
 
@@ -206,6 +247,25 @@ class OHLCPriceStrategy(BaseStrategy):
             logger.warning(f"Strategy {self.name}: No OHLC data available for {self.symbol}. Available symbols: {list(self.market_data_panel.ohlc_data.keys())}")
         
         return ohlc
+
+    def _evaluate_condition_chain(self, conditions: List[OHLCPriceCondition], current_price: float, ohlc_data: Dict) -> bool:
+        """Evaluate conditions honoring AND/OR connectors."""
+        if not conditions:
+            return False
+        cumulative = None
+        prev_connector = None
+        for cond in conditions:
+            result = cond.evaluate(current_price, ohlc_data, self.previous_price)
+            if cumulative is None:
+                cumulative = result
+            else:
+                connector = prev_connector or "OR"
+                if connector == "AND":
+                    cumulative = cumulative and result
+                else:
+                    cumulative = cumulative or result
+            prev_connector = cond.connector or "OR"
+        return bool(cumulative)
     
     def generate_signal(self, market_data: Dict) -> Optional[str]:
         """
@@ -250,29 +310,23 @@ class OHLCPriceStrategy(BaseStrategy):
         
         # Check buy conditions first (OR logic - any condition triggers)
         # NOTE: BUY takes priority over SELL if both conditions are met
-        for i, condition in enumerate(self.buy_conditions):
-            try:
-                threshold = condition.get_threshold(ohlc_data)
-                
-                if condition.evaluate(current_price, ohlc_data, self.previous_price):
-                    logger.info(f"Strategy {self.name}: ✅ Buy condition {i+1} MET! Current Price={current_price:.5f} {condition.operator} Threshold={threshold:.5f} (OHLC Field: {condition.ohlc_field})")
-                    self.previous_price = current_price
-                    return 'BUY'
-            except Exception as e:
-                logger.error(f"Error evaluating buy condition {i+1} in {self.name}: {e}", exc_info=True)
+        try:
+            if self._evaluate_condition_chain(self.buy_conditions, current_price, ohlc_data):
+                logger.info(f"Strategy {self.name}: ✅ Buy conditions met")
+                self.previous_price = current_price
+                return 'BUY'
+        except Exception as e:
+            logger.error(f"Error evaluating buy conditions in {self.name}: {e}", exc_info=True)
         
         # Check sell conditions second (OR logic - any condition triggers)
         # NOTE: SELL is only returned if no BUY condition was met
-        for i, condition in enumerate(self.sell_conditions):
-            try:
-                threshold = condition.get_threshold(ohlc_data)
-                
-                if condition.evaluate(current_price, ohlc_data, self.previous_price):
-                    logger.info(f"Strategy {self.name}: ✅ Sell condition {i+1} MET! Current Price={current_price:.5f} {condition.operator} Threshold={threshold:.5f} (OHLC Field: {condition.ohlc_field})")
-                    self.previous_price = current_price
-                    return 'SELL'
-            except Exception as e:
-                logger.error(f"Error evaluating sell condition {i+1} in {self.name}: {e}", exc_info=True)
+        try:
+            if self._evaluate_condition_chain(self.sell_conditions, current_price, ohlc_data):
+                logger.info(f"Strategy {self.name}: ✅ Sell conditions met")
+                self.previous_price = current_price
+                return 'SELL'
+        except Exception as e:
+            logger.error(f"Error evaluating sell conditions in {self.name}: {e}", exc_info=True)
         
         # Update previous price for next cross detection
         self.previous_price = current_price
