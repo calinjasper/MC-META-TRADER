@@ -18,8 +18,11 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem,
     QHeaderView,
     QMessageBox,
+    QFileDialog,
 )
 from PyQt6.QtGui import QColor
+import csv
+from datetime import datetime
 
 from .system_log_service import system_log_service, SystemLogEntry
 
@@ -63,6 +66,10 @@ class SystemLogsPanel(QWidget):
         clear_btn = QPushButton("Clear")
         clear_btn.clicked.connect(self._clear_logs)
         header_layout.addWidget(clear_btn)
+
+        export_btn = QPushButton("Export CSV")
+        export_btn.clicked.connect(self._export_csv)
+        header_layout.addWidget(export_btn)
 
         layout.addLayout(header_layout)
 
@@ -133,6 +140,37 @@ class SystemLogsPanel(QWidget):
 
         if auto_scroll and len(filtered) > 0:
             self.table.scrollToBottom()
+
+    def _export_csv(self):
+        filtered = [e for e in self._rows if self._matches(e)]
+        if not filtered:
+            QMessageBox.information(self, "Export CSV", "No logs to export (current filter is empty).")
+            return
+
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_name = f"system_logs_{ts}.csv"
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export System Logs to CSV",
+            default_name,
+            "CSV Files (*.csv)",
+        )
+        if not file_path:
+            return
+
+        headers = ["Timestamp", "Type", "User", "Strategy", "Portfolio", "Message"]
+        try:
+            # Use utf-8-sig to make Excel happy on Windows (adds BOM)
+            with open(file_path, "w", newline="", encoding="utf-8-sig") as f:
+                w = csv.writer(f)
+                w.writerow(headers)
+                for e in filtered:
+                    w.writerow([e.timestamp, e.log_type, e.user, e.strategy, e.portfolio, e.message])
+
+            QMessageBox.information(self, "Export CSV", f"Exported {len(filtered)} log rows.")
+        except Exception as ex:
+            QMessageBox.warning(self, "Export CSV", f"Failed to export CSV: {ex}")
 
     def _set_item(self, row: int, col: int, text: str, entry: SystemLogEntry):
         item = QTableWidgetItem(text or "")

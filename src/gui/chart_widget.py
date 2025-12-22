@@ -4,7 +4,8 @@ Displays price charts with indicator overlays and trading bot indicators
 """
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
-                             QPushButton, QLabel, QCheckBox, QGroupBox, QToolTip, QLineEdit)
+                             QPushButton, QLabel, QCheckBox, QGroupBox, QToolTip, QLineEdit,
+                             QFormLayout, QSpinBox, QDoubleSpinBox)
 from PyQt6.QtCore import Qt, QTimer, QPoint
 from PyQt6.QtGui import QPen, QBrush, QColor, QMouseEvent, QEnterEvent
 import pyqtgraph as pg
@@ -17,6 +18,9 @@ import math
 
 from ..data_feed import DataFeed
 from ..indicators.vwap import VWAP
+from ..indicators.ema import EMA
+from ..strategy.supertrend_strategy import compute_supertrend
+from ..strategy.smc_strategy import _fractal_pivot_high, _fractal_pivot_low
 
 
 class CandlestickItem(pg.GraphicsObject):
@@ -223,6 +227,9 @@ class ChartWidget(QWidget):
         self.indicators = {}
         self.bot_indicator_items = []  # Store bot indicator plot items
         self.general_vwap_items = []  # Store general VWAP plot items
+        self.general_ema_items = []  # Store general EMA plot items
+        self.general_supertrend_items = []  # Store general SuperTrend plot items
+        self.general_smc_items = []  # Store general SMC plot items
         self.chart_times = []  # Store chart times for reference
         self.chart_rates = []  # Store chart rates for reference
         self.vwap_indicator = None  # General VWAP indicator instance
@@ -330,24 +337,125 @@ class ChartWidget(QWidget):
         
         # Bot indicator controls
         bot_controls_group = QGroupBox("Bot Indicators")
-        bot_controls_layout = QHBoxLayout()
+        bot_controls_layout = QVBoxLayout()
+        bot_row1 = QHBoxLayout()
+        bot_row2 = QHBoxLayout()
         
         self.show_ohlc_bots_check = QCheckBox("Show OHLC Bots")
         self.show_ohlc_bots_check.setChecked(True)
         self.show_ohlc_bots_check.stateChanged.connect(self.refresh_chart)
-        bot_controls_layout.addWidget(self.show_ohlc_bots_check)
+        bot_row1.addWidget(self.show_ohlc_bots_check)
         
         self.show_vwap_bots_check = QCheckBox("Show VWAP Bots")
         self.show_vwap_bots_check.setChecked(True)
         self.show_vwap_bots_check.stateChanged.connect(self.refresh_chart)
-        bot_controls_layout.addWidget(self.show_vwap_bots_check)
+        bot_row1.addWidget(self.show_vwap_bots_check)
+
+        self.show_ema_bots_check = QCheckBox("Show EMA Bots")
+        self.show_ema_bots_check.setChecked(True)
+        self.show_ema_bots_check.stateChanged.connect(self._on_bot_indicator_toggles_changed)
+        bot_row1.addWidget(self.show_ema_bots_check)
+
+        self.show_supertrend_bots_check = QCheckBox("Show SuperTrend Bots")
+        self.show_supertrend_bots_check.setChecked(True)
+        self.show_supertrend_bots_check.stateChanged.connect(self._on_bot_indicator_toggles_changed)
+        bot_row2.addWidget(self.show_supertrend_bots_check)
+
+        self.show_smc_bots_check = QCheckBox("Show SMC Bots")
+        self.show_smc_bots_check.setChecked(True)
+        self.show_smc_bots_check.stateChanged.connect(self._on_bot_indicator_toggles_changed)
+        bot_row2.addWidget(self.show_smc_bots_check)
         
         self.show_signals_check = QCheckBox("Show Signals")
         self.show_signals_check.setChecked(True)
         self.show_signals_check.stateChanged.connect(self.refresh_chart)
-        bot_controls_layout.addWidget(self.show_signals_check)
+        bot_row2.addWidget(self.show_signals_check)
         
-        bot_controls_layout.addStretch()
+        bot_row1.addStretch()
+        bot_row2.addStretch()
+        bot_controls_layout.addLayout(bot_row1)
+        bot_controls_layout.addLayout(bot_row2)
+
+        # ===== Config panels (same idea as VWAP Indicator controls) =====
+        # EMA config (matches Trading Bot page defaults)
+        self.ema_bot_config_group = QGroupBox("EMA Configuration")
+        ema_form = QFormLayout()
+        self.ema_1_period_spin = QSpinBox()
+        self.ema_1_period_spin.setRange(1, 10000)
+        self.ema_1_period_spin.setValue(20)
+        self.ema_2_period_spin = QSpinBox()
+        self.ema_2_period_spin.setRange(1, 10000)
+        self.ema_2_period_spin.setValue(50)
+        self.ema_3_period_spin = QSpinBox()
+        self.ema_3_period_spin.setRange(1, 10000)
+        self.ema_3_period_spin.setValue(100)
+        self.ema_4_period_spin = QSpinBox()
+        self.ema_4_period_spin.setRange(1, 10000)
+        self.ema_4_period_spin.setValue(200)
+        ema_form.addRow("EMA 1 Period:", self.ema_1_period_spin)
+        ema_form.addRow("EMA 2 Period:", self.ema_2_period_spin)
+        ema_form.addRow("EMA 3 Period:", self.ema_3_period_spin)
+        ema_form.addRow("EMA 4 Period:", self.ema_4_period_spin)
+        self.ema_bot_config_group.setLayout(ema_form)
+        self.ema_bot_config_group.setVisible(False)
+        bot_controls_layout.addWidget(self.ema_bot_config_group)
+
+        # SuperTrend config (matches Trading Bot page defaults)
+        self.supertrend_bot_config_group = QGroupBox("SuperTrend Configuration")
+        st_form = QFormLayout()
+        self.supertrend_period_spin = QSpinBox()
+        self.supertrend_period_spin.setRange(1, 500)
+        self.supertrend_period_spin.setValue(10)
+        self.supertrend_multiplier_spin = QDoubleSpinBox()
+        self.supertrend_multiplier_spin.setRange(0.1, 50.0)
+        self.supertrend_multiplier_spin.setDecimals(2)
+        self.supertrend_multiplier_spin.setValue(3.0)
+        self.supertrend_atr_method_combo = QComboBox()
+        self.supertrend_atr_method_combo.addItem("ATR (Wilder)", True)
+        self.supertrend_atr_method_combo.addItem("SMA(TR)", False)
+        st_form.addRow("ATR Period:", self.supertrend_period_spin)
+        st_form.addRow("ATR Multiplier:", self.supertrend_multiplier_spin)
+        st_form.addRow("ATR Method:", self.supertrend_atr_method_combo)
+        self.supertrend_bot_config_group.setLayout(st_form)
+        self.supertrend_bot_config_group.setVisible(False)
+        bot_controls_layout.addWidget(self.supertrend_bot_config_group)
+
+        # SMC config (matches Trading Bot page defaults)
+        self.smc_bot_config_group = QGroupBox("SMC Configuration")
+        smc_form = QFormLayout()
+        self.smc_pivot_left_spin = QSpinBox()
+        self.smc_pivot_left_spin.setRange(1, 10)
+        self.smc_pivot_left_spin.setValue(2)
+        self.smc_pivot_right_spin = QSpinBox()
+        self.smc_pivot_right_spin.setRange(1, 10)
+        self.smc_pivot_right_spin.setValue(2)
+        self.smc_emit_on_combo = QComboBox()
+        self.smc_emit_on_combo.addItem("CHoCH only (bias flips)", "CHoCH")
+        self.smc_emit_on_combo.addItem("BOS only (continuation)", "BOS")
+        self.smc_emit_on_combo.addItem("Both (BOS + CHoCH)", "BOTH")
+        smc_form.addRow("Pivot Left Bars:", self.smc_pivot_left_spin)
+        smc_form.addRow("Pivot Right Bars:", self.smc_pivot_right_spin)
+        smc_form.addRow("Emit Signals On:", self.smc_emit_on_combo)
+        self.smc_bot_config_group.setLayout(smc_form)
+        self.smc_bot_config_group.setVisible(False)
+        bot_controls_layout.addWidget(self.smc_bot_config_group)
+
+        # Replot whenever user edits configs
+        for w in [
+            self.ema_1_period_spin, self.ema_2_period_spin, self.ema_3_period_spin, self.ema_4_period_spin,
+            self.supertrend_period_spin, self.supertrend_multiplier_spin, self.supertrend_atr_method_combo,
+            self.smc_pivot_left_spin, self.smc_pivot_right_spin, self.smc_emit_on_combo,
+        ]:
+            try:
+                if hasattr(w, "valueChanged"):
+                    w.valueChanged.connect(self.refresh_chart)
+                elif hasattr(w, "currentTextChanged"):
+                    w.currentTextChanged.connect(self.refresh_chart)
+                elif hasattr(w, "currentIndexChanged"):
+                    w.currentIndexChanged.connect(self.refresh_chart)
+            except Exception:
+                pass
+
         bot_controls_group.setLayout(bot_controls_layout)
         layout.addWidget(bot_controls_group)
         
@@ -856,6 +964,11 @@ class ChartWidget(QWidget):
             
             # Update general VWAP indicator
             self.update_general_vwap(times, sorted_rates)
+
+            # Update indicator overlays driven by Bot Indicators config panels
+            self.update_general_ema(times, sorted_rates)
+            self.update_general_supertrend(times, sorted_rates)
+            self.update_general_smc(times, sorted_rates)
             
             # Enable auto-range to fit data (including candlestick)
             if self.candlestick_item:
@@ -995,6 +1108,19 @@ class ChartWidget(QWidget):
         # Convert datetime to timestamps for plotting
         time_min_ts = times[0].timestamp() if isinstance(times[0], datetime) else times[0]
         time_max_ts = times[-1].timestamp() if isinstance(times[-1], datetime) else times[-1]
+        times_ts: List[float] = []
+        for t in times:
+            if isinstance(t, datetime):
+                times_ts.append(t.timestamp())
+            else:
+                try:
+                    times_ts.append(float(t))
+                except Exception:
+                    times_ts.append(None)
+        # Ensure alignment with rates if needed
+        min_len = min(len(times_ts), len(rates))
+        times_ts = times_ts[:min_len]
+        rates = rates[:min_len]
         
         # Display indicators for each matching strategy
         for strategy in matching_strategies:
@@ -1209,6 +1335,284 @@ class ChartWidget(QWidget):
                         )
                         self.chart.addItem(sell_scatter)
                         self.bot_indicator_items.append(sell_scatter)
+
+            # EMA Bot Indicators (plot EMA series on chart data)
+            if self.show_ema_bots_check.isChecked() and hasattr(strategy, "ema_periods"):
+                try:
+                    ema_periods = getattr(strategy, "ema_periods", None) or {}
+                    # Stable ordering
+                    ema_fields = ["ema_1", "ema_2", "ema_3", "ema_4"]
+                    color_map = {
+                        "ema_1": "#FFA726",  # orange
+                        "ema_2": "#FFD54F",  # amber
+                        "ema_3": "#AB47BC",  # purple
+                        "ema_4": "#26C6DA",  # cyan
+                    }
+                    for field in ema_fields:
+                        period = ema_periods.get(field)
+                        if not period:
+                            continue
+                        ema_series = EMA(int(period)).calculate(rates)
+                        if not ema_series:
+                            continue
+                        # Align length
+                        series_len = min(len(times_ts), len(ema_series))
+                        x_vals: List[float] = []
+                        y_vals: List[float] = []
+                        for i in range(series_len):
+                            v = ema_series[i]
+                            tts = times_ts[i]
+                            if v is None or tts is None:
+                                continue
+                            x_vals.append(tts)
+                            y_vals.append(float(v))
+                        if not x_vals:
+                            continue
+                        line = self.chart.plot(
+                            x_vals,
+                            y_vals,
+                            pen=pg.mkPen(color=color_map.get(field, "y"), width=1.8),
+                            name=f"{strategy_name} - EMA({int(period)})",
+                            antialias=True,
+                        )
+                        self.bot_indicator_items.append(line)
+                except Exception:
+                    # Never break chart rendering due to one bot
+                    pass
+
+            # SuperTrend Bot Indicators (plot bands + trend line)
+            if self.show_supertrend_bots_check.isChecked() and hasattr(strategy, "period") and hasattr(strategy, "multiplier") and hasattr(strategy, "use_wilder_atr"):
+                try:
+                    st_period = int(getattr(strategy, "period", 10))
+                    st_mult = float(getattr(strategy, "multiplier", 3.0))
+                    st_wilder = bool(getattr(strategy, "use_wilder_atr", True))
+
+                    candles = []
+                    for r in rates:
+                        candles.append(
+                            {
+                                "time": r.get("time"),
+                                "open": float(r.get("open")),
+                                "high": float(r.get("high")),
+                                "low": float(r.get("low")),
+                                "close": float(r.get("close")),
+                                "tick_volume": float(r.get("tick_volume", r.get("volume", 0.0))),
+                                "spread": float(r.get("spread", 0.0)),
+                                "real_volume": float(r.get("real_volume", 0.0)),
+                            }
+                        )
+
+                    trend, atr, up_final, dn_final = compute_supertrend(
+                        candles=candles,
+                        period=st_period,
+                        multiplier=st_mult,
+                        use_wilder_atr=st_wilder,
+                    )
+                    if not trend:
+                        raise ValueError("No supertrend values")
+
+                    series_len = min(len(times_ts), len(trend), len(up_final), len(dn_final))
+
+                    # Plot final bands (dashed, subtle)
+                    def _plot_series(name: str, series: List[Optional[float]], color: str, width: float, dash: bool = False):
+                        x_vals: List[float] = []
+                        y_vals: List[float] = []
+                        for i in range(series_len):
+                            tts = times_ts[i]
+                            v = series[i]
+                            if tts is None or v is None:
+                                continue
+                            x_vals.append(tts)
+                            y_vals.append(float(v))
+                        if not x_vals:
+                            return None
+                        pen = pg.mkPen(color=color, width=width, style=Qt.PenStyle.DashLine if dash else Qt.PenStyle.SolidLine)
+                        item = self.chart.plot(x_vals, y_vals, pen=pen, name=name, antialias=True)
+                        self.bot_indicator_items.append(item)
+                        return item
+
+                    _plot_series(f"{strategy_name} - ST Upper", up_final, "#EF5350", 1.3, dash=True)
+                    _plot_series(f"{strategy_name} - ST Lower", dn_final, "#66BB6A", 1.3, dash=True)
+
+                    # Plot active supertrend line by direction
+                    st_up_line: List[Optional[float]] = [None] * series_len
+                    st_dn_line: List[Optional[float]] = [None] * series_len
+                    for i in range(series_len):
+                        if int(trend[i]) == 1:
+                            st_up_line[i] = dn_final[i]
+                        else:
+                            st_dn_line[i] = up_final[i]
+
+                    _plot_series(f"{strategy_name} - SuperTrend UP", st_up_line, "#00E676", 2.4, dash=False)
+                    _plot_series(f"{strategy_name} - SuperTrend DOWN", st_dn_line, "#FF1744", 2.4, dash=False)
+                except Exception:
+                    pass
+
+            # SMC Bot Indicators (pivots + BOS/CHoCH markers)
+            if self.show_smc_bots_check.isChecked() and hasattr(strategy, "pivot_left") and hasattr(strategy, "pivot_right"):
+                try:
+                    left = int(getattr(strategy, "pivot_left", 2))
+                    right = int(getattr(strategy, "pivot_right", 2))
+
+                    highs = [float(r.get("high")) for r in rates]
+                    lows = [float(r.get("low")) for r in rates]
+                    closes = [float(r.get("close")) for r in rates]
+
+                    pivot_high_idx = []
+                    pivot_low_idx = []
+                    # Only confirmed pivots (needs right bars printed)
+                    for i in range(left, max(left, len(highs) - right)):
+                        if _fractal_pivot_high(highs, i, left, right):
+                            pivot_high_idx.append(i)
+                        if _fractal_pivot_low(lows, i, left, right):
+                            pivot_low_idx.append(i)
+
+                    # Plot pivot points
+                    if pivot_high_idx:
+                        ph_times = [times_ts[i] for i in pivot_high_idx if times_ts[i] is not None]
+                        ph_vals = [highs[i] for i in pivot_high_idx if times_ts[i] is not None]
+                        ph_scatter = pg.ScatterPlotItem(
+                            x=ph_times,
+                            y=ph_vals,
+                            pen=pg.mkPen(color="#FFCA28", width=1),
+                            brush=pg.mkBrush(color="#FFCA28"),
+                            symbol="o",
+                            size=7,
+                            name=f"{strategy_name} - Pivot Highs",
+                        )
+                        self.chart.addItem(ph_scatter)
+                        self.bot_indicator_items.append(ph_scatter)
+
+                    if pivot_low_idx:
+                        pl_times = [times_ts[i] for i in pivot_low_idx if times_ts[i] is not None]
+                        pl_vals = [lows[i] for i in pivot_low_idx if times_ts[i] is not None]
+                        pl_scatter = pg.ScatterPlotItem(
+                            x=pl_times,
+                            y=pl_vals,
+                            pen=pg.mkPen(color="#29B6F6", width=1),
+                            brush=pg.mkBrush(color="#29B6F6"),
+                            symbol="o",
+                            size=7,
+                            name=f"{strategy_name} - Pivot Lows",
+                        )
+                        self.chart.addItem(pl_scatter)
+                        self.bot_indicator_items.append(pl_scatter)
+
+                    # Maintain last pivot levels and bias, emit BOS/CHoCH markers like strategy
+                    last_ph = None
+                    last_pl = None
+                    bias = None  # "BULLISH" | "BEARISH" | None
+                    bos_up_t, bos_up_p = [], []
+                    bos_dn_t, bos_dn_p = [], []
+                    choch_up_t, choch_up_p = [], []
+                    choch_dn_t, choch_dn_p = [], []
+
+                    # Precompute pivot maps for quick lookup
+                    ph_map = {i: highs[i] for i in pivot_high_idx}
+                    pl_map = {i: lows[i] for i in pivot_low_idx}
+
+                    for i in range(len(closes)):
+                        # Update pivots if confirmed at i (note: actual confirmation happens at i+right in strict TV logic,
+                        # but our _fractal_pivot_* already ensures confirmable region, so using i is OK for drawing)
+                        if i in ph_map:
+                            last_ph = ph_map[i]
+                        if i in pl_map:
+                            last_pl = pl_map[i]
+
+                        close = closes[i]
+                        event = None
+                        direction = None
+
+                        if last_ph is not None and close > last_ph:
+                            direction = "UP"
+                            if bias == "BEARISH":
+                                event = "CHoCH"
+                            elif bias == "BULLISH":
+                                event = "BOS"
+                            else:
+                                event = "BOS"
+                        elif last_pl is not None and close < last_pl:
+                            direction = "DOWN"
+                            if bias == "BULLISH":
+                                event = "CHoCH"
+                            elif bias == "BEARISH":
+                                event = "BOS"
+                            else:
+                                event = "BOS"
+
+                        if event == "CHoCH":
+                            bias = "BULLISH" if direction == "UP" else "BEARISH"
+                        elif bias is None and event == "BOS":
+                            bias = "BULLISH" if direction == "UP" else "BEARISH"
+
+                        if event and times_ts[i] is not None:
+                            if event == "BOS" and direction == "UP":
+                                bos_up_t.append(times_ts[i]); bos_up_p.append(close)
+                            elif event == "BOS" and direction == "DOWN":
+                                bos_dn_t.append(times_ts[i]); bos_dn_p.append(close)
+                            elif event == "CHoCH" and direction == "UP":
+                                choch_up_t.append(times_ts[i]); choch_up_p.append(close)
+                            elif event == "CHoCH" and direction == "DOWN":
+                                choch_dn_t.append(times_ts[i]); choch_dn_p.append(close)
+
+                    # Plot last pivot levels as horizontal lines
+                    if last_ph is not None:
+                        line = self.chart.plot(
+                            [time_min_ts, time_max_ts],
+                            [last_ph, last_ph],
+                            pen=pg.mkPen(color="#FFCA28", width=1, style=Qt.PenStyle.DashLine),
+                            name=f"{strategy_name} - Last Pivot High",
+                        )
+                        self.bot_indicator_items.append(line)
+                    if last_pl is not None:
+                        line = self.chart.plot(
+                            [time_min_ts, time_max_ts],
+                            [last_pl, last_pl],
+                            pen=pg.mkPen(color="#29B6F6", width=1, style=Qt.PenStyle.DashLine),
+                            name=f"{strategy_name} - Last Pivot Low",
+                        )
+                        self.bot_indicator_items.append(line)
+
+                    # Plot BOS/CHoCH markers
+                    if bos_up_t:
+                        s = pg.ScatterPlotItem(
+                            x=bos_up_t, y=bos_up_p,
+                            pen=pg.mkPen(color="#B0BEC5", width=2),
+                            brush=pg.mkBrush(color="#B0BEC5"),
+                            symbol="t", size=11,
+                            name=f"{strategy_name} - BOS UP",
+                        )
+                        self.chart.addItem(s); self.bot_indicator_items.append(s)
+                    if bos_dn_t:
+                        s = pg.ScatterPlotItem(
+                            x=bos_dn_t, y=bos_dn_p,
+                            pen=pg.mkPen(color="#B0BEC5", width=2),
+                            brush=pg.mkBrush(color="#B0BEC5"),
+                            symbol="t3", size=11,
+                            name=f"{strategy_name} - BOS DOWN",
+                        )
+                        self.chart.addItem(s); self.bot_indicator_items.append(s)
+                    if choch_up_t:
+                        s = pg.ScatterPlotItem(
+                            x=choch_up_t, y=choch_up_p,
+                            pen=pg.mkPen(color="#CE93D8", width=2),
+                            brush=pg.mkBrush(color="#CE93D8"),
+                            symbol="t", size=14,
+                            name=f"{strategy_name} - CHoCH UP",
+                        )
+                        self.chart.addItem(s); self.bot_indicator_items.append(s)
+                    if choch_dn_t:
+                        s = pg.ScatterPlotItem(
+                            x=choch_dn_t, y=choch_dn_p,
+                            pen=pg.mkPen(color="#CE93D8", width=2),
+                            brush=pg.mkBrush(color="#CE93D8"),
+                            symbol="t3", size=14,
+                            name=f"{strategy_name} - CHoCH DOWN",
+                        )
+                        self.chart.addItem(s); self.bot_indicator_items.append(s)
+
+                except Exception:
+                    pass
     
     def _calculate_vwap_for_chart(self, rates: List[Dict], session_type: str) -> Tuple[List[float], Dict[float, Tuple[List[float], List[float]]]]:
         """
@@ -1550,6 +1954,319 @@ class ChartWidget(QWidget):
             logger.error(f"Error updating general VWAP: {e}", exc_info=True)
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
+
+    def _on_bot_indicator_toggles_changed(self, _state=None):
+        """Show/hide config panels when toggles change, and refresh."""
+        try:
+            self.ema_bot_config_group.setVisible(self.show_ema_bots_check.isChecked())
+            self.supertrend_bot_config_group.setVisible(self.show_supertrend_bots_check.isChecked())
+            self.smc_bot_config_group.setVisible(self.show_smc_bots_check.isChecked())
+        except Exception:
+            pass
+        self.refresh_chart()
+
+    def _clear_general_items(self, items: List):
+        """Utility: remove plot items from chart safely."""
+        for item in items:
+            try:
+                self.chart.removeItem(item)
+            except Exception:
+                pass
+        items.clear()
+
+    def update_general_ema(self, times: List[datetime], rates: List[Dict]):
+        """Plot EMA overlays using the Bot Indicators EMA configuration inputs."""
+        self._clear_general_items(self.general_ema_items)
+        if not getattr(self, "show_ema_bots_check", None) or not self.show_ema_bots_check.isChecked():
+            return
+        if not times or not rates:
+            return
+
+        # Convert times to timestamps
+        times_ts: List[float] = []
+        for t in times:
+            if isinstance(t, datetime):
+                times_ts.append(t.timestamp())
+            else:
+                try:
+                    times_ts.append(float(t))
+                except Exception:
+                    times_ts.append(None)
+
+        periods = [
+            int(self.ema_1_period_spin.value()),
+            int(self.ema_2_period_spin.value()),
+            int(self.ema_3_period_spin.value()),
+            int(self.ema_4_period_spin.value()),
+        ]
+        colors = ["#FFA726", "#FFD54F", "#AB47BC", "#26C6DA"]
+        for period, color in zip(periods, colors):
+            series = EMA(int(period)).calculate(rates)
+            if not series:
+                continue
+            min_len = min(len(times_ts), len(series))
+            x_vals: List[float] = []
+            y_vals: List[float] = []
+            for i in range(min_len):
+                tts = times_ts[i]
+                v = series[i]
+                if tts is None or v is None:
+                    continue
+                x_vals.append(tts)
+                y_vals.append(float(v))
+            if not x_vals:
+                continue
+            line = self.chart.plot(
+                x_vals,
+                y_vals,
+                pen=pg.mkPen(color=color, width=2.0),
+                name=f"EMA({int(period)})",
+                antialias=True,
+            )
+            self.general_ema_items.append(line)
+
+    def update_general_supertrend(self, times: List[datetime], rates: List[Dict]):
+        """Plot SuperTrend overlays using the Bot Indicators SuperTrend configuration inputs."""
+        self._clear_general_items(self.general_supertrend_items)
+        if not getattr(self, "show_supertrend_bots_check", None) or not self.show_supertrend_bots_check.isChecked():
+            return
+        if not times or not rates:
+            return
+
+        # Convert times to timestamps
+        times_ts: List[float] = []
+        for t in times:
+            if isinstance(t, datetime):
+                times_ts.append(t.timestamp())
+            else:
+                try:
+                    times_ts.append(float(t))
+                except Exception:
+                    times_ts.append(None)
+
+        period = int(self.supertrend_period_spin.value())
+        multiplier = float(self.supertrend_multiplier_spin.value())
+        use_wilder = bool(self.supertrend_atr_method_combo.currentData())
+
+        candles = []
+        for r in rates:
+            candles.append(
+                {
+                    "time": r.get("time"),
+                    "open": float(r.get("open")),
+                    "high": float(r.get("high")),
+                    "low": float(r.get("low")),
+                    "close": float(r.get("close")),
+                }
+            )
+
+        trend, atr, up_final, dn_final = compute_supertrend(
+            candles=candles,
+            period=period,
+            multiplier=multiplier,
+            use_wilder_atr=use_wilder,
+        )
+        if not trend:
+            return
+
+        series_len = min(len(times_ts), len(trend), len(up_final), len(dn_final))
+
+        def _plot_series(name: str, series: List[Optional[float]], color: str, width: float, dash: bool = False):
+            x_vals: List[float] = []
+            y_vals: List[float] = []
+            for i in range(series_len):
+                tts = times_ts[i]
+                v = series[i]
+                if tts is None or v is None:
+                    continue
+                x_vals.append(tts)
+                y_vals.append(float(v))
+            if not x_vals:
+                return
+            pen = pg.mkPen(color=color, width=width, style=Qt.PenStyle.DashLine if dash else Qt.PenStyle.SolidLine)
+            item = self.chart.plot(x_vals, y_vals, pen=pen, name=name, antialias=True)
+            self.general_supertrend_items.append(item)
+
+        # Bands (dashed)
+        _plot_series("SuperTrend Upper", up_final, "#EF5350", 1.3, dash=True)
+        _plot_series("SuperTrend Lower", dn_final, "#66BB6A", 1.3, dash=True)
+
+        # Active line
+        st_up: List[Optional[float]] = [None] * series_len
+        st_dn: List[Optional[float]] = [None] * series_len
+        for i in range(series_len):
+            if int(trend[i]) == 1:
+                st_up[i] = dn_final[i]
+            else:
+                st_dn[i] = up_final[i]
+        _plot_series("SuperTrend UP", st_up, "#00E676", 2.4, dash=False)
+        _plot_series("SuperTrend DOWN", st_dn, "#FF1744", 2.4, dash=False)
+
+    def update_general_smc(self, times: List[datetime], rates: List[Dict]):
+        """Plot SMC overlays using the Bot Indicators SMC configuration inputs."""
+        self._clear_general_items(self.general_smc_items)
+        if not getattr(self, "show_smc_bots_check", None) or not self.show_smc_bots_check.isChecked():
+            return
+        if not times or not rates:
+            return
+
+        # Convert times to timestamps
+        times_ts: List[float] = []
+        for t in times:
+            if isinstance(t, datetime):
+                times_ts.append(t.timestamp())
+            else:
+                try:
+                    times_ts.append(float(t))
+                except Exception:
+                    times_ts.append(None)
+
+        left = int(self.smc_pivot_left_spin.value())
+        right = int(self.smc_pivot_right_spin.value())
+        emit_on = str(self.smc_emit_on_combo.currentData() or "CHoCH")
+
+        highs = [float(r.get("high")) for r in rates]
+        lows = [float(r.get("low")) for r in rates]
+        closes = [float(r.get("close")) for r in rates]
+
+        pivot_high_idx = []
+        pivot_low_idx = []
+        for i in range(left, max(left, len(highs) - right)):
+            if _fractal_pivot_high(highs, i, left, right):
+                pivot_high_idx.append(i)
+            if _fractal_pivot_low(lows, i, left, right):
+                pivot_low_idx.append(i)
+
+        # Pivot scatters
+        if pivot_high_idx:
+            ph_times = [times_ts[i] for i in pivot_high_idx if times_ts[i] is not None]
+            ph_vals = [highs[i] for i in pivot_high_idx if times_ts[i] is not None]
+            ph_scatter = pg.ScatterPlotItem(
+                x=ph_times,
+                y=ph_vals,
+                pen=pg.mkPen(color="#FFCA28", width=1),
+                brush=pg.mkBrush(color="#FFCA28"),
+                symbol="o",
+                size=7,
+                name="SMC Pivot Highs",
+            )
+            self.chart.addItem(ph_scatter)
+            self.general_smc_items.append(ph_scatter)
+
+        if pivot_low_idx:
+            pl_times = [times_ts[i] for i in pivot_low_idx if times_ts[i] is not None]
+            pl_vals = [lows[i] for i in pivot_low_idx if times_ts[i] is not None]
+            pl_scatter = pg.ScatterPlotItem(
+                x=pl_times,
+                y=pl_vals,
+                pen=pg.mkPen(color="#29B6F6", width=1),
+                brush=pg.mkBrush(color="#29B6F6"),
+                symbol="o",
+                size=7,
+                name="SMC Pivot Lows",
+            )
+            self.chart.addItem(pl_scatter)
+            self.general_smc_items.append(pl_scatter)
+
+        # BOS/CHoCH markers (lightweight engine, similar to strategy)
+        last_ph = None
+        last_pl = None
+        bias = None
+        bos_up_t, bos_up_p = [], []
+        bos_dn_t, bos_dn_p = [], []
+        choch_up_t, choch_up_p = [], []
+        choch_dn_t, choch_dn_p = [], []
+
+        ph_map = {i: highs[i] for i in pivot_high_idx}
+        pl_map = {i: lows[i] for i in pivot_low_idx}
+
+        for i in range(len(closes)):
+            if i in ph_map:
+                last_ph = ph_map[i]
+            if i in pl_map:
+                last_pl = pl_map[i]
+
+            close = closes[i]
+            event = None
+            direction = None
+
+            if last_ph is not None and close > last_ph:
+                direction = "UP"
+                if bias == "BEARISH":
+                    event = "CHoCH"
+                elif bias == "BULLISH":
+                    event = "BOS"
+                else:
+                    event = "BOS"
+            elif last_pl is not None and close < last_pl:
+                direction = "DOWN"
+                if bias == "BULLISH":
+                    event = "CHoCH"
+                elif bias == "BEARISH":
+                    event = "BOS"
+                else:
+                    event = "BOS"
+
+            if event == "CHoCH":
+                bias = "BULLISH" if direction == "UP" else "BEARISH"
+            elif bias is None and event == "BOS":
+                bias = "BULLISH" if direction == "UP" else "BEARISH"
+
+            if not event:
+                continue
+
+            if emit_on == "CHoCH" and event != "CHoCH":
+                continue
+            if emit_on == "BOS" and event != "BOS":
+                continue
+
+            if times_ts[i] is None:
+                continue
+            if event == "BOS" and direction == "UP":
+                bos_up_t.append(times_ts[i]); bos_up_p.append(close)
+            elif event == "BOS" and direction == "DOWN":
+                bos_dn_t.append(times_ts[i]); bos_dn_p.append(close)
+            elif event == "CHoCH" and direction == "UP":
+                choch_up_t.append(times_ts[i]); choch_up_p.append(close)
+            elif event == "CHoCH" and direction == "DOWN":
+                choch_dn_t.append(times_ts[i]); choch_dn_p.append(close)
+
+        if bos_up_t:
+            s = pg.ScatterPlotItem(
+                x=bos_up_t, y=bos_up_p,
+                pen=pg.mkPen(color="#B0BEC5", width=2),
+                brush=pg.mkBrush(color="#B0BEC5"),
+                symbol="t", size=11,
+                name="SMC BOS UP",
+            )
+            self.chart.addItem(s); self.general_smc_items.append(s)
+        if bos_dn_t:
+            s = pg.ScatterPlotItem(
+                x=bos_dn_t, y=bos_dn_p,
+                pen=pg.mkPen(color="#B0BEC5", width=2),
+                brush=pg.mkBrush(color="#B0BEC5"),
+                symbol="t3", size=11,
+                name="SMC BOS DOWN",
+            )
+            self.chart.addItem(s); self.general_smc_items.append(s)
+        if choch_up_t:
+            s = pg.ScatterPlotItem(
+                x=choch_up_t, y=choch_up_p,
+                pen=pg.mkPen(color="#CE93D8", width=2),
+                brush=pg.mkBrush(color="#CE93D8"),
+                symbol="t", size=14,
+                name="SMC CHoCH UP",
+            )
+            self.chart.addItem(s); self.general_smc_items.append(s)
+        if choch_dn_t:
+            s = pg.ScatterPlotItem(
+                x=choch_dn_t, y=choch_dn_p,
+                pen=pg.mkPen(color="#CE93D8", width=2),
+                brush=pg.mkBrush(color="#CE93D8"),
+                symbol="t3", size=14,
+                name="SMC CHoCH DOWN",
+            )
+            self.chart.addItem(s); self.general_smc_items.append(s)
     
     # ========== Phase 1: Real-Time Candle Formation ==========
 

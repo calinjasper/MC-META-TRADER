@@ -153,7 +153,6 @@ class OrderManager:
             comment = result.get('comment', 'No comment')
             logger.warning(f"Order returned but may have failed: retcode={retcode}, comment={comment}, success={result.get('success', False)}")
             system_log_service.log("WARNING", f"Order status uncertain for {symbol} ({order_type}): retcode={retcode} {comment}")
-        
         return result
     
     def close_position(self, ticket: int) -> bool:
@@ -209,7 +208,9 @@ class OrderManager:
         if ok:
             system_log_service.log("TRADING", f"Position modified (ticket {ticket}) SL={sl} TP={tp}")
         else:
-            system_log_service.log("ERROR", f"Failed to modify position (ticket {ticket})")
+            error_detail = self.mt5.get_last_error() if hasattr(self.mt5, "get_last_error") else None
+            detail_suffix = f" | {error_detail}" if error_detail else ""
+            system_log_service.log("ERROR", f"Failed to modify position (ticket {ticket}){detail_suffix}")
         return ok
     
     def close_position_partial(self, ticket: int, volume: float) -> bool:

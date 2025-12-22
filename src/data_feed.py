@@ -15,7 +15,6 @@ from .mt5_connector import MT5Connector
 
 logger = logging.getLogger(__name__)
 
-
 class DataFeed(QObject):
     """Manages live data feeds and historical data with caching"""
     

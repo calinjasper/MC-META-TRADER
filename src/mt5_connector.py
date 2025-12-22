@@ -22,6 +22,7 @@ class MT5Connector:
     def __init__(self):
         self.connected = False
         self.account_info = None
+        self.last_error: Optional[str] = None
     
     def initialize(self, path: str = "", login: int = 0, password: str = "", 
                    server: str = "", timeout: int = 10000) -> bool:
@@ -79,10 +80,17 @@ class MT5Connector:
             mt5.shutdown()
             self.connected = False
             logger.info("MT5 connection closed")
+
+        # Reset last error on shutdown
+        self.last_error = None
     
     def is_connected(self) -> bool:
         """Check if connected to MT5"""
         return self.connected and mt5.terminal_info() is not None
+
+    def get_last_error(self) -> Optional[str]:
+        """Return the last MT5 error message captured by this connector"""
+        return self.last_error
     
     def get_account_info(self) -> Optional[Dict]:
         """Get account information"""
@@ -875,15 +883,74 @@ class MT5Connector:
         Returns:
             True if successful, False otherwise
         """
+        # Reset previous error before attempting
+        self.last_error = None
+
         if not self.is_connected():
+            self.last_error = "MT5 not connected"
+            logger.error(f"Failed to modify position {ticket}: {self.last_error}")
             return False
         
         position = mt5.positions_get(ticket=ticket)
         if position is None or len(position) == 0:
+            self.last_error = "Position not found"
             logger.error(f"Position {ticket} not found")
             return False
         
         pos = position[0]
+
+        symbol_info = mt5.symbol_info(pos.symbol)
+        tick = mt5.symbol_info_tick(pos.symbol)
+
+        if symbol_info is None or tick is None:
+            self.last_error = "Symbol info/tick unavailable"
+            logger.error(f"Failed to modify position {ticket}: {self.last_error}")
+            return False
+
+        point = getattr(symbol_info, "point", 0.0) or 0.0
+        digits = getattr(symbol_info, "digits", 5)
+        # MT5 returns stop_level/freeze_level in points; use the stricter of the two
+        min_gap_points = max(getattr(symbol_info, "stop_level", 0), getattr(symbol_info, "freeze_level", 0))
+        min_gap_price = min_gap_points * point
+
+        bid = tick.bid
+        ask = tick.ask
+        validation_errors = []
+
+        if sl > 0:
+            sl = round(sl, digits)
+            if pos.type == mt5.ORDER_TYPE_BUY:
+                if sl >= bid - min_gap_price:
+                    validation_errors.append(
+                        f"SL must be at least {min_gap_price:.{digits}f} below bid {bid:.{digits}f}"
+                    )
+            else:  # SELL position
+                if sl <= ask + min_gap_price:
+                    validation_errors.append(
+                        f"SL must be at least {min_gap_price:.{digits}f} above ask {ask:.{digits}f}"
+                    )
+        else:
+            sl = 0.0
+
+        if tp > 0:
+            tp = round(tp, digits)
+            if pos.type == mt5.ORDER_TYPE_BUY:
+                if tp <= ask + min_gap_price:
+                    validation_errors.append(
+                        f"TP must be at least {min_gap_price:.{digits}f} above ask {ask:.{digits}f}"
+                    )
+            else:  # SELL position
+                if tp >= bid - min_gap_price:
+                    validation_errors.append(
+                        f"TP must be at least {min_gap_price:.{digits}f} below bid {bid:.{digits}f}"
+                    )
+        else:
+            tp = 0.0
+
+        if validation_errors:
+            self.last_error = "; ".join(validation_errors)
+            logger.error(f"Failed to modify position {ticket}: {self.last_error}")
+            return False
         
         request = {
             "action": mt5.TRADE_ACTION_SLTP,
@@ -895,8 +962,15 @@ class MT5Connector:
         
         result = mt5.order_send(request)
         
-        if result is None or result.retcode != mt5.TRADE_RETCODE_DONE:
-            logger.error(f"Failed to modify position {ticket}: {result.comment if result else 'Unknown error'}")
+        if result is None:
+            self.last_error = "Unknown error (no result returned)"
+            logger.error(f"Failed to modify position {ticket}: {self.last_error}")
+            return False
+
+        if result.retcode != mt5.TRADE_RETCODE_DONE:
+            comment = result.comment if hasattr(result, "comment") else "Unknown error"
+            self.last_error = f"{comment} (retcode {result.retcode})"
+            logger.error(f"Failed to modify position {ticket}: {self.last_error}")
             return False
         
         logger.info(f"Position {ticket} modified: SL={sl}, TP={tp}")
