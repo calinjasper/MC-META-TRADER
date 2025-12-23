@@ -336,7 +336,6 @@ class TradeMonitor:
         ticket = position.get('ticket')
         if not ticket:
             return {'new_sl': None, 'new_tp': None}
-        
         updates = {'new_sl': None, 'new_tp': None}
         entry_price = position.get('price_open', 0.0)
         current_sl = position.get('sl', 0.0)

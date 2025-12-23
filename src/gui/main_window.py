@@ -229,7 +229,7 @@ class MainWindow(QMainWindow):
         # Timer for position updates and trade monitoring
         self.position_timer = QTimer()
         self.position_timer.timeout.connect(self.update_positions)
-        self.position_timer.start(2000)  # Update every 2 seconds
+        self.position_timer.start(500)  # Update every 0.5 seconds (faster for ARM)
         
         # Timer for trade monitoring (SL/TP checking)
         self.trade_monitor_timer = QTimer()
@@ -788,7 +788,9 @@ class MainWindow(QMainWindow):
                                     exit_price=exit_price,
                                     exit_time=exit_time,
                                     exit_condition=exit_condition,
-                                    profit=profit
+                                    profit=profit,
+                                    entry_type=opposite_direction,
+                                    exit_type=("SELL" if opposite_direction == "BUY" else "BUY")
                                 )
                                 logger.info(f"Sent Telegram exit notification for trade {opp_ticket} (opposite strategy): {exit_condition}, P&L: {profit:.2f}")
                             except Exception as e:
@@ -914,7 +916,8 @@ class MainWindow(QMainWindow):
                                 strategy_name=strategy.name,
                                 entry_price=entry_price,
                                 entry_time=datetime.now(),
-                                entry_condition=entry_condition_text
+                                entry_condition=entry_condition_text,
+                                entry_type=signal
                             )
                 
                 self.status_bar.showMessage(
@@ -1186,7 +1189,9 @@ class MainWindow(QMainWindow):
                                     exit_price=trigger_price,
                                     exit_time=datetime.now(),
                                     exit_condition=exit_condition,
-                                    profit=trade_profit
+                                    profit=trade_profit,
+                                    entry_type=direction,
+                                    exit_type=("SELL" if direction == "BUY" else "BUY")
                                 )
                                 logger.info(f"Sent Telegram exit notification for trade {ticket}: {exit_condition}, P&L: {trade_profit:.2f}")
                             except Exception as e:
@@ -1558,6 +1563,28 @@ class MainWindow(QMainWindow):
         # Stop signal server
         self.stop_signal_server()
         
+        # Auto-save trade book and system logs to timestamped CSVs
+        try:
+            project_root = Path(__file__).parent.parent.parent
+            export_root = project_root / "exports"
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            export_dir = export_root / ts
+            export_dir.mkdir(parents=True, exist_ok=True)
+
+            # Trade book
+            if hasattr(self, "strategy_panel") and hasattr(self.strategy_panel, "trade_book_panel"):
+                trade_path = export_dir / f"trade_book_{ts}.csv"
+                rows = self.strategy_panel.trade_book_panel.export_to_csv_path(trade_path)
+                logger.info(f"Auto-saved trade book ({rows} rows) to {trade_path}")
+
+            # System logs
+            if hasattr(self, "strategy_panel") and hasattr(self.strategy_panel, "system_logs_panel"):
+                log_path = export_dir / f"system_logs_{ts}.csv"
+                rows = self.strategy_panel.system_logs_panel.export_csv_to_path(log_path, use_filtered=False)
+                logger.info(f"Auto-saved system logs ({rows} rows) to {log_path}")
+        except Exception as e:
+            logger.error(f"Error auto-saving trade book/system logs on close: {e}", exc_info=True)
+
         # Save all strategies before closing
         try:
             from ..strategy.strategy_persistence import StrategyPersistence
@@ -1964,7 +1991,9 @@ class MainWindow(QMainWindow):
                                 exit_price=exit_price,
                                 exit_time=exit_time,
                                 exit_condition=exit_condition,
-                                profit=trade_profit
+                                profit=trade_profit,
+                                entry_type=direction,
+                                exit_type=("SELL" if direction == "BUY" else "BUY")
                             )
                             logger.info(f"Successfully sent Telegram exit notification for trade {ticket} (manual): {exit_condition}, P&L: {trade_profit:.2f}")
                             telegram_sent = True

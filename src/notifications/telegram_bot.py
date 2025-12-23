@@ -122,7 +122,8 @@ class TelegramBot:
             return False
     
     def format_trade_entry(self, ticker: str, volume: float, strategy_name: str,
-                          entry_price: float, entry_time: datetime, entry_condition: str) -> str:
+                          entry_price: float, entry_time: datetime, entry_condition: str,
+                          entry_type: str) -> str:
         """
         Format trade entry message
         
@@ -139,6 +140,8 @@ class TelegramBot:
         """
         entry_time_str = entry_time.strftime("%Y-%m-%d %H:%M:%S") if isinstance(entry_time, datetime) else str(entry_time)
         
+        entry_type = (entry_type or "").upper() if isinstance(entry_type, str) else ""
+
         message = (
             f"<b>📈 TRADE ENTRY</b>\n\n"
             f"<b>Ticker:</b> {ticker}\n"
@@ -146,6 +149,7 @@ class TelegramBot:
             f"<b>Strategy:</b> {strategy_name}\n"
             f"<b>Entry Price:</b> {entry_price:.5f}\n"
             f"<b>Entry Time:</b> {entry_time_str}\n"
+            f"<b>Entry Type:</b> {entry_type}\n"
             f"<b>Entry Condition:</b> {entry_condition}"
         )
         
@@ -154,7 +158,7 @@ class TelegramBot:
     def format_trade_exit(self, ticker: str, volume: float, strategy_name: str,
                          entry_price: float, entry_time: datetime, entry_condition: str,
                          exit_price: float, exit_time: datetime, exit_condition: str,
-                         profit: float = None) -> str:
+                         profit: float = None, entry_type: str = None, exit_type: str = None) -> str:
         """
         Format trade exit message
         
@@ -186,6 +190,8 @@ class TelegramBot:
         
         pnl_emoji = "✅" if pnl >= 0 else "❌"
         pnl_str = f"{pnl:+.2f}"
+        entry_type = (entry_type or "").upper() if isinstance(entry_type, str) else ""
+        exit_type = (exit_type or "").upper() if isinstance(exit_type, str) else ""
         
         message = (
             f"<b>📉 TRADE EXIT {pnl_emoji}</b>\n\n"
@@ -195,8 +201,10 @@ class TelegramBot:
             f"<b>Entry Price:</b> {entry_price:.5f}\n"
             f"<b>Entry Time:</b> {entry_time_str}\n"
             f"<b>Entry Condition:</b> {entry_condition}\n"
+            f"<b>Entry Type:</b> {entry_type}\n"
             f"<b>Exit Price:</b> {exit_price:.5f}\n"
             f"<b>Exit Time:</b> {exit_time_str}\n"
+            f"<b>Exit Type:</b> {exit_type}\n"
             f"<b>Exit Condition:</b> {exit_condition}\n"
             f"<b>P&L:</b> {pnl_str}"
         )
@@ -204,21 +212,22 @@ class TelegramBot:
         return message
     
     def send_trade_entry(self, ticker: str, volume: float, strategy_name: str,
-                        entry_price: float, entry_time: datetime, entry_condition: str) -> bool:
+                        entry_price: float, entry_time: datetime, entry_condition: str,
+                        entry_type: str) -> bool:
         """Send trade entry notification"""
         message = self.format_trade_entry(
-            ticker, volume, strategy_name, entry_price, entry_time, entry_condition
+            ticker, volume, strategy_name, entry_price, entry_time, entry_condition, entry_type
         )
         return self.send_message(message)
     
     def send_trade_exit(self, ticker: str, volume: float, strategy_name: str,
                        entry_price: float, entry_time: datetime, entry_condition: str,
                        exit_price: float, exit_time: datetime, exit_condition: str,
-                       profit: float = None) -> bool:
+                       profit: float = None, entry_type: str = None, exit_type: str = None) -> bool:
         """Send trade exit notification"""
         message = self.format_trade_exit(
             ticker, volume, strategy_name, entry_price, entry_time, entry_condition,
-            exit_price, exit_time, exit_condition, profit
+            exit_price, exit_time, exit_condition, profit, entry_type, exit_type
         )
         return self.send_message(message)
 

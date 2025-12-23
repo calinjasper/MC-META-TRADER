@@ -180,6 +180,55 @@ class StrategyBuilder(QWidget):
         
         entry_group.setLayout(entry_layout)
         layout.addWidget(entry_group)
+
+        # Buy & Sell Conditions (indicator-based)
+        buy_sell_group = QGroupBox("Buy & Sell Conditions")
+        buy_sell_layout = QVBoxLayout()
+
+        # Buy row
+        buy_row = QHBoxLayout()
+        buy_row.addWidget(QLabel("Buy:"))
+        self.buy_indicator_combo = QComboBox()
+        buy_row.addWidget(self.buy_indicator_combo)
+        self.buy_operator_combo = QComboBox()
+        self.buy_operator_combo.addItems([">", "<", ">=", "<=", "=="])
+        buy_row.addWidget(self.buy_operator_combo)
+        self.buy_value_spin = QDoubleSpinBox()
+        self.buy_value_spin.setMinimum(-100000.0)
+        self.buy_value_spin.setMaximum(100000.0)
+        self.buy_value_spin.setDecimals(5)
+        buy_row.addWidget(self.buy_value_spin)
+        add_buy_btn = QPushButton("Add Buy Condition")
+        add_buy_btn.clicked.connect(self.add_buy_condition)
+        buy_row.addWidget(add_buy_btn)
+        buy_sell_layout.addLayout(buy_row)
+
+        self.buy_conditions_list = QListWidget()
+        buy_sell_layout.addWidget(self.buy_conditions_list)
+
+        # Sell row
+        sell_row = QHBoxLayout()
+        sell_row.addWidget(QLabel("Sell:"))
+        self.sell_indicator_combo = QComboBox()
+        sell_row.addWidget(self.sell_indicator_combo)
+        self.sell_operator_combo = QComboBox()
+        self.sell_operator_combo.addItems([">", "<", ">=", "<=", "=="])
+        sell_row.addWidget(self.sell_operator_combo)
+        self.sell_value_spin = QDoubleSpinBox()
+        self.sell_value_spin.setMinimum(-100000.0)
+        self.sell_value_spin.setMaximum(100000.0)
+        self.sell_value_spin.setDecimals(5)
+        sell_row.addWidget(self.sell_value_spin)
+        add_sell_btn = QPushButton("Add Sell Condition")
+        add_sell_btn.clicked.connect(self.add_sell_condition)
+        sell_row.addWidget(add_sell_btn)
+        buy_sell_layout.addLayout(sell_row)
+
+        self.sell_conditions_list = QListWidget()
+        buy_sell_layout.addWidget(self.sell_conditions_list)
+
+        buy_sell_group.setLayout(buy_sell_layout)
+        layout.addWidget(buy_sell_group)
         
         # Trade Monitoring Mode (AlgoTest architecture)
         monitoring_group = QGroupBox("Trade Monitoring Mode")
@@ -627,6 +676,9 @@ class StrategyBuilder(QWidget):
         
         # Update entry indicator combo
         self.entry_indicator_combo.addItem(item_text)
+        # Update buy/sell combos
+        self.buy_indicator_combo.addItem(item_text)
+        self.sell_indicator_combo.addItem(item_text)
     
     def add_entry_condition(self):
         """Add an entry condition"""
@@ -637,6 +689,22 @@ class StrategyBuilder(QWidget):
         
         condition_text = f"{indicator} {operator} {value} -> {signal}"
         self.entry_conditions_list.addItem(condition_text)
+
+    def add_buy_condition(self):
+        """Add a buy condition (indicator-based)"""
+        indicator = self.buy_indicator_combo.currentText()
+        operator = self.buy_operator_combo.currentText()
+        value = self.buy_value_spin.value()
+        condition_text = f"{indicator} {operator} {value}"
+        self.buy_conditions_list.addItem(condition_text)
+
+    def add_sell_condition(self):
+        """Add a sell condition (indicator-based)"""
+        indicator = self.sell_indicator_combo.currentText()
+        operator = self.sell_operator_combo.currentText()
+        value = self.sell_value_spin.value()
+        condition_text = f"{indicator} {operator} {value}"
+        self.sell_conditions_list.addItem(condition_text)
     
     def clear_form(self):
         """Clear the form"""
@@ -644,6 +712,10 @@ class StrategyBuilder(QWidget):
         self.indicators_list.clear()
         self.entry_conditions_list.clear()
         self.entry_indicator_combo.clear()
+        self.buy_conditions_list.clear()
+        self.sell_conditions_list.clear()
+        self.buy_indicator_combo.clear()
+        self.sell_indicator_combo.clear()
         self.time_enabled_check.setChecked(False)
         # Clear re-entry settings
         self.sl_reentry_enabled.setChecked(False)
@@ -688,11 +760,21 @@ class StrategyBuilder(QWidget):
             item_text = f"{indicator_type}({period})"
             self.indicators_list.addItem(item_text)
             self.entry_indicator_combo.addItem(item_text)
+            self.buy_indicator_combo.addItem(item_text)
+            self.sell_indicator_combo.addItem(item_text)
         
         # Load entry conditions
         if hasattr(strategy, 'entry_conditions_text'):
             for condition_text in strategy.entry_conditions_text:
                 self.entry_conditions_list.addItem(condition_text)
+
+        # Load buy/sell conditions
+        if hasattr(strategy, 'buy_conditions_text'):
+            for condition_text in strategy.buy_conditions_text:
+                self.buy_conditions_list.addItem(condition_text)
+        if hasattr(strategy, 'sell_conditions_text'):
+            for condition_text in strategy.sell_conditions_text:
+                self.sell_conditions_list.addItem(condition_text)
         
         # Load trade monitoring mode
         monitoring_mode = getattr(strategy, 'trade_monitoring_mode', 'LTP')
@@ -796,8 +878,10 @@ class StrategyBuilder(QWidget):
             QMessageBox.warning(self, "Validation Error", "Please add at least one indicator")
             return
         
-        if self.entry_conditions_list.count() == 0:
-            QMessageBox.warning(self, "Validation Error", "Please add at least one entry condition")
+        if (self.entry_conditions_list.count() == 0 and
+            self.buy_conditions_list.count() == 0 and
+            self.sell_conditions_list.count() == 0):
+            QMessageBox.warning(self, "Validation Error", "Please add at least one entry, buy, or sell condition")
             return
         
         # Get selected timeframe
@@ -971,6 +1055,71 @@ class StrategyBuilder(QWidget):
         
         # Store entry conditions text in strategy for persistence
         strategy.entry_conditions_text = entry_conditions_text
+
+        # Buy/Sell indicator conditions
+        def create_side_condition(condition_text: str, signal: str):
+            try:
+                operators = ['>=', '<=', '==', '>', '<']
+                operator = None
+                operator_pos = -1
+                for op in operators:
+                    pos = condition_text.find(op)
+                    if pos >= 0:
+                        operator = op
+                        operator_pos = pos
+                        break
+                if operator is None:
+                    return None
+                indicator_part = condition_text[:operator_pos].strip()
+                value_str = condition_text[operator_pos + len(operator):].strip()
+                value = float(value_str)
+
+                def condition(data: Dict):
+                    indicators = data.get('indicators', {})
+                    indicator_value = indicators.get(indicator_part)
+                    if indicator_value is None:
+                        return None
+                    if operator == '>':
+                        ok = indicator_value > value
+                    elif operator == '<':
+                        ok = indicator_value < value
+                    elif operator == '>=':
+                        ok = indicator_value >= value
+                    elif operator == '<=':
+                        ok = indicator_value <= value
+                    elif operator == '==':
+                        ok = abs(indicator_value - value) < 0.0001
+                    else:
+                        ok = False
+                    return signal if ok else None
+
+                return condition
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error parsing side condition '{condition_text}': {e}")
+                return None
+
+        buy_conditions_text = []
+        strategy.buy_condition_funcs = []
+        for i in range(self.buy_conditions_list.count()):
+            ctext = self.buy_conditions_list.item(i).text()
+            buy_conditions_text.append(ctext)
+            cond = create_side_condition(ctext, "BUY")
+            if cond:
+                strategy.buy_condition_funcs.append(cond)
+
+        sell_conditions_text = []
+        strategy.sell_condition_funcs = []
+        for i in range(self.sell_conditions_list.count()):
+            ctext = self.sell_conditions_list.item(i).text()
+            sell_conditions_text.append(ctext)
+            cond = create_side_condition(ctext, "SELL")
+            if cond:
+                strategy.sell_condition_funcs.append(cond)
+
+        strategy.buy_conditions_text = buy_conditions_text
+        strategy.sell_conditions_text = sell_conditions_text
         
         # Store trade monitoring mode
         strategy.trade_monitoring_mode = self.monitoring_mode_combo.currentData()
@@ -1030,12 +1179,32 @@ class CustomStrategy(BaseStrategy):
         super().__init__(name, symbol)
         self.builder = builder
         self.entry_conditions_text = []  # Store condition text for persistence
+        self.buy_conditions_text = []
+        self.sell_conditions_text = []
+        self.buy_condition_funcs = []
+        self.sell_condition_funcs = []
         # Default to M1 if not specified
         import MetaTrader5 as mt5
         self.timeframe = timeframe if timeframe is not None else mt5.TIMEFRAME_M1
     
     def generate_signal(self, market_data: Dict):
-        """Generate signal (simplified)"""
-        # This would need proper implementation based on builder conditions
+        """Generate signal using buy/sell condition functions first, then entry conditions."""
+        # Evaluate buy first
+        for cond in self.buy_condition_funcs:
+            try:
+                res = cond(market_data)
+                if res == 'BUY':
+                    return 'BUY'
+            except Exception:
+                continue
+        # Evaluate sell second
+        for cond in self.sell_condition_funcs:
+            try:
+                res = cond(market_data)
+                if res == 'SELL':
+                    return 'SELL'
+            except Exception:
+                continue
+        # Fallback to legacy entry conditions (could return BUY/SELL)
         return self.check_entry_conditions(market_data)
 
