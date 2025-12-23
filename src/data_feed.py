@@ -10,6 +10,7 @@ from collections import deque
 import threading
 import time
 from PyQt6.QtCore import QObject, pyqtSignal
+import MetaTrader5 as mt5
 
 from .mt5_connector import MT5Connector
 
@@ -23,9 +24,10 @@ class DataFeed(QObject):
     data_updated = pyqtSignal(str, list)   # symbol, rates
     indicators_updated = pyqtSignal(str, dict)  # symbol, indicators_dict
     
-    def __init__(self, mt5_connector: MT5Connector, update_interval: float = 0.1):
+    def __init__(self, mt5_connector: MT5Connector, update_interval: float = 0.1, pb_manager=None):
         super().__init__()
         self.mt5 = mt5_connector
+        self.pb_manager = pb_manager  # PocketBase manager for data storage
         self.symbols: List[str] = []
         self.tick_cache: Dict[str, deque] = {}  # symbol -> deque of recent ticks
         self.rates_cache: Dict[str, Dict[int, List[Dict]]] = {}  # symbol -> {timeframe -> rates}
@@ -34,6 +36,11 @@ class DataFeed(QObject):
         self.update_thread: Optional[threading.Thread] = None
         self.update_interval = update_interval  # seconds - configurable update interval for real-time data
         self.callbacks: Dict[str, List[Callable]] = {}  # symbol -> list of callbacks
+        # Cache for tracking last stored M1 bar timestamp per symbol
+        # Format: {symbol: timestamp (datetime)} - tracks the timestamp of the last stored M1 bar
+        self._m1_bar_cache: Dict[str, Optional[datetime]] = {}
+        # Track last M1 check time to avoid checking too frequently (once per second)
+        self._last_m1_check_time: float = 0.0
     
     def add_symbol(self, symbol: str) -> bool:
         """Add a symbol to monitor (case-insensitive)"""
@@ -74,6 +81,8 @@ class DataFeed(QObject):
                 del self.rates_cache[symbol]
             if symbol in self.callbacks:
                 del self.callbacks[symbol]
+            if symbol in self._m1_bar_cache:
+                del self._m1_bar_cache[symbol]
             logger.info(f"Removed symbol: {symbol}")
     
     def get_latest_tick(self, symbol: str) -> Optional[Dict]:
@@ -153,6 +162,10 @@ class DataFeed(QObject):
         """Main update loop running in separate thread - real-time price updates"""
         while self.running:
             try:
+                current_time = time.time()
+                # Check for M1 bars once per second (optimization)
+                should_check_m1 = (current_time - self._last_m1_check_time) >= 1.0
+                
                 for symbol in self.symbols:
                     try:
                         # Always get fresh tick data (no caching in get_tick)
@@ -184,6 +197,13 @@ class DataFeed(QObject):
                                 # New tick or price change detected
                                 self.tick_cache[symbol].append(tick)
                                 
+                                # Store tick in PocketBase
+                                if self.pb_manager:
+                                    try:
+                                        self.pb_manager.store_tick(symbol, tick)
+                                    except Exception as e:
+                                        logger.debug(f"Error storing tick in PocketBase: {e}")
+                                
                                 # Emit Qt signal for real-time update (always emit for latest data)
                                 self.tick_received.emit(symbol, tick)
                                 
@@ -193,10 +213,22 @@ class DataFeed(QObject):
                                         callback(tick)
                                     except Exception as e:
                                         logger.error(f"Error in callback for {symbol}: {e}")
+                        
+                        # Check and store M1 bar if it's time (once per second)
+                        if should_check_m1:
+                            try:
+                                self._check_and_store_m1_bar(symbol)
+                            except Exception as e:
+                                logger.debug(f"Error checking M1 bar for {symbol}: {e}")
+                                
                     except Exception as e:
                         # Log error for specific symbol but continue with other symbols
                         logger.error(f"Error getting tick for {symbol}: {e}")
                         continue
+                
+                # Update last M1 check time if we checked
+                if should_check_m1:
+                    self._last_m1_check_time = current_time
                 
                 time.sleep(self.update_interval)
                 
@@ -209,4 +241,69 @@ class DataFeed(QObject):
         rates = self.get_rates(symbol, timeframe, 1000)
         if rates:
             self.data_updated.emit(symbol, rates)
+    
+    def _check_and_store_m1_bar(self, symbol: str) -> None:
+        """
+        Check for new M1 bar and store it in PocketBase if detected.
+        Only stores closed bars (most recent closed bar from MT5).
+        
+        Args:
+            symbol: Trading symbol to check
+        """
+        if not self.pb_manager:
+            return
+        
+        if not self.mt5.is_connected():
+            return
+        
+        try:
+            # Get the most recent closed M1 bar (position 0 is the most recent closed bar)
+            rates = self.mt5.get_rates(symbol, mt5.TIMEFRAME_M1, 1, 0)
+            
+            if not rates or len(rates) == 0:
+                return
+            
+            # Get the most recent closed bar
+            bar = rates[0]
+            bar_time = bar['time']
+            
+            # Check if this is a datetime object or needs conversion
+            if not isinstance(bar_time, datetime):
+                # If it's a timestamp, convert it
+                if isinstance(bar_time, (int, float)):
+                    # Assume it's a Unix timestamp in seconds
+                    bar_time = datetime.fromtimestamp(bar_time)
+                else:
+                    logger.warning(f"Unexpected bar time format for {symbol}: {type(bar_time)}")
+                    return
+            
+            # Normalize bar time to minute precision (remove seconds/microseconds)
+            bar_time_normalized = bar_time.replace(second=0, microsecond=0)
+            
+            # Check if we've already stored this bar
+            last_stored_time = self._m1_bar_cache.get(symbol)
+            
+            if last_stored_time is None or last_stored_time != bar_time_normalized:
+                # New bar detected - store it
+                candle_data = {
+                    'time': bar_time,
+                    'open': bar['open'],
+                    'high': bar['high'],
+                    'low': bar['low'],
+                    'close': bar['close'],
+                    'tick_volume': bar.get('tick_volume', 0),
+                    'real_volume': bar.get('real_volume', 0)
+                }
+                
+                # Store in PocketBase
+                try:
+                    self.pb_manager.store_ohlc(symbol, 'M1', candle_data)
+                    # Update cache with new bar timestamp
+                    self._m1_bar_cache[symbol] = bar_time_normalized
+                    logger.debug(f"Stored M1 bar for {symbol} at {bar_time_normalized}")
+                except Exception as e:
+                    logger.error(f"Error storing M1 bar for {symbol} in PocketBase: {e}")
+            
+        except Exception as e:
+            logger.debug(f"Error checking M1 bar for {symbol}: {e}")
 

@@ -9,6 +9,20 @@ from typing import Optional, Dict, List, Tuple
 from datetime import datetime, timedelta
 import time
 
+# UTC timezone support for MT5 timestamps (MT5 returns UTC timestamps)
+try:
+    from zoneinfo import ZoneInfo
+    UTC = ZoneInfo("UTC")
+except ImportError:
+    # Fallback for Python < 3.9
+    try:
+        import pytz
+        UTC = pytz.UTC
+    except ImportError:
+        # If neither available, use UTC offset manually
+        from datetime import timezone
+        UTC = timezone.utc
+
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +37,9 @@ class MT5Connector:
         self.connected = False
         self.account_info = None
         self.last_error: Optional[str] = None
+        # Cache for M1 bars per symbol to optimize volume retrieval
+        # Format: {symbol: {'bar_time': datetime, 'tick_volume': int}}
+        self._m1_bar_cache: Dict[str, Dict] = {}
     
     def initialize(self, path: str = "", login: int = 0, password: str = "", 
                    server: str = "", timeout: int = 10000) -> bool:
@@ -198,6 +215,9 @@ class MT5Connector:
         Note: Some MetaTrader5 Python builds do not expose `copy_ticks_from_pos`.
         We therefore use `symbol_info_tick()` as the primary method to avoid
         repeated AttributeError spam and ensure stable real-time updates.
+        
+        Volume is retrieved from the most recent M1 (1-minute) OHLC bar's tick_volume
+        as a proxy, since individual tick volume from symbol_info_tick() is often 0.
         """
         if not self.is_connected():
             return None
@@ -217,18 +237,84 @@ class MT5Connector:
             # Use last price if available, otherwise calculate mid price (bid + ask) / 2
             last_price = tick.last if tick.last > 0 else (tick.bid + tick.ask) / 2.0
             
+            # MT5 timestamps are in UTC, create UTC-aware datetime
+            tick_time = datetime.fromtimestamp(tick.time, tz=UTC)
+            
+            # Get volume from most recent M1 bar (proxy for tick volume)
+            # tick.volume is often 0 for individual ticks, so we use M1 bar's tick_volume
+            volume = self._get_m1_bar_volume(symbol, tick_time)
+            if volume == 0:
+                # Fallback to tick.volume if M1 bar fetch fails
+                volume = tick.volume
+            
             return {
                 'symbol': symbol,
-                'time': datetime.fromtimestamp(tick.time),
+                'time': tick_time,
                 'bid': tick.bid,
                 'ask': tick.ask,
                 'last': last_price,
-                'volume': tick.volume,
+                'volume': volume,
                 'spread': tick.ask - tick.bid,
             }
         except Exception as e:
             logger.error(f"Error getting tick for {symbol}: {e}")
             return None
+    
+    def _get_m1_bar_volume(self, symbol: str, tick_time: datetime) -> int:
+        """
+        Get tick volume from the most recent M1 bar for the given symbol.
+        Uses caching to avoid fetching on every tick - only refreshes when a new bar starts.
+        
+        Args:
+            symbol: Trading symbol
+            tick_time: Current tick time (used to determine if we need to refresh cache)
+            
+        Returns:
+            Tick volume from most recent M1 bar, or 0 if fetch fails
+        """
+        try:
+            # Calculate the current M1 bar's start time (rounded down to minute)
+            current_bar_time = tick_time.replace(second=0, microsecond=0)
+            
+            # Check cache - refresh if:
+            # 1. No cache entry exists for this symbol
+            # 2. Cached bar time is different (new bar started)
+            cache_entry = self._m1_bar_cache.get(symbol)
+            if cache_entry is None or cache_entry.get('bar_time') != current_bar_time:
+                # Fetch most recent M1 bar
+                rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M1, 0, 1)
+                
+                if rates is not None and len(rates) > 0:
+                    # Get the most recent bar
+                    rate = rates[0]
+                    bar_time = datetime.fromtimestamp(rate[0], tz=UTC).replace(second=0, microsecond=0)
+                    tick_volume = int(rate[5])  # tick_volume is at index 5
+                    
+                    # Update cache
+                    self._m1_bar_cache[symbol] = {
+                        'bar_time': bar_time,
+                        'tick_volume': tick_volume
+                    }
+                    
+                    logger.debug(f"M1 bar volume cached for {symbol}: {tick_volume} (bar time: {bar_time})")
+                    return tick_volume
+                else:
+                    # If fetch fails, try to use cached value if available
+                    if cache_entry:
+                        logger.debug(f"Failed to fetch M1 bar for {symbol}, using cached volume: {cache_entry.get('tick_volume', 0)}")
+                        return cache_entry.get('tick_volume', 0)
+                    return 0
+            else:
+                # Use cached value
+                return cache_entry.get('tick_volume', 0)
+                
+        except Exception as e:
+            logger.debug(f"Error getting M1 bar volume for {symbol}: {e}")
+            # Return cached value if available, otherwise 0
+            cache_entry = self._m1_bar_cache.get(symbol)
+            if cache_entry:
+                return cache_entry.get('tick_volume', 0)
+            return 0
     
     def get_rates(self, symbol: str, timeframe: int, count: int = 1000, 
                   start_pos: int = 0) -> Optional[List[Dict]]:
@@ -289,8 +375,9 @@ class MT5Connector:
         # Convert to list of dicts
         result = []
         for rate in rates:
+            # MT5 timestamps are in UTC, create UTC-aware datetime
             result.append({
-                'time': datetime.fromtimestamp(rate[0]),
+                'time': datetime.fromtimestamp(rate[0], tz=UTC),
                 'open': rate[1],
                 'high': rate[2],
                 'low': rate[3],
@@ -407,7 +494,8 @@ class MT5Connector:
                 return None
             
             # Return the time of the bar (first element is time)
-            return datetime.fromtimestamp(rates[0][0])
+            # MT5 timestamps are in UTC, create UTC-aware datetime
+            return datetime.fromtimestamp(rates[0][0], tz=UTC)
         except Exception as e:
             logger.error(f"Error getting last bar time: {e}")
             return None
@@ -821,12 +909,66 @@ class MT5Connector:
                 'profit': pos.profit,
                 'swap': pos.swap,
                 'comment': pos.comment,
-                'time': datetime.fromtimestamp(pos.time),
+                'time': datetime.fromtimestamp(pos.time, tz=UTC),  # MT5 timestamps are in UTC
                 'sl': pos.sl,  # Stop loss price
                 'tp': pos.tp,  # Take profit price
             })
         
         return result
+    
+    def get_historical_deals(self, date_from: datetime, date_to: datetime = None, 
+                            symbol: str = None) -> List[Dict]:
+        """
+        Get historical closed deals from MT5
+        
+        Args:
+            date_from: Start date for history
+            date_to: End date (None = now)
+            symbol: Filter by symbol (None = all)
+        
+        Returns:
+            List of deal dictionaries
+        """
+        if not self.is_connected():
+            logger.error("MT5 not connected")
+            return []
+        
+        try:
+            if date_to is None:
+                date_to = datetime.now()
+            
+            # Get history deals
+            if symbol:
+                deals = mt5.history_deals_get(date_from, date_to, group=f"*{symbol}*")
+            else:
+                deals = mt5.history_deals_get(date_from, date_to)
+            
+            if deals is None:
+                logger.warning("No historical deals found")
+                return []
+            
+            result = []
+            for deal in deals:
+                # Only include OUT deals (position closures)
+                if deal.entry == mt5.DEAL_ENTRY_OUT:
+                    result.append({
+                        'ticket': deal.position_id,
+                        'deal_ticket': deal.ticket,
+                        'symbol': deal.symbol,
+                        'type': 'BUY' if deal.type == mt5.DEAL_TYPE_BUY else 'SELL',
+                        'volume': deal.volume,
+                        'price': deal.price,
+                        'time': datetime.fromtimestamp(deal.time, tz=UTC),  # MT5 timestamps are in UTC
+                        'profit': deal.profit,
+                        'comment': deal.comment
+                    })
+            
+            logger.info(f"Retrieved {len(result)} closed deals from MT5 history")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error getting historical deals: {e}", exc_info=True)
+            return []
     
     def close_position(self, ticket: int) -> bool:
         """Close a position by ticket"""
@@ -1027,7 +1169,7 @@ class MT5Connector:
             result.append({
                 'ticket': deal.ticket,
                 'order': deal.order,
-                'time': datetime.fromtimestamp(deal.time),
+                'time': datetime.fromtimestamp(deal.time, tz=UTC),  # MT5 timestamps are in UTC
                 'type': deal.type,
                 'entry': deal.entry,  # DEAL_ENTRY_IN or DEAL_ENTRY_OUT
                 'position_id': deal.position_id,
@@ -1226,8 +1368,8 @@ class MT5Connector:
                 return {
                     'ticket': order.ticket,
                     'order': order.order,
-                    'time_setup': datetime.fromtimestamp(order.time_setup),
-                    'time_done': datetime.fromtimestamp(order.time_done) if order.time_done > 0 else None,
+                    'time_setup': datetime.fromtimestamp(order.time_setup, tz=UTC),  # MT5 timestamps are in UTC
+                    'time_done': datetime.fromtimestamp(order.time_done, tz=UTC) if order.time_done > 0 else None,  # MT5 timestamps are in UTC
                     'type': order.type,
                     'volume': order.volume_initial,
                     'price_open': order.price_open,

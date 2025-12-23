@@ -72,6 +72,13 @@ class TradeHistory:
         }
         logger.info(f"Added trade to history: {ticket} - {strategy_name} - {symbol} - {direction}")
         
+        # Store in PocketBase if available
+        if hasattr(self, 'pb_manager') and self.pb_manager:
+            try:
+                self.pb_manager.store_trade(self.trades[ticket])
+            except Exception as e:
+                logger.error(f"Error storing trade in PocketBase: {e}")
+        
         # Auto-save to file
         if self.persistence_file:
             self.save_to_file(self.persistence_file)
@@ -96,6 +103,13 @@ class TradeHistory:
             self.trades[ticket]['status'] = 'Closed'
             self.trades[ticket]['profit'] = profit
             logger.info(f"Closed trade in history: {ticket} - Exit Condition: {exit_condition}, Exit Price: {exit_price}, Exit Time: {exit_time}")
+            
+            # Update in PocketBase if available
+            if hasattr(self, 'pb_manager') and self.pb_manager:
+                try:
+                    self.pb_manager.store_trade(self.trades[ticket])
+                except Exception as e:
+                    logger.error(f"Error updating trade in PocketBase: {e}")
             
             # Auto-save to file
             if self.persistence_file:
@@ -124,6 +138,99 @@ class TradeHistory:
         """Get a specific trade by ticket"""
         return self.trades.get(ticket)
     
+    def get_trades_for_symbol(self, symbol: str) -> List[Dict]:
+        """
+        Get all trades (open and closed) for a specific symbol
+        
+        Args:
+            symbol: Trading symbol
+        
+        Returns:
+            List of trade dictionaries
+        """
+        return [trade for trade in self.trades.values() if trade.get('symbol') == symbol]
+    
+    def create_backup(self):
+        """Create a backup of current trade history"""
+        try:
+            if not self.persistence_file:
+                return
+            
+            source_file = Path(self.persistence_file)
+            if not source_file.exists():
+                return
+            
+            # Create backup directory
+            backup_dir = source_file.parent / 'backups'
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Generate backup filename with timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_file = backup_dir / f'trade_history_backup_{timestamp}.json'
+            
+            # Copy current file to backup
+            import shutil
+            shutil.copy2(source_file, backup_file)
+            
+            logger.info(f"Created trade history backup: {backup_file}")
+            
+            # Rotate old backups (keep only last 5)
+            self.rotate_backups(backup_dir, keep_count=5)
+            
+        except Exception as e:
+            logger.error(f"Error creating backup: {e}", exc_info=True)
+    
+    def rotate_backups(self, backup_dir: Path, keep_count: int = 5):
+        """Keep only the most recent N backups"""
+        try:
+            backups = sorted(backup_dir.glob('trade_history_backup_*.json'), 
+                            key=lambda p: p.stat().st_mtime, 
+                            reverse=True)
+            
+            # Delete old backups beyond keep_count
+            for old_backup in backups[keep_count:]:
+                old_backup.unlink()
+                logger.info(f"Deleted old backup: {old_backup}")
+                
+        except Exception as e:
+            logger.error(f"Error rotating backups: {e}", exc_info=True)
+    
+    def restore_from_backup(self, backup_file: str):
+        """Restore trade history from a backup file"""
+        try:
+            backup_path = Path(backup_file)
+            if not backup_path.exists():
+                logger.error(f"Backup file not found: {backup_file}")
+                return False
+            
+            # Load backup data
+            with open(backup_path, 'r') as f:
+                trades_data = json.load(f)
+            
+            # Parse and restore trades
+            self.trades.clear()
+            for trade_dict in trades_data:
+                ticket = trade_dict.get('ticket')
+                if ticket:
+                    # Parse datetime strings back to datetime objects
+                    if 'entry_time' in trade_dict:
+                        trade_dict['entry_time'] = datetime.fromisoformat(trade_dict['entry_time'])
+                    if 'exit_time' in trade_dict and trade_dict['exit_time']:
+                        trade_dict['exit_time'] = datetime.fromisoformat(trade_dict['exit_time'])
+                    
+                    self.trades[ticket] = trade_dict
+            
+            logger.info(f"Restored {len(self.trades)} trades from backup: {backup_file}")
+            
+            # Save as current state
+            if self.persistence_file:
+                self.save_to_file(self.persistence_file)
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error restoring from backup: {e}", exc_info=True)
+            return False
+    
     def clear(self):
         """Clear all trade history"""
         self.trades.clear()
@@ -134,12 +241,15 @@ class TradeHistory:
     
     def save_to_file(self, file_path: str):
         """
-        Save trade history to JSON file
+        Save trade history to JSON file with backup
         
         Args:
             file_path: Path to JSON file
         """
         try:
+            # NEW: Create backup before saving
+            self.create_backup()
+            
             file_path_obj = Path(file_path)
             file_path_obj.parent.mkdir(parents=True, exist_ok=True)
             
