@@ -187,8 +187,8 @@ class MainWindow(QMainWindow):
         self.market_data_panel = MarketDataPanel(self.data_feed, self.mt5)
         self.tab_widget.addTab(self.market_data_panel, "Market Data")
         
-        # Chart tab (pass market_data_panel for OHLC data access)
-        self.chart_widget = ChartWidget(self.data_feed, self.mt5, self.strategy_manager, self.market_data_panel)
+        # Chart tab (pass market_data_panel for OHLC data access and order_manager for trade levels)
+        self.chart_widget = ChartWidget(self.data_feed, self.mt5, self.strategy_manager, self.market_data_panel, self.order_manager)
         self.tab_widget.addTab(self.chart_widget, "Charts")
         
         # Strategy Builder tab
@@ -534,6 +534,19 @@ class MainWindow(QMainWindow):
                         continue
                     
                     logger.info(f"Strategy {strategy_name} generated {signal} signal")
+                    
+                    # Notify chart widget about the signal
+                    if hasattr(self, 'chart_widget'):
+                        current_price = market_data.get(strategy.symbol, {}).get('close', 0.0)
+                        from datetime import datetime
+                        self.chart_widget.add_strategy_signal(
+                            symbol=strategy.symbol,
+                            signal_type=signal,
+                            price=current_price,
+                            timestamp=datetime.now(),
+                            strategy_name=strategy_name
+                        )
+                    
                     self.execute_strategy_signal(strategy, signal)
             else:
                 # Log when no signal is generated (for debugging)

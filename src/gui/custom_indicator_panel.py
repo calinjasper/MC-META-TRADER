@@ -877,7 +877,7 @@ class PreviousSessionOHLCCalculator:
         Initialize OHLC calculator
         
         Args:
-            session_type: 'daily', 'asian', 'european', or 'us'
+            session_type: 'daily', 'weekly', 'monthly', 'asian', 'european', or 'us'
         """
         self.session_type = session_type.lower()
         self.prev_open = None
@@ -973,6 +973,36 @@ class PreviousSessionOHLCCalculator:
                 prev_day = current_gmt
             
             self.session_name = f"US Session ({prev_day.strftime('%Y-%m-%d')})"
+            
+        elif self.session_type == 'weekly':
+            # Previous week's OHLC (Monday 00:00 to Friday 23:59 GMT)
+            # Find the start of current week (Monday)
+            days_since_monday = current_gmt.weekday()
+            current_week_start = current_gmt - timedelta(days=days_since_monday)
+            current_week_start = current_week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            # Previous week is 7 days before current week start
+            prev_week_start = current_week_start - timedelta(days=7)
+            prev_week_end = prev_week_start + timedelta(days=4, hours=23, minutes=59, seconds=59)  # Friday 23:59
+            
+            session_start = prev_week_start
+            session_end = prev_week_end
+            self.session_name = f"Weekly ({prev_week_start.strftime('%Y-%m-%d')} to {prev_week_end.strftime('%Y-%m-%d')})"
+            
+        elif self.session_type == 'monthly':
+            # Previous month's OHLC (1st 00:00 to last day 23:59 GMT)
+            # Find first day of current month
+            current_month_start = current_gmt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            
+            # Previous month is one day before current month
+            prev_month_end = current_month_start - timedelta(days=1)
+            prev_month_start = prev_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            prev_month_end = prev_month_end.replace(hour=23, minute=59, second=59, microsecond=999999)
+            
+            session_start = prev_month_start
+            session_end = prev_month_end
+            self.session_name = f"Monthly ({prev_month_start.strftime('%B %Y')})"
+            
         else:
             # Default to daily
             prev_day = current_gmt - timedelta(days=1)

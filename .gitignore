@@ -58,3 +58,8 @@ Thumbs.db
 strategies/*.json
 !strategies/.gitkeep
 
+# PocketBase database files (runtime data - do not commit)
+pocketbase/pb_data/*.db
+pocketbase/pb_data/*.db-shm
+pocketbase/pb_data/*.db-wal
+

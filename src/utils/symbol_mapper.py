@@ -84,10 +84,15 @@ class SymbolMapper:
             return None
         
         requested_symbol = requested_symbol.upper().strip()
+        logger.info(f"=== FINDING SYMBOL: {requested_symbol} ===")
         
-        # Check cache first
+        # Check cache first (only contains successful matches)
         if requested_symbol in self.symbol_cache:
-            return self.symbol_cache[requested_symbol]
+            cached_symbol = self.symbol_cache[requested_symbol]
+            logger.info(f"Symbol found in cache: {requested_symbol} -> {cached_symbol}")
+            return cached_symbol
+        
+        logger.info(f"Symbol not in cache, starting resolution process...")
         
         # Try exact match first
         if self._symbol_exists(requested_symbol):
@@ -103,10 +108,12 @@ class SymbolMapper:
                     return variant
         
         # Try common mappings
+        logger.debug(f"Checking common mappings for: {requested_symbol}")
         for base_symbol, variants in self.COMMON_MAPPINGS.items():
             if requested_symbol in variants:
+                logger.debug(f"Found {requested_symbol} in common mappings under {base_symbol}, trying variants: {variants}")
                 for variant in variants:
-                    if variant != requested_symbol and self._symbol_exists(variant):
+                    if self._symbol_exists(variant):
                         self.symbol_cache[requested_symbol] = variant
                         logger.info(f"Found symbol via common mapping: {requested_symbol} -> {variant}")
                         return variant
@@ -139,8 +146,15 @@ class SymbolMapper:
                     logger.info(f"Found symbol via partial match: {requested_symbol} -> {symbol}")
                     return symbol
         
-        # Not found
-        self.symbol_cache[requested_symbol] = None
+        # If all mapping attempts fail, try fuzzy matching
+        logger.info(f"Attempting fuzzy match for {requested_symbol}")
+        found_symbol = self.find_symbol_fuzzy(requested_symbol)
+        if found_symbol:
+            self.symbol_cache[requested_symbol] = found_symbol
+            return found_symbol
+        
+        # Not found - DO NOT CACHE None values, so we can retry later
+        logger.warning(f"Symbol not found: {requested_symbol} (not caching, will retry on next lookup)")
         return None
     
     def _symbol_exists(self, symbol: str) -> bool:
@@ -160,6 +174,93 @@ class SymbolMapper:
         except:
             pass
         return []
+    
+    def find_symbol_fuzzy(self, requested_symbol: str) -> Optional[str]:
+        """
+        Try fuzzy matching if exact mapping fails
+        Prioritizes forex pairs to avoid matching wrong pairs
+        
+        Args:
+            requested_symbol: Symbol to find
+        
+        Returns:
+            Matched symbol or None
+        """
+        if not self.mt5_connector or not self.mt5_connector.is_connected():
+            return None
+        
+        try:
+            # Get all symbols from MT5
+            symbols = mt5.symbols_get()
+            if not symbols:
+                return None
+            
+            symbol_names = [s.name for s in symbols]
+            requested_upper = requested_symbol.upper()
+            requested_lower = requested_symbol.lower()
+            
+            # Try exact match first
+            if requested_symbol in symbol_names:
+                logger.info(f"Fuzzy match: Exact match found: {requested_symbol}")
+                return requested_symbol
+            
+            # Try case-insensitive match
+            for name in symbol_names:
+                if name.lower() == requested_lower:
+                    logger.info(f"Fuzzy match: Case-insensitive match: {requested_symbol} -> {name}")
+                    return name
+            
+            # Special handling for forex pairs (6-character symbols like EURUSD, GBPJPY)
+            is_forex_pair = len(requested_upper) == 6 and requested_upper.isalpha()
+            
+            if is_forex_pair:
+                logger.info(f"Fuzzy match: Detected forex pair format: {requested_upper}")
+                
+                # For forex pairs, ONLY match if the base 6 characters match exactly
+                # This prevents EURUSD from matching EURAUD or EURGBP
+                exact_forex_matches = []
+                for name in symbol_names:
+                    # Check if symbol starts with our forex pair exactly
+                    if len(name) >= 6 and name[:6].upper() == requested_upper:
+                        exact_forex_matches.append(name)
+                
+                if exact_forex_matches:
+                    # Prefer shortest match (usually the one with minimal suffix)
+                    best_match = min(exact_forex_matches, key=len)
+                    logger.info(f"Fuzzy match: Found exact forex pair with suffix: {requested_symbol} -> {best_match}")
+                    logger.info(f"Fuzzy match: All forex matches found: {exact_forex_matches}")
+                    return best_match
+                
+                # If no exact forex match found, don't fall through to contains matching
+                # This is critical for forex pairs to avoid wrong matches
+                logger.warning(f"Fuzzy match: No exact forex pair match for {requested_symbol}")
+                logger.warning(f"Fuzzy match: Available forex pairs starting with {requested_upper[:3]}: {[n for n in symbol_names if len(n) >= 6 and n[:3].upper() == requested_upper[:3] and n[:6].isalpha()][:10]}")
+                return None
+            
+            # For non-forex symbols, try starts-with match
+            for name in symbol_names:
+                if name.lower().startswith(requested_lower):
+                    logger.info(f"Fuzzy match: Prefix match: {requested_symbol} -> {name}")
+                    return name
+            
+            # Try contains match (least strict, only for non-forex)
+            for name in symbol_names:
+                if requested_lower in name.lower():
+                    logger.warning(f"Fuzzy match: Contains match (weak): {requested_symbol} -> {name}")
+                    return name
+            
+            # Log available similar symbols for debugging
+            similar = [n for n in symbol_names if requested_symbol[:3].lower() in n.lower()]
+            if similar:
+                logger.warning(f"Fuzzy match: No match for {requested_symbol}. Similar symbols: {similar[:10]}")
+            else:
+                logger.error(f"Fuzzy match: No similar symbols found for {requested_symbol}")
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Fuzzy match error: {e}")
+            return None
     
     def _generate_variations(self, symbol: str) -> List[str]:
         """Generate common symbol name variations"""

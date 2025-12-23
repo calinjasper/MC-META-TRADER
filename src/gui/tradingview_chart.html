@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TradingView Lightweight Chart</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background-color: #050505;
+      }
+
+      #chart {
+        width: 100%;
+        height: 100%;
+      }
+
+      #loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #ffffff;
+        font-family: Arial, sans-serif;
+        font-size: 18px;
+      }
+
+      #symbol-name {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: #ffffff;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+        font-size: 18px;
+        font-weight: 600;
+        padding: 8px 12px;
+        background-color: rgba(0, 0, 0, 0.5);
+        border-radius: 4px;
+        z-index: 1000;
+        pointer-events: none;
+      }
+    </style>
+    <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js?v=3.8.0" 
+            onerror="console.error('Failed to load TradingView library'); document.getElementById('loading').innerText='Error: Failed to load TradingView library from CDN';">
+    </script>
+    <script src="qrc:///qtwebchannel/qwebchannel.js"
+            onerror="console.error('Failed to load QWebChannel'); document.getElementById('loading').innerText='Error: Failed to load QWebChannel';">
+    </script>
+  </head>
+  <body>
+    <div id="loading">Loading TradingView Chart...</div>
+    <div id="symbol-name"></div>
+    <div id="chart"></div>
+    <script>
+      // Check if libraries loaded
+      if (typeof LightweightCharts === 'undefined') {
+        console.error('LightweightCharts library not loaded!');
+        document.getElementById('loading').innerText = 'Error: TradingView library not loaded';
+      }
+      
+      if (typeof QWebChannel === 'undefined') {
+        console.error('QWebChannel not loaded!');
+        document.getElementById('loading').innerText = 'Error: QWebChannel not loaded';
+      }
+    </script>
+    <script>
+      // Global error handler
+      window.onerror = function(msg, url, lineNo, columnNo, error) {
+        console.error('JavaScript Error: ' + msg + ' at ' + url + ':' + lineNo + ':' + columnNo);
+        document.getElementById('loading').innerText = 'Error: ' + msg;
+        return false;
+      };
+
+      // Check if libraries are loaded
+      if (typeof LightweightCharts === 'undefined') {
+        console.error('Cannot create chart: LightweightCharts not loaded');
+        throw new Error('LightweightCharts library not loaded');
+      }
+
+      // Hide loading message
+      const loadingEl = document.getElementById('loading');
+      if (loadingEl) {
+        loadingEl.style.display = 'none';
+      }
+
+      const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+        layout: {
+          backgroundColor: '#050505',
+          textColor: '#ffffff',
+        },
+        grid: {
+          vertLines: { color: '#222' },
+          horzLines: { color: '#222' },
+        },
+        rightPriceScale: { borderColor: '#444' },
+        timeScale: { borderColor: '#444' },
+      });
+
+      const candleSeries = chart.addCandlestickSeries({
+        upColor: '#26a69a',
+        downColor: '#ef5350',
+        borderVisible: true,
+        wickUpColor: '#26a69a',
+        wickDownColor: '#ef5350',
+      });
+
+      const indicatorSeries = {};
+      let currentMarkers = [];  // Track current markers (signals + trades)
+
+      function resize() {
+        chart.resize(document.body.clientWidth, document.body.clientHeight);
+      }
+
+      window.addEventListener('resize', resize);
+
+      function updateCandles(data) {
+        try {
+          if (!Array.isArray(data) || !data.length) {
+            return;
+          }
+          candleSeries.setData(data);
+          chart.timeScale().fitContent();
+        } catch (error) {
+          console.error('Error updating candles:', error);
+        }
+      }
+
+      function updateIndicators(entries) {
+        if (!Array.isArray(entries)) {
+          return;
+        }
+        const seen = new Set();
+        entries.forEach((entry) => {
+          if (!entry?.name || !Array.isArray(entry.points)) {
+            return;
+          }
+          let series = indicatorSeries[entry.name];
+          if (!series) {
+            series = chart.addLineSeries({
+              color: entry.color || '#ffffff',
+              lineWidth: entry.width || 2,
+              priceLineVisible: false,
+            });
+            indicatorSeries[entry.name] = series;
+          }
+          series.setData(entry.points);
+          seen.add(entry.name);
+        });
+
+        Object.keys(indicatorSeries).forEach((name) => {
+          if (!seen.has(name)) {
+            indicatorSeries[name].setData([]);
+          }
+        });
+      }
+
+      function updateMarkers(markersData) {
+        console.log('updateMarkers called with:', markersData);
+        if (!Array.isArray(markersData)) {
+          console.error('markersData is not an array:', typeof markersData);
+          return;
+        }
+        
+        try {
+          // Set markers on candlestick series
+          candleSeries.setMarkers(markersData);
+          currentMarkers = markersData;
+          console.log('Successfully set ' + markersData.length + ' markers');
+        } catch (error) {
+          console.error('Error updating markers:', error);
+        }
+      }
+
+
+      function updateSymbolName(symbolName, timeframe) {
+        var symbolDiv = document.getElementById('symbol-name');
+        if (symbolDiv && symbolName) {
+          symbolDiv.textContent = symbolName + (timeframe ? ' • ' + timeframe : '');
+        }
+      }
+
+      // Setup QWebChannel communication
+      function setupQWebChannel() {
+        // Check if qt.webChannelTransport is available
+        if (typeof qt === 'undefined' || !qt.webChannelTransport) {
+          console.error('qt.webChannelTransport not available - QWebChannel not ready');
+          setTimeout(function() {
+            setupQWebChannel();
+          }, 1000);
+          return;
+        }
+        
+        // Check if QWebChannel is loaded
+        if (typeof QWebChannel === 'undefined') {
+          console.error('QWebChannel not loaded');
+          return;
+        }
+        
+        new QWebChannel(qt.webChannelTransport, function(channel) {
+          const bridge = channel.objects.tradingViewBridge;
+          if (!bridge) {
+            console.error('TradingView bridge missing from channel');
+            return;
+          }
+          bridge.candlesUpdated.connect(updateCandles);
+          bridge.indicatorsUpdated.connect(updateIndicators);
+          bridge.markersUpdated.connect(updateMarkers);
+          bridge.symbolChanged.connect(updateSymbolName);
+          bridge.emitReady();
+        });
+      }
+      
+      // Try to setup QWebChannel
+      setupQWebChannel();
+    </script>
+  </body>
+</html>
