@@ -536,6 +536,70 @@ class MainWindow(QMainWindow):
             else:
                 logger.warning(f"Strategy {strategy.name}: Symbol {symbol} not found in market_data. Available: {list(market_data.keys())}")
         
+        # Calculate SMC pivots globally for each symbol (for unified indicator resolution)
+        for symbol_key, data in market_data.items():
+            rates = data.get('rates', [])
+            if not rates or len(rates) < 20:
+                continue
+            
+            # Get the most common timeframe from strategies using this symbol
+            # Default to M15 if no strategy specifies
+            import MetaTrader5 as mt5
+            common_timeframe = mt5.TIMEFRAME_M15
+            for strategy in enabled_strategies:
+                if strategy.symbol.upper() == symbol_key.upper():
+                    common_timeframe = getattr(strategy, 'timeframe', mt5.TIMEFRAME_M15)
+                    break
+            
+            # Get rates on the common timeframe for SMC pivot calculation
+            timeframe_rates = self.mt5.get_rates(symbol_key, common_timeframe, 300) if self.mt5.is_connected() else rates
+            
+            if timeframe_rates and len(timeframe_rates) >= 20:
+                try:
+                    from ..strategy.smc_strategy import _fractal_pivot_high, _fractal_pivot_low, _extract_ohlc_arrays
+                    
+                    # Extract OHLC arrays
+                    _, highs, lows, closes = _extract_ohlc_arrays(timeframe_rates)
+                    
+                    # Calculate pivots (default: 2/2)
+                    pivot_left = 2
+                    pivot_right = 2
+                    last_pivot_high = None
+                    last_pivot_low = None
+                    
+                    # Find last confirmed pivots
+                    start = max(pivot_left, len(highs) - pivot_right - 10)
+                    end = len(highs) - pivot_right
+                    
+                    for i in range(start, end):
+                        if _fractal_pivot_high(highs, i, pivot_left, pivot_right):
+                            last_pivot_high = highs[i]
+                        if _fractal_pivot_low(lows, i, pivot_left, pivot_right):
+                            last_pivot_low = lows[i]
+                    
+                    # Store SMC pivots in market_data
+                    data['smc_pivots'] = {
+                        'pivot_high': float(last_pivot_high) if last_pivot_high is not None else None,
+                        'pivot_low': float(last_pivot_low) if last_pivot_low is not None else None
+                    }
+                except Exception as e:
+                    logger.debug(f"Error calculating SMC pivots for {symbol_key}: {e}")
+                    data['smc_pivots'] = {'pivot_high': None, 'pivot_low': None}
+            else:
+                data['smc_pivots'] = {'pivot_high': None, 'pivot_low': None}
+            
+            # Add OHLC data to market_data if available from market_data_panel
+            if hasattr(self, 'market_data_panel') and self.market_data_panel:
+                ohlc = None
+                symbol_upper = symbol_key.upper()
+                for ohlc_symbol in self.market_data_panel.ohlc_data.keys():
+                    if ohlc_symbol.upper() == symbol_upper:
+                        ohlc = self.market_data_panel.ohlc_data[ohlc_symbol]
+                        break
+                
+                if ohlc:
+                    data['ohlc'] = ohlc
+        
         # Update strategies
         signals = self.strategy_manager.update_strategies(market_data)
         

@@ -173,34 +173,45 @@ class SMCStrategy(BaseStrategy):
 
         return None
 
-    def _resolve_operand(self, field: str, current_price: float, ohlc: Dict) -> Optional[float]:
-        if field == "price":
-            return current_price
-        if not ohlc:
-            return None
-        o = ohlc.get("open")
-        h = ohlc.get("high")
-        l = ohlc.get("low")
-        c = ohlc.get("close")
-        if field == "open":
-            return o
-        if field == "high":
-            return h
-        if field == "low":
-            return l
-        if field == "close":
-            return c
-        if field == "hl2" and h is not None and l is not None:
-            return (h + l) / 2.0
-        if field == "hlc3" and h is not None and l is not None and c is not None:
-            return (h + l + c) / 3.0
-        if field == "ohlc4" and o is not None and h is not None and l is not None and c is not None:
-            return (o + h + l + c) / 4.0
+    def _resolve_operand(self, field: str, current_price: float, ohlc: Dict, market_data: Dict = None) -> Optional[float]:
+        """
+        Resolve operand using unified indicator resolver.
+        Falls back to internal SMC pivot tracking if unified resolver doesn't have SMC pivots.
+        """
+        # Build context for unified resolver
+        context = {
+            "price": current_price,
+            "ohlc": ohlc if ohlc else {},
+        }
+        
+        # Add SMC pivots from internal state (if not in market_data)
+        smc_pivots = {}
+        if self.last_pivot_high:
+            smc_pivots["pivot_high"] = self.last_pivot_high.price
+        if self.last_pivot_low:
+            smc_pivots["pivot_low"] = self.last_pivot_low.price
+        context["smc_pivots"] = smc_pivots
+        
+        # Add market_data context if available (may override internal pivots)
+        if market_data:
+            # Use market_data SMC pivots if available, otherwise use internal
+            if "smc_pivots" in market_data and market_data["smc_pivots"]:
+                context["smc_pivots"] = market_data["smc_pivots"]
+            context["vwap"] = market_data.get("vwap")
+            context["ema"] = market_data.get("ema")
+            context["indicators"] = market_data.get("indicators", {})
+        
+        # Try unified resolver first
+        from .unified_indicator_resolver import resolve_operand
+        result = resolve_operand(field, context)
+        if result is not None:
+            return result
+        
         return None
 
-    def _evaluate_filter_condition(self, cond: Dict, current_price: float, ohlc: Dict, prev_price: Optional[float]) -> bool:
-        left = self._resolve_operand(cond.get("left_field"), current_price, ohlc)
-        right = self._resolve_operand(cond.get("right_field"), current_price, ohlc)
+    def _evaluate_filter_condition(self, cond: Dict, current_price: float, ohlc: Dict, prev_price: Optional[float], market_data: Dict = None) -> bool:
+        left = self._resolve_operand(cond.get("left_field"), current_price, ohlc, market_data)
+        right = self._resolve_operand(cond.get("right_field"), current_price, ohlc, market_data)
         if left is None or right is None:
             return False
         op = cond.get("operator")
@@ -228,13 +239,13 @@ class SMCStrategy(BaseStrategy):
             return (prev_price < right <= left) or (prev_price > right >= left)
         return False
 
-    def _evaluate_filter_chain(self, filters: List[Dict], current_price: float, ohlc: Dict) -> bool:
+    def _evaluate_filter_chain(self, filters: List[Dict], current_price: float, ohlc: Dict, market_data: Dict = None) -> bool:
         if not filters:
             return True
         cumulative = None
         prev_connector = None
         for cond in filters:
-            res = self._evaluate_filter_condition(cond, current_price, ohlc, self._prev_filter_price)
+            res = self._evaluate_filter_condition(cond, current_price, ohlc, self._prev_filter_price, market_data)
             if cumulative is None:
                 cumulative = res
             else:
@@ -256,7 +267,7 @@ class SMCStrategy(BaseStrategy):
         if not candles or len(candles) < 20:
             return None
 
-        _, highs, lows, closes = _extract_ohlc_arrays(candles)
+        opens, highs, lows, closes = _extract_ohlc_arrays(candles)
         self._update_pivots(highs, lows)
 
         close = float(closes[-1])
@@ -291,7 +302,16 @@ class SMCStrategy(BaseStrategy):
             "close": close,
         }
         filters = self.buy_filters if direction == "UP" else self.sell_filters
-        if not self._evaluate_filter_chain(filters, close, last_ohlc):
+        # Build market_data context for unified resolver
+        strategy_market_data = {
+            "smc_pivots": {
+                "pivot_high": self.last_pivot_high.price if self.last_pivot_high else None,
+                "pivot_low": self.last_pivot_low.price if self.last_pivot_low else None
+            },
+            "ohlc": last_ohlc,
+            "indicators": market_data.get("indicators", {}) if isinstance(market_data, dict) else {}
+        }
+        if not self._evaluate_filter_chain(filters, close, last_ohlc, strategy_market_data):
             self._prev_filter_price = close
             return None
 

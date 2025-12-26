@@ -42,6 +42,7 @@ class TradingViewBridge(QObject):
     pageReady = pyqtSignal()
     markersUpdated = pyqtSignal(list)  # Combined: signals + trade levels
     symbolChanged = pyqtSignal(str, str)  # symbol, timeframe
+    fitContentRequested = pyqtSignal()  # Request to fit chart content
     
     def __init__(self):
         super().__init__()
@@ -77,6 +78,11 @@ class TradingViewBridge(QObject):
         """
         if self._ready:
             self.indicatorsUpdated.emit(indicators_data)
+    
+    def request_fit_content(self):
+        """Request the chart to fit content (zoom to show all data)"""
+        if self._ready:
+            self.fitContentRequested.emit()
 
 
 class ChartWidget(QWidget):
@@ -350,6 +356,8 @@ class ChartWidget(QWidget):
         """Called when the TradingView chart page is ready"""
         logger.info("TradingView chart page ready, loading initial data")
         self.refresh_chart()
+        # Fit content on initial load
+        self.bridge.request_fit_content()
     
     def on_symbol_changed(self, symbol: str):
         """Handle symbol change"""
@@ -368,6 +376,7 @@ class ChartWidget(QWidget):
         self.ensure_symbol_subscribed()
         
         logger.info(f"Triggering chart refresh for: {symbol}")
+        # Note: fitContent will be triggered automatically via updateSymbolName setting shouldFitContent flag
         self.refresh_chart()
         logger.info(f"=== SYMBOL CHANGE EVENT END ===")
     
@@ -376,6 +385,8 @@ class ChartWidget(QWidget):
         logger.info(f"Timeframe changed to: {timeframe_str}")
         self.ensure_symbol_subscribed()
         self.refresh_chart()
+        # Request fit content when timeframe changes
+        self.bridge.request_fit_content()
     
     def on_chart_type_changed(self, chart_type: str):
         """Handle chart type change"""

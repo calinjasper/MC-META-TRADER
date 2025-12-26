@@ -272,6 +272,20 @@
       window.addEventListener('resize', resize);
 
       let currentCandles = [];  // Store candles for crosshair lookup
+      let shouldFitContent = true;  // Flag to track if content should be auto-fitted
+      let isInitialLoad = true;  // Track if this is the first load
+      
+      // Function to explicitly fit content (called from Python when needed)
+      function fitChartContent() {
+        try {
+          if (chart && mainSeries) {
+            chart.timeScale().fitContent();
+            shouldFitContent = false;  // Reset flag after fitting
+          }
+        } catch (error) {
+          console.error('Error fitting chart content:', error);
+        }
+      }
       
       function updateCandles(data) {
         try {
@@ -306,7 +320,13 @@
           
           if (mainSeries) {
             mainSeries.setData(seriesData);
-            chart.timeScale().fitContent();
+            // Only fit content if explicitly requested (on initial load, symbol change, or timeframe change)
+            // This preserves user's zoom/scroll position during regular updates
+            if (shouldFitContent || isInitialLoad) {
+              chart.timeScale().fitContent();
+              shouldFitContent = false;
+              isInitialLoad = false;
+            }
           }
         } catch (error) {
           console.error('Error updating candles:', error);
@@ -413,6 +433,8 @@
 
 
       function updateSymbolName(symbolName, timeframe) {
+        // When symbol changes, we should fit content to show new data
+        shouldFitContent = true;
         var symbolDiv = document.getElementById('symbol-name');
         if (symbolDiv && symbolName) {
           symbolDiv.textContent = symbolName + (timeframe ? ' • ' + timeframe : '');
@@ -528,6 +550,7 @@
           bridge.indicatorsUpdated.connect(updateIndicators);
           bridge.markersUpdated.connect(updateMarkers);
           bridge.symbolChanged.connect(updateSymbolName);
+          bridge.fitContentRequested.connect(fitChartContent);
           bridge.emitReady();
         });
       }

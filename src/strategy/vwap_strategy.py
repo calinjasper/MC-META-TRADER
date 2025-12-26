@@ -68,23 +68,37 @@ class VWAPCondition:
             return self.value
         return None
 
-    def _resolve_operand(self, field: str, current_price: float, vwap_data: Dict) -> Optional[float]:
-        if field == "price":
-            return current_price
-        if field == "vwap":
-            return vwap_data.get('vwap') if vwap_data else None
-        if field and field.startswith("upper_band_"):
-            std_dev = float(field.replace('upper_band_', ''))
-            return vwap_data.get('bands', {}).get(std_dev, {}).get('upper') if vwap_data else None
-        if field and field.startswith("lower_band_"):
-            std_dev = float(field.replace('lower_band_', ''))
-            return vwap_data.get('bands', {}).get(std_dev, {}).get('lower') if vwap_data else None
+    def _resolve_operand(self, field: str, current_price: float, vwap_data: Dict, market_data: Dict = None) -> Optional[float]:
+        """
+        Resolve operand using unified indicator resolver.
+        Falls back to legacy behavior if unified resolver fails.
+        """
+        # Build context for unified resolver
+        context = {
+            "price": current_price,
+            "vwap": vwap_data if vwap_data else {},
+        }
+        
+        # Add market_data context if available
+        if market_data:
+            context["ohlc"] = market_data.get("ohlc", {})
+            context["smc_pivots"] = market_data.get("smc_pivots", {})
+            context["ema"] = market_data.get("ema")
+            context["indicators"] = market_data.get("indicators", {})
+        
+        # Try unified resolver first
+        from .unified_indicator_resolver import resolve_operand
+        result = resolve_operand(field, context)
+        if result is not None:
+            return result
+        
+        # Fallback to legacy value if field couldn't be resolved
         return self.value
     
-    def evaluate(self, current_price: float, vwap_data: Dict, previous_price: Optional[float] = None) -> bool:
+    def evaluate(self, current_price: float, vwap_data: Dict, previous_price: Optional[float] = None, market_data: Dict = None) -> bool:
         """Evaluate the condition"""
-        left_val = self._resolve_operand(self.left_field, current_price, vwap_data)
-        right_val = self._resolve_operand(self.right_field, current_price, vwap_data)
+        left_val = self._resolve_operand(self.left_field, current_price, vwap_data, market_data)
+        right_val = self._resolve_operand(self.right_field, current_price, vwap_data, market_data)
         if left_val is None or right_val is None:
             return False
         
@@ -505,13 +519,13 @@ class VWAPStrategy(BaseStrategy):
         
         return None
 
-    def _evaluate_condition_chain(self, conditions: List[VWAPCondition], current_price: float, vwap_data: Dict) -> bool:
+    def _evaluate_condition_chain(self, conditions: List[VWAPCondition], current_price: float, vwap_data: Dict, market_data: Dict = None) -> bool:
         if not conditions:
             return False
         cumulative = None
         prev_connector = None
         for cond in conditions:
-            result = cond.evaluate(current_price, vwap_data, self.previous_price)
+            result = cond.evaluate(current_price, vwap_data, self.previous_price, market_data)
             if cumulative is None:
                 cumulative = result
             else:
@@ -616,8 +630,16 @@ class VWAPStrategy(BaseStrategy):
             return signal
         
         # Check simple buy/sell conditions (chain with AND/OR)
+        # Build market_data context for unified resolver
+        strategy_market_data = {
+            "vwap": vwap_data,
+            "ohlc": market_data.get("ohlc", {}) if isinstance(market_data, dict) else {},
+            "smc_pivots": market_data.get("smc_pivots", {}) if isinstance(market_data, dict) else {},
+            "ema": market_data.get("ema") if isinstance(market_data, dict) else None,
+            "indicators": market_data.get("indicators", {}) if isinstance(market_data, dict) else {}
+        }
         try:
-            if self._evaluate_condition_chain(self.buy_conditions, current_price, vwap_data):
+            if self._evaluate_condition_chain(self.buy_conditions, current_price, vwap_data, strategy_market_data):
                 logger.info(f"Strategy {self.name}: ✅ Buy conditions met")
                 self.previous_price = current_price
                 return 'BUY'
@@ -625,7 +647,7 @@ class VWAPStrategy(BaseStrategy):
             logger.error(f"Error evaluating buy conditions in {self.name}: {e}", exc_info=True)
         
         try:
-            if self._evaluate_condition_chain(self.sell_conditions, current_price, vwap_data):
+            if self._evaluate_condition_chain(self.sell_conditions, current_price, vwap_data, strategy_market_data):
                 logger.info(f"Strategy {self.name}: ✅ Sell conditions met")
                 self.previous_price = current_price
                 return 'SELL'
