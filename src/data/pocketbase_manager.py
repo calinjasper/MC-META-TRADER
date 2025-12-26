@@ -419,6 +419,381 @@ class PocketBaseManager:
         logger.debug(f"Batch wrote {len(batch)} records to PocketBase")
     
     
+    def get_collections(self) -> List[str]:
+        """
+        Get list of all available collections from PocketBase
+        
+        Returns:
+            List of collection names
+        """
+        try:
+            # Try without authentication first (public collections)
+            response = requests.get(f"{self.base_url}/api/collections", timeout=5)
+            
+            # If 401/403, try with admin auth
+            if response.status_code in (401, 403):
+                logger.debug("Collections endpoint requires authentication, attempting admin login...")
+                # Try to get admin token if we don't have one
+                if not self.auth_token:
+                    self._get_admin_token()
+                
+                # Retry with authentication
+                if self.auth_token:
+                    headers = {"Authorization": f"Bearer {self.auth_token}"}
+                    response = requests.get(f"{self.base_url}/api/collections", headers=headers, timeout=5)
+                else:
+                    logger.error("Could not obtain admin token for collections access")
+                    raise requests.exceptions.HTTPError(f"Authentication required but failed: {response.status_code}")
+            
+            response.raise_for_status()
+            collections_data = response.json()
+            
+            # Handle different response formats
+            if isinstance(collections_data, list):
+                collections = collections_data
+            elif isinstance(collections_data, dict):
+                collections = collections_data.get('items', [])
+            else:
+                logger.warning(f"Unexpected collections response format: {type(collections_data)}")
+                collections = []
+            
+            collection_names = [c.get('name', '') if isinstance(c, dict) else str(c) for c in collections if c]
+            # Filter out empty names
+            collection_names = [name for name in collection_names if name]
+            logger.info(f"Found {len(collection_names)} collections: {collection_names}")
+            return collection_names
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching collections from PocketBase: {e}")
+            logger.error(f"Response status: {getattr(e.response, 'status_code', 'N/A') if hasattr(e, 'response') else 'N/A'}")
+            logger.error(f"Response text: {getattr(e.response, 'text', 'N/A') if hasattr(e, 'response') and e.response else 'N/A'}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error fetching collections: {e}", exc_info=True)
+            return []
+    
+    def _get_admin_token(self) -> Optional[str]:
+        """
+        Get admin authentication token for PocketBase
+        
+        Returns:
+            Admin token if successful, None otherwise
+        """
+        try:
+            # Use the actual admin credentials from the project
+            auth_data = {
+                "identity": "nrnnajith@gmail.com",
+                "password": "LokeshCalin"
+            }
+            response = requests.post(
+                f"{self.base_url}/api/admins/auth-with-password",
+                json=auth_data,
+                timeout=5
+            )
+            if response.status_code == 200:
+                token = response.json().get('token')
+                self.auth_token = token
+                logger.info("Successfully authenticated with PocketBase admin account")
+                return token
+            else:
+                logger.warning(f"Admin authentication failed: {response.status_code} - {response.text}")
+        except Exception as e:
+            logger.debug(f"Could not get admin token: {e}")
+        return None
+    
+    def get_symbols_from_collection(self, collection_name: str) -> List[str]:
+        """
+        Get unique symbols from a collection
+        
+        Args:
+            collection_name: Name of the collection
+            
+        Returns:
+            List of unique symbol names
+        """
+        try:
+            symbols = set()
+            page = 1
+            per_page = 500
+            
+            # Prepare headers with auth if available
+            headers = {}
+            if not self.auth_token:
+                # Try to get admin token if we don't have one
+                self._get_admin_token()
+            if self.auth_token:
+                headers["Authorization"] = f"Bearer {self.auth_token}"
+            
+            while True:
+                url = f"{self.api_url}/{collection_name}/records"
+                params = {
+                    'page': page,
+                    'perPage': per_page,
+                    'sort': 'symbol'
+                }
+                
+                response = requests.get(url, params=params, headers=headers, timeout=10)
+                
+                # If 401/403, try to authenticate and retry
+                if response.status_code in (401, 403):
+                    if not self.auth_token:
+                        self._get_admin_token()
+                    if self.auth_token:
+                        headers["Authorization"] = f"Bearer {self.auth_token}"
+                        response = requests.get(url, params=params, headers=headers, timeout=10)
+                
+                response.raise_for_status()
+                data = response.json()
+                items = data.get('items', [])
+                
+                if not items:
+                    break
+                
+                # Extract unique symbols
+                for item in items:
+                    symbol = item.get('symbol', '')
+                    if symbol:
+                        symbols.add(symbol)
+                
+                # Check if more pages
+                total_items = data.get('totalItems', 0)
+                if page * per_page >= total_items:
+                    break
+                
+                page += 1
+            
+            symbol_list = sorted(list(symbols))
+            logger.info(f"Found {len(symbol_list)} unique symbols in collection '{collection_name}': {symbol_list[:10]}{'...' if len(symbol_list) > 10 else ''}")
+            return symbol_list
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching symbols from collection {collection_name}: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error fetching symbols: {e}")
+            return []
+    
+    def export_collection_to_csv(self, collection_name: str, symbol: str,
+                                 start_date: datetime, end_date: datetime,
+                                 file_path: str) -> Dict:
+        """
+        Export collection data to CSV file with filters
+        
+        Args:
+            collection_name: Name of the collection
+            symbol: Symbol to filter by
+            start_date: Start date for filtering
+            end_date: End date for filtering
+            file_path: Path where CSV file should be saved
+            
+        Returns:
+            Dictionary with export statistics
+        """
+        import csv
+        from pathlib import Path
+        
+        records_exported = 0
+        file_size = 0
+        
+        try:
+            # Build filter query
+            filters = []
+            if symbol:
+                filters.append(f'symbol = "{symbol}"')
+            
+            # Convert dates to timestamps (milliseconds)
+            if start_date:
+                start_ts = int(start_date.timestamp() * 1000)
+                filters.append(f"timestamp >= {start_ts}")
+            
+            if end_date:
+                end_ts = int(end_date.timestamp() * 1000)
+                filters.append(f"timestamp <= {end_ts}")
+            
+            filter_str = ' && '.join(filters) if filters else ''
+            
+            # Determine CSV headers based on collection type
+            # For ticks collection, use standard headers
+            # For other collections, we'll try to infer from first record
+            headers = None
+            first_record = None
+            
+            # Prepare headers with auth if available
+            headers = {}
+            if not self.auth_token:
+                # Try to get admin token if we don't have one
+                self._get_admin_token()
+            if self.auth_token:
+                headers["Authorization"] = f"Bearer {self.auth_token}"
+            
+            # Fetch records with pagination
+            page = 1
+            per_page = 500
+            
+            with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = None
+                
+                while True:
+                    url = f"{self.api_url}/{collection_name}/records"
+                    params = {
+                        'page': page,
+                        'perPage': per_page,
+                        'sort': 'timestamp'
+                    }
+                    
+                    if filter_str:
+                        params['filter'] = filter_str
+                    
+                    response = requests.get(url, params=params, headers=headers, timeout=30)
+                    
+                    # If 401/403, try to authenticate and retry
+                    if response.status_code in (401, 403):
+                        logger.debug(f"Export requires authentication for {collection_name}, attempting admin login...")
+                        if not self.auth_token:
+                            self._get_admin_token()
+                        if self.auth_token:
+                            headers["Authorization"] = f"Bearer {self.auth_token}"
+                            response = requests.get(url, params=params, headers=headers, timeout=30)
+                        else:
+                            logger.error("Could not obtain admin token for export")
+                            raise requests.exceptions.HTTPError(f"Authentication required but failed: {response.status_code}")
+                    
+                    response.raise_for_status()
+                    data = response.json()
+                    items = data.get('items', [])
+                    
+                    if not items:
+                        break
+                    
+                    # Initialize CSV writer on first batch
+                    if writer is None:
+                        if items:
+                            first_record = items[0]
+                            logger.debug(f"First record keys for {collection_name}: {list(first_record.keys())}")
+                            logger.debug(f"First record sample (first 3 items): {dict(list(first_record.items())[:3])}")
+                            
+                            # Determine headers from first record
+                            if collection_name == 'ticks':
+                                headers = ['id', 'symbol', 'timestamp', 'datetime', 
+                                          'bid', 'ask', 'last', 'volume', 'spread', 
+                                          'created', 'updated']
+                            elif collection_name == 'ohlc':
+                                # OHLC collection has specific fields - use actual field names from record
+                                # Check what fields actually exist
+                                actual_fields = [k for k in first_record.keys() if not k.startswith('@')]
+                                logger.debug(f"OHLC actual fields: {actual_fields}")
+                                
+                                # Define expected OHLC fields in order
+                                expected_fields = ['id', 'symbol', 'timeframe', 'timestamp', 'timestamp_ist', 'datetime',
+                                                  'open', 'high', 'low', 'close', 
+                                                  'tick_volume', 'real_volume', 'created', 'updated']
+                                
+                                # Build headers: include expected fields that exist, plus datetime (calculated)
+                                headers = []
+                                for field in expected_fields:
+                                    if field == 'datetime':
+                                        headers.append('datetime')  # Always include, we'll calculate it
+                                    elif field in actual_fields:
+                                        headers.append(field)
+                                
+                                # Add any remaining fields that weren't in expected list
+                                for field in actual_fields:
+                                    if field not in headers and field != 'datetime':
+                                        headers.append(field)
+                                
+                                logger.info(f"OHLC export headers: {headers}")
+                            else:
+                                # Use all keys from first record, excluding internal fields
+                                headers = [k for k in first_record.keys() 
+                                          if not k.startswith('@')]
+                                # Ensure common fields are first
+                                priority_fields = ['id', 'symbol', 'timestamp', 'datetime']
+                                headers = ([f for f in priority_fields if f in headers] + 
+                                          [f for f in headers if f not in priority_fields])
+                            
+                            writer = csv.DictWriter(csvfile, fieldnames=headers)
+                            writer.writeheader()
+                    
+                    # Write records
+                    for item in items:
+                        row = {}
+                        for header in headers:
+                            if header == 'datetime':
+                                # Convert timestamp to readable datetime
+                                timestamp = item.get('timestamp', 0)
+                                if timestamp:
+                                    try:
+                                        # Handle both milliseconds and seconds timestamps
+                                        if timestamp > 1e10:  # Milliseconds
+                                            dt = datetime.fromtimestamp(timestamp / 1000)
+                                        else:  # Seconds
+                                            dt = datetime.fromtimestamp(timestamp)
+                                        row[header] = dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                                    except (ValueError, OSError):
+                                        row[header] = ''
+                                else:
+                                    row[header] = ''
+                            else:
+                                # Get the actual value from the item
+                                value = item.get(header, '')
+                                
+                                # For OHLC collection, log first record to debug
+                                if collection_name == 'ohlc' and records_exported == 0 and header in ['open', 'high', 'low', 'close']:
+                                    logger.debug(f"OHLC {header}: {value} (type: {type(value)})")
+                                
+                                # Ensure numeric fields are properly formatted
+                                if header in ['open', 'high', 'low', 'close', 'bid', 'ask', 'last', 
+                                            'volume', 'spread', 'tick_volume', 'real_volume', 'timestamp']:
+                                    if value != '' and value is not None:
+                                        try:
+                                            # Convert to float and keep as float (CSV writer will format it)
+                                            row[header] = float(value)
+                                        except (ValueError, TypeError):
+                                            row[header] = value
+                                    else:
+                                        row[header] = ''
+                                else:
+                                    row[header] = value
+                        
+                        # Log first OHLC record for debugging
+                        if collection_name == 'ohlc' and records_exported == 0:
+                            logger.info(f"First OHLC record exported - open: {row.get('open')}, high: {row.get('high')}, low: {row.get('low')}, close: {row.get('close')}")
+                        
+                        writer.writerow(row)
+                        records_exported += 1
+                    
+                    # Check if more pages
+                    total_items = data.get('totalItems', 0)
+                    if page * per_page >= total_items:
+                        break
+                    
+                    page += 1
+            
+            # Get file size
+            file_path_obj = Path(file_path)
+            if file_path_obj.exists():
+                file_size = file_path_obj.stat().st_size
+                file_size_str = f"{file_size / 1024:.2f} KB" if file_size < 1024 * 1024 else f"{file_size / (1024 * 1024):.2f} MB"
+            else:
+                file_size_str = "N/A"
+            
+            logger.info(f"Exported {records_exported} records from {collection_name} to {file_path}")
+            
+            return {
+                'records_exported': records_exported,
+                'file_path': file_path,
+                'file_size': file_size_str,
+                'collection': collection_name,
+                'symbol': symbol,
+                'start_date': start_date.isoformat() if start_date else None,
+                'end_date': end_date.isoformat() if end_date else None
+            }
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error exporting collection {collection_name}: {e}")
+            raise Exception(f"Failed to fetch data from PocketBase: {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error exporting collection: {e}", exc_info=True)
+            raise Exception(f"Export failed: {str(e)}")
+    
     def health_check(self) -> bool:
         """
         Check if PocketBase server is reachable

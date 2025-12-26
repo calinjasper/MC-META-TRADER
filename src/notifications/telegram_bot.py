@@ -25,33 +25,83 @@ class TelegramBot:
             channel_id: Channel ID or username (e.g., "@channel" or "-1001234567890")
             channel_name: Channel name for auto-creation
         """
-        self.bot_token = bot_token
-        # Hard override: force known channel id and name regardless of config
-        self.channel_id = "-1003453112937"
-        self.channel_name = "MC_META_ALERTS_BOT"
-        self.api_url = f"{self.API_BASE_URL}{bot_token}"
+        self.bot_token = bot_token or ""
+        self.channel_name = channel_name or "MC_META_ALERTS_BOT"
         self._initialized = False
+        self._init_error = None
         
-        if bot_token:
-            self._initialized = self._test_connection()
-            if self._initialized and not channel_id:
-                # Try to create or get channel
-                self.channel_id = self.create_or_get_channel(channel_name)
+        # Validate bot token
+        if not self.bot_token or not self.bot_token.strip():
+            self._init_error = "Bot token is empty or not provided"
+            logger.error(self._init_error)
+            return
+        
+        # Use provided channel_id or default
+        if channel_id:
+            self.channel_id = channel_id
+        else:
+            # Hard override: force known channel id and name regardless of config
+            self.channel_id = "-1003453112937"
+            self.channel_name = "MC_META_ALERTS_BOT"
+        
+        # Validate channel_id format
+        if self.channel_id and not (self.channel_id.startswith("-") or self.channel_id.startswith("@")):
+            logger.warning(f"Channel ID format may be invalid: {self.channel_id}. Expected format: '-100...' or '@channel'")
+        
+        self.api_url = f"{self.API_BASE_URL}{self.bot_token}"
+        
+        # Test connection with retry
+        self._initialized = self._test_connection()
+        if not self._initialized:
+            logger.error(f"Telegram bot initialization failed: {self._init_error}")
     
-    def _test_connection(self) -> bool:
-        """Test bot connection"""
-        try:
-            response = requests.get(f"{self.api_url}/getMe", timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('ok'):
-                    logger.info(f"Telegram bot connected: @{data['result']['username']}")
-                    return True
-            logger.error(f"Telegram bot connection failed: {response.text}")
-            return False
-        except Exception as e:
-            logger.error(f"Error testing Telegram bot connection: {e}")
-            return False
+    def _test_connection(self, retries: int = 2) -> bool:
+        """Test bot connection with retry logic"""
+        for attempt in range(retries + 1):
+            try:
+                logger.debug(f"Testing Telegram bot connection (attempt {attempt + 1}/{retries + 1})...")
+                response = requests.get(f"{self.api_url}/getMe", timeout=10)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get('ok'):
+                        bot_info = data.get('result', {})
+                        username = bot_info.get('username', 'Unknown')
+                        logger.info(f"Telegram bot connected successfully: @{username}")
+                        return True
+                    else:
+                        error_desc = data.get('description', 'Unknown error')
+                        self._init_error = f"Telegram API error: {error_desc}"
+                        logger.error(f"Telegram bot connection failed: {error_desc}")
+                else:
+                    self._init_error = f"HTTP {response.status_code}: {response.text[:200]}"
+                    logger.error(f"Telegram bot HTTP error {response.status_code}: {response.text[:200]}")
+                
+                # Retry if not last attempt
+                if attempt < retries:
+                    import time
+                    time.sleep(1)  # Wait 1 second before retry
+                    
+            except requests.exceptions.Timeout:
+                self._init_error = "Connection timeout - check internet connection"
+                logger.error(f"Telegram bot connection timeout (attempt {attempt + 1})")
+                if attempt < retries:
+                    import time
+                    time.sleep(1)
+            except requests.exceptions.ConnectionError as e:
+                self._init_error = f"Connection error: {str(e)[:100]}"
+                logger.error(f"Telegram bot connection error (attempt {attempt + 1}): {e}")
+                if attempt < retries:
+                    import time
+                    time.sleep(1)
+            except Exception as e:
+                self._init_error = f"Unexpected error: {str(e)[:100]}"
+                logger.error(f"Error testing Telegram bot connection (attempt {attempt + 1}): {e}", exc_info=True)
+                if attempt < retries:
+                    import time
+                    time.sleep(1)
+        
+        return False
     
     def create_or_get_channel(self, channel_name: str) -> Optional[str]:
         """

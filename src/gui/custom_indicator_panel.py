@@ -943,10 +943,12 @@ class PreviousSessionOHLCCalculator:
                 session_start = prev_day.replace(hour=8, minute=0, second=0, microsecond=0)
                 session_end = prev_day.replace(hour=17, minute=0, second=0, microsecond=0)
             else:
-                # After European session today, get today's session
-                session_start = current_gmt.replace(hour=8, minute=0, second=0, microsecond=0)
-                session_end = current_gmt.replace(hour=17, minute=0, second=0, microsecond=0)
-                prev_day = current_gmt
+                # After European session today, get yesterday's session (previous session)
+                prev_day = current_gmt - timedelta(days=1)
+                while prev_day.weekday() >= 5:
+                    prev_day -= timedelta(days=1)
+                session_start = prev_day.replace(hour=8, minute=0, second=0, microsecond=0)
+                session_end = prev_day.replace(hour=17, minute=0, second=0, microsecond=0)
             
             self.session_name = f"European Session ({prev_day.strftime('%Y-%m-%d')})"
             
@@ -967,10 +969,12 @@ class PreviousSessionOHLCCalculator:
                 session_start = prev_day.replace(hour=13, minute=0, second=0, microsecond=0)
                 session_end = prev_day.replace(hour=22, minute=0, second=0, microsecond=0)
             else:
-                # After US session today, get today's session
-                session_start = current_gmt.replace(hour=13, minute=0, second=0, microsecond=0)
-                session_end = current_gmt.replace(hour=22, minute=0, second=0, microsecond=0)
-                prev_day = current_gmt
+                # After US session today, get yesterday's session (previous session)
+                prev_day = current_gmt - timedelta(days=1)
+                while prev_day.weekday() >= 5:
+                    prev_day -= timedelta(days=1)
+                session_start = prev_day.replace(hour=13, minute=0, second=0, microsecond=0)
+                session_end = prev_day.replace(hour=22, minute=0, second=0, microsecond=0)
             
             self.session_name = f"US Session ({prev_day.strftime('%Y-%m-%d')})"
             
@@ -1123,7 +1127,6 @@ class PreviousSessionOHLCCalculator:
             
             # Fetch historical data for the session using M1
             rates = mt5.copy_rates_range(symbol, mt5.TIMEFRAME_M1, start_timestamp, end_timestamp)
-            
             if rates is None or len(rates) == 0:
                 logger.warning(f"No M1 data found for {symbol} in session {self.session_name}")
                 return False

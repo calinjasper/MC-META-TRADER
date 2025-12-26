@@ -91,38 +91,58 @@ class TradeMonitor:
             'SL' if stop loss triggered, 'TP' if take profit triggered, None otherwise
         """
         pos_type = position.get('type', 0)  # 0 = BUY, 1 = SELL
+        ticket = position.get('ticket')
         entry_price = position.get('price_open', 0.0)
         sl_price = position.get('sl', 0.0)
         tp_price = position.get('tp', 0.0)
+        symbol = position.get('symbol', 'UNKNOWN')
         
         if not entry_price:
+            logger.warning(f"Position {ticket} ({symbol}) has no entry price, skipping SL/TP check")
             return None
+        
+        # Log position details for debugging (only at debug level to avoid spam)
+        logger.debug(f"Checking SL/TP for position {ticket} ({symbol}): "
+                    f"Type={'BUY' if pos_type == 0 else 'SELL'}, "
+                    f"Entry={entry_price:.5f}, SL={sl_price:.5f}, TP={tp_price:.5f}, Current={current_price:.5f}")
         
         # Check stop loss
         if sl_price > 0:
             if pos_type == 0:  # BUY position
                 if current_price <= sl_price:
-                    logger.info(f"Stop loss triggered for position {position.get('ticket')}: "
+                    logger.info(f"Stop loss triggered for position {ticket}: "
                               f"BUY @ {entry_price}, SL @ {sl_price}, Current @ {current_price}")
                     return 'SL'
+                else:
+                    logger.debug(f"Position {ticket} SL check: Current {current_price:.5f} > SL {sl_price:.5f} (gap: {current_price - sl_price:.5f})")
             else:  # SELL position
                 if current_price >= sl_price:
-                    logger.info(f"Stop loss triggered for position {position.get('ticket')}: "
+                    logger.info(f"Stop loss triggered for position {ticket}: "
                               f"SELL @ {entry_price}, SL @ {sl_price}, Current @ {current_price}")
                     return 'SL'
+                else:
+                    logger.debug(f"Position {ticket} SL check: Current {current_price:.5f} < SL {sl_price:.5f} (gap: {sl_price - current_price:.5f})")
+        else:
+            logger.debug(f"Position {ticket} has no SL set (SL={sl_price})")
         
         # Check take profit
         if tp_price > 0:
             if pos_type == 0:  # BUY position
                 if current_price >= tp_price:
-                    logger.info(f"Take profit triggered for position {position.get('ticket')}: "
+                    logger.info(f"Take profit triggered for position {ticket}: "
                               f"BUY @ {entry_price}, TP @ {tp_price}, Current @ {current_price}")
                     return 'TP'
+                else:
+                    logger.debug(f"Position {ticket} TP check: Current {current_price:.5f} < TP {tp_price:.5f} (gap: {tp_price - current_price:.5f})")
             else:  # SELL position
                 if current_price <= tp_price:
-                    logger.info(f"Take profit triggered for position {position.get('ticket')}: "
+                    logger.info(f"Take profit triggered for position {ticket}: "
                               f"SELL @ {entry_price}, TP @ {tp_price}, Current @ {current_price}")
                     return 'TP'
+                else:
+                    logger.debug(f"Position {ticket} TP check: Current {current_price:.5f} > TP {tp_price:.5f} (gap: {current_price - tp_price:.5f})")
+        else:
+            logger.debug(f"Position {ticket} has no TP set (TP={tp_price}) - position will not auto-close on TP")
         
         return None
     

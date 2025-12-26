@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
                              QWidget, QLabel, QSpinBox, QDoubleSpinBox,
                              QComboBox, QLineEdit, QPushButton, QSlider,
                              QCheckBox, QColorDialog, QFormLayout, QGroupBox,
-                             QDialogButtonBox)
+                             QDialogButtonBox, QScrollArea)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 
@@ -23,6 +23,10 @@ class IndicatorSettingsDialog(QDialog):
         super().__init__(parent)
         self.indicator_type = indicator_type
         self.settings = current_settings.copy()
+        
+        # Initialize VWAP band widgets dictionary
+        self.vwap_band_widgets = {}
+        self.vwap_bands_scroll_layout = None
         
         self.setWindowTitle(f"{indicator_type} Settings")
         self.setMinimumWidth(500)
@@ -103,17 +107,37 @@ class IndicatorSettingsDialog(QDialog):
         """VWAP indicator inputs"""
         layout.addRow(QLabel("<b>VWAP Configuration</b>"))
         
-        self.vwap_bands = QLineEdit()
-        self.vwap_bands.setText("1, 1.5, 2")
-        self.vwap_bands.setPlaceholderText("e.g., 1, 1.5, 2")
-        layout.addRow("Standard Deviation Bands:", self.vwap_bands)
+        # Band configuration section
+        bands_group = QGroupBox("Standard Deviation Bands")
+        bands_layout = QVBoxLayout()
+        
+        # Scroll area for bands (in case many bands are added)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setMaximumHeight(200)
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+        
+        # Store band widgets
+        self.vwap_band_widgets = {}  # std_dev -> {checkbox, upper_color_btn, lower_color_btn, remove_btn}
+        
+        # Add band button
+        add_band_btn = QPushButton("Add Band")
+        add_band_btn.clicked.connect(self._add_vwap_band_row)
+        scroll_layout.addWidget(add_band_btn)
+        
+        scroll.setWidget(scroll_widget)
+        bands_layout.addWidget(scroll)
+        bands_group.setLayout(bands_layout)
+        layout.addRow(bands_group)
         
         self.vwap_swing_period = QSpinBox()
         self.vwap_swing_period.setRange(1, 100)
         self.vwap_swing_period.setValue(10)
         layout.addRow("Swing Period (candles):", self.vwap_swing_period)
         
-        layout.addRow(QLabel("<i>Bands format: comma-separated values</i>"))
+        # Store reference to scroll layout for adding bands
+        self.vwap_bands_scroll_layout = scroll_layout
     
     def supertrend_inputs(self, layout: QFormLayout):
         """SuperTrend indicator inputs"""
@@ -375,6 +399,122 @@ class IndicatorSettingsDialog(QDialog):
                 self.smc_high_color = color.name()
             elif color_type == 'smc_low':
                 self.smc_low_color = color.name()
+            elif color_type.startswith('vwap_band_upper_'):
+                std_dev = float(color_type.replace('vwap_band_upper_', ''))
+                if std_dev in self.vwap_band_widgets:
+                    self.vwap_band_widgets[std_dev]['upper_color'] = color.name()
+            elif color_type.startswith('vwap_band_lower_'):
+                std_dev = float(color_type.replace('vwap_band_lower_', ''))
+                if std_dev in self.vwap_band_widgets:
+                    self.vwap_band_widgets[std_dev]['lower_color'] = color.name()
+    
+    def _add_vwap_band_row(self, std_dev: float = None):
+        """Add a new band row to VWAP configuration"""
+        if std_dev is None:
+            # Find next available std_dev value
+            existing = [float(k) for k in self.vwap_band_widgets.keys()]
+            if existing:
+                std_dev = max(existing) + 0.5
+            else:
+                std_dev = 1.0
+        
+        # Default colors
+        default_colors = {
+            1.0: {'upper': '#FF6B6B', 'lower': '#66BB6A'},
+            1.5: {'upper': '#FF5252', 'lower': '#4CAF50'},
+            2.0: {'upper': '#F44336', 'lower': '#388E3C'},
+            2.5: {'upper': '#D32F2F', 'lower': '#2E7D32'},
+            3.0: {'upper': '#B71C1C', 'lower': '#1B5E20'}
+        }
+        
+        colors = default_colors.get(std_dev, {'upper': '#FF6B6B', 'lower': '#66BB6A'})
+        
+        # Create row widget
+        row_widget = QWidget()
+        row_layout = QHBoxLayout(row_widget)
+        row_layout.setContentsMargins(5, 2, 5, 2)
+        
+        # Checkbox for visibility
+        checkbox = QCheckBox()
+        checkbox.setChecked(True)
+        
+        # Std dev value (editable)
+        std_dev_spin = QDoubleSpinBox()
+        std_dev_spin.setRange(0.1, 10.0)
+        std_dev_spin.setSingleStep(0.1)
+        std_dev_spin.setDecimals(1)
+        std_dev_spin.setValue(std_dev)
+        std_dev_spin.setMinimumWidth(60)
+        
+        # Store original std_dev for update_key closure
+        original_std_dev = std_dev
+        
+        # Update key when value changes
+        def update_key(new_val):
+            if new_val != original_std_dev and new_val not in self.vwap_band_widgets:
+                old_widgets = self.vwap_band_widgets.pop(original_std_dev, None)
+                if old_widgets:
+                    self.vwap_band_widgets[new_val] = old_widgets
+        
+        std_dev_spin.valueChanged.connect(update_key)
+        
+        # Upper color button
+        upper_color_btn = QPushButton()
+        upper_color_btn.setFixedSize(60, 25)
+        upper_color_btn.setStyleSheet(f"background-color: {colors['upper']}; border: 1px solid #ccc;")
+        upper_color_type = f'vwap_band_upper_{std_dev}'
+        upper_color_btn.clicked.connect(
+            lambda checked, btn=upper_color_btn, ctype=upper_color_type: self.choose_single_color(btn, ctype)
+        )
+        
+        # Lower color button
+        lower_color_btn = QPushButton()
+        lower_color_btn.setFixedSize(60, 25)
+        lower_color_btn.setStyleSheet(f"background-color: {colors['lower']}; border: 1px solid #ccc;")
+        lower_color_type = f'vwap_band_lower_{std_dev}'
+        lower_color_btn.clicked.connect(
+            lambda checked, btn=lower_color_btn, ctype=lower_color_type: self.choose_single_color(btn, ctype)
+        )
+        
+        # Remove button
+        remove_btn = QPushButton("Remove")
+        remove_btn.setFixedSize(60, 25)
+        remove_btn.clicked.connect(lambda checked, sd=std_dev, rw=row_widget: self._remove_vwap_band_row(sd, rw))
+        
+        # Add widgets to row
+        row_layout.addWidget(checkbox)
+        row_layout.addWidget(QLabel(f"Band"))
+        row_layout.addWidget(std_dev_spin)
+        row_layout.addWidget(QLabel("σ:"))
+        row_layout.addWidget(QLabel("Upper"))
+        row_layout.addWidget(upper_color_btn)
+        row_layout.addWidget(QLabel("Lower"))
+        row_layout.addWidget(lower_color_btn)
+        row_layout.addWidget(remove_btn)
+        row_layout.addStretch()
+        
+        # Store widgets
+        self.vwap_band_widgets[std_dev] = {
+            'checkbox': checkbox,
+            'std_dev_spin': std_dev_spin,
+            'upper_color_btn': upper_color_btn,
+            'lower_color_btn': lower_color_btn,
+            'upper_color': colors['upper'],
+            'lower_color': colors['lower'],
+            'row_widget': row_widget
+        }
+        
+        # Insert before "Add Band" button (which is at index 0)
+        self.vwap_bands_scroll_layout.insertWidget(
+            self.vwap_bands_scroll_layout.count() - 1, row_widget
+        )
+    
+    def _remove_vwap_band_row(self, std_dev: float, row_widget: QWidget):
+        """Remove a band row from VWAP configuration"""
+        if std_dev in self.vwap_band_widgets:
+            del self.vwap_band_widgets[std_dev]
+        row_widget.setParent(None)
+        row_widget.deleteLater()
     
     def load_settings(self):
         """Load current settings into the dialog"""
@@ -396,7 +536,32 @@ class IndicatorSettingsDialog(QDialog):
         
         elif self.indicator_type == "VWAP":
             bands = self.settings.get('bands', [1.0, 1.5, 2.0])
-            self.vwap_bands.setText(", ".join(str(b) for b in bands))
+            band_visibility = self.settings.get('band_visibility', {1.0: True, 1.5: False, 2.0: False})
+            band_colors = self.settings.get('band_colors', {
+                1.0: {'upper': '#FF6B6B', 'lower': '#66BB6A'},
+                1.5: {'upper': '#FF5252', 'lower': '#4CAF50'},
+                2.0: {'upper': '#F44336', 'lower': '#388E3C'}
+            })
+            
+            # Clear existing band widgets
+            for std_dev in list(self.vwap_band_widgets.keys()):
+                self._remove_vwap_band_row(std_dev, self.vwap_band_widgets[std_dev]['row_widget'])
+            
+            # Add band rows from settings
+            for std_dev in bands:
+                colors = band_colors.get(std_dev, {'upper': '#FF6B6B', 'lower': '#66BB6A'})
+                self._add_vwap_band_row(std_dev)
+                if std_dev in self.vwap_band_widgets:
+                    self.vwap_band_widgets[std_dev]['checkbox'].setChecked(band_visibility.get(std_dev, False))
+                    self.vwap_band_widgets[std_dev]['upper_color'] = colors.get('upper', '#FF6B6B')
+                    self.vwap_band_widgets[std_dev]['lower_color'] = colors.get('lower', '#66BB6A')
+                    self.vwap_band_widgets[std_dev]['upper_color_btn'].setStyleSheet(
+                        f"background-color: {colors.get('upper', '#FF6B6B')}; border: 1px solid #ccc;"
+                    )
+                    self.vwap_band_widgets[std_dev]['lower_color_btn'].setStyleSheet(
+                        f"background-color: {colors.get('lower', '#66BB6A')}; border: 1px solid #ccc;"
+                    )
+            
             self.vwap_swing_period.setValue(self.settings.get('swing_period', 10))
             
             color = self.settings.get('color', '#00FFFF')
@@ -485,13 +650,29 @@ class IndicatorSettingsDialog(QDialog):
             settings['colors'] = [c['color'] for c in self.ema_colors]
         
         elif self.indicator_type == "VWAP":
-            # Parse bands from text
-            bands_text = self.vwap_bands.text()
-            try:
-                bands = [float(b.strip()) for b in bands_text.split(',')]
-                settings['bands'] = bands
-            except:
-                settings['bands'] = [1.0, 1.5, 2.0]
+            # Get bands from widgets
+            bands = []
+            band_visibility = {}
+            band_colors = {}
+            
+            for std_dev, widgets in self.vwap_band_widgets.items():
+                # Get current std_dev value from spinbox
+                current_std_dev = widgets['std_dev_spin'].value()
+                bands.append(current_std_dev)
+                band_visibility[current_std_dev] = widgets['checkbox'].isChecked()
+                band_colors[current_std_dev] = {
+                    'upper': widgets.get('upper_color', '#FF6B6B'),
+                    'lower': widgets.get('lower_color', '#66BB6A')
+                }
+            
+            # Sort bands
+            bands = sorted(bands)
+            
+            settings['bands'] = bands if bands else [1.0]
+            settings['band_visibility'] = band_visibility if band_visibility else {1.0: True}
+            settings['band_colors'] = band_colors if band_colors else {
+                1.0: {'upper': '#FF6B6B', 'lower': '#66BB6A'}
+            }
             
             settings['swing_period'] = self.vwap_swing_period.value()
             settings['color'] = self.vwap_color

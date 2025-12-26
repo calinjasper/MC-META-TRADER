@@ -15,7 +15,6 @@ from PyQt6.QtGui import QAction, QColor
 
 from .market_data_panel import MarketDataPanel
 from .chart_widget import ChartWidget
-from .strategy_builder import StrategyBuilder
 from .strategy_panel import StrategyPanel
 from .settings_dialog import SettingsDialog
 from .trading_bot_panel import TradingBotPanel
@@ -29,6 +28,7 @@ from ..trading.trade_monitor import TradeMonitor, TradeMonitoringMode
 from ..trading.reentry_manager import ReEntryManager
 from ..config import Config
 from ..signal_routing.signal_router import SignalRouter
+from ..data.pocketbase_manager import PocketBaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,15 @@ class MainWindow(QMainWindow):
         self.risk_manager = RiskManager(self.mt5)
         self.trade_monitor = TradeMonitor(self.mt5)
         self.reentry_manager = ReEntryManager()
+        
+        # Initialize PocketBase Manager for database operations
+        try:
+            self.pb_manager = PocketBaseManager('http://192.168.173.112:8090')
+            if not self.pb_manager.health_check():
+                logger.warning("PocketBase server not reachable - database features may be limited")
+        except Exception as e:
+            logger.warning(f"PocketBase initialization failed: {e} - database features will be unavailable")
+            self.pb_manager = None
         
         # Initialize Telegram bot if enabled
         self.telegram_bot = None
@@ -191,24 +200,16 @@ class MainWindow(QMainWindow):
         self.chart_widget = ChartWidget(self.data_feed, self.mt5, self.strategy_manager, self.market_data_panel, self.order_manager)
         self.tab_widget.addTab(self.chart_widget, "Charts")
         
-        # Strategy Builder tab
-        self.strategy_builder = StrategyBuilder(
-            self.data_feed, 
-            self.strategy_manager,
-            self.mt5
-        )
-        self.tab_widget.addTab(self.strategy_builder, "Strategy Builder")
-        
-        # Trading Bot tab
+        # Strategy tab
         self.trading_bot_panel = TradingBotPanel(
             self.data_feed,
             self.strategy_manager,
             self.mt5,
             self.market_data_panel
         )
-        self.tab_widget.addTab(self.trading_bot_panel, "Trading Bot")
+        self.tab_widget.addTab(self.trading_bot_panel, "Strategy")
         
-        # Strategy Manager tab
+        # Strategy Manager tab (Execution)
         self.strategy_panel = StrategyPanel(
             self.strategy_manager,
             self.order_manager,
@@ -217,7 +218,18 @@ class MainWindow(QMainWindow):
             manual_close_handler=self._handle_manual_close,
             execute_signal_handler=self.execute_strategy_signal
         )
-        self.tab_widget.addTab(self.strategy_panel, "Strategies")
+        self.tab_widget.addTab(self.strategy_panel, "Execution")
+        
+        # Operation & Monitoring tab
+        from .operation_monitoring_panel import OperationMonitoringPanel
+        self.operation_monitoring_panel = OperationMonitoringPanel(
+            self.order_manager,
+            self.strategy_manager,
+            self.mt5,
+            self
+        )
+        self.tab_widget.addTab(self.operation_monitoring_panel, "Operation & Monitoring")
+        
     
     def setup_timers(self):
         """Setup update timers"""
@@ -295,7 +307,6 @@ class MainWindow(QMainWindow):
             self.chart_widget.update_symbol_list()
             
             # Update strategy builder symbol list
-            self.strategy_builder.update_symbol_list()
             
             # Symbols are available in data feed for other panels
             
@@ -308,6 +319,11 @@ class MainWindow(QMainWindow):
             for strategy in self.strategy_manager.get_all_strategies():
                 if strategy.symbol not in self.data_feed.symbols:
                     self.data_feed.add_symbol(strategy.symbol)
+            
+            # Fetch OHLC for all symbols in data feed
+            if hasattr(self, 'market_data_panel') and self.data_feed.symbols:
+                symbols_list = list(self.data_feed.symbols)
+                self.market_data_panel.fetch_ohlc_for_symbols(symbols_list)
             
             # Start data feed
             if not self.data_feed.symbols:
@@ -527,29 +543,58 @@ class MainWindow(QMainWindow):
         for strategy_name, signal in signals.items():
             if signal:
                 strategy = self.strategy_manager.get_strategy(strategy_name)
-                if strategy:
-                    # Check if strategy already has position in same direction - skip condition check entirely
-                    if self.order_manager.position_tracker.has_position(strategy.name, strategy.symbol, signal):
-                        logger.debug(f"Strategy {strategy_name} has {signal} position for {strategy.symbol}, skipping condition check")
-                        continue
-                    
-                    logger.info(f"Strategy {strategy_name} generated {signal} signal")
-                    
-                    # Notify chart widget about the signal
-                    if hasattr(self, 'chart_widget'):
-                        current_price = market_data.get(strategy.symbol, {}).get('close', 0.0)
-                        from datetime import datetime
-                        self.chart_widget.add_strategy_signal(
-                            symbol=strategy.symbol,
-                            signal_type=signal,
-                            price=current_price,
-                            timestamp=datetime.now(),
-                            strategy_name=strategy_name
-                        )
-                    
-                    self.execute_strategy_signal(strategy, signal)
+                if not strategy:
+                    logger.warning(f"Strategy {strategy_name} generated {signal} signal but strategy object not found")
+                    continue
+                
+                # Check if strategy is enabled
+                if not getattr(strategy, 'enabled', True):
+                    logger.info(f"Strategy {strategy_name} generated {signal} signal but strategy is disabled, skipping execution")
+                    continue
+                
+                # Log signal generation with details
+                symbol = strategy.symbol
+                logger.info(f"Strategy {strategy_name} generated {signal} signal for {symbol}")
+                
+                # Check if strategy already has position in same direction - skip condition check entirely
+                has_position = self.order_manager.position_tracker.has_position(strategy.name, symbol, signal)
+                if has_position:
+                    tracked_positions = self.order_manager.position_tracker.get_positions_for_strategy(strategy.name, symbol)
+                    logger.info(f"Strategy {strategy_name} has {signal} position for {symbol}, skipping duplicate entry. "
+                              f"Tracked positions: {[p.get('ticket') for p in tracked_positions if p.get('direction') == signal]}")
+                    continue
+                
+                # Additional check: Verify position exists in MT5 (backup check)
+                mt5_positions = self.mt5.get_positions(symbol=symbol)
+                mt5_same_direction = []
+                for pos in mt5_positions:
+                    pos_comment = pos.get('comment', '')
+                    pos_type = 'BUY' if pos.get('type', 0) == 0 else 'SELL'
+                    if 'Strategy:' in pos_comment and strategy.name in pos_comment and pos_type == signal:
+                        mt5_same_direction.append(pos.get('ticket'))
+                
+                if mt5_same_direction:
+                    logger.warning(f"Strategy {strategy_name} has {signal} position in MT5 (tickets: {mt5_same_direction}) "
+                                 f"but not in tracker. This may indicate a sync issue.")
+                    # Don't skip - let execute_strategy_signal handle it
+                
+                logger.info(f"Executing {signal} signal for strategy {strategy_name} on {symbol}")
+                
+                # Notify chart widget about the signal
+                if hasattr(self, 'chart_widget'):
+                    current_price = market_data.get(strategy.symbol, {}).get('close', 0.0)
+                    from datetime import datetime
+                    self.chart_widget.add_strategy_signal(
+                        symbol=strategy.symbol,
+                        signal_type=signal,
+                        price=current_price,
+                        timestamp=datetime.now(),
+                        strategy_name=strategy_name
+                    )
+                
+                self.execute_strategy_signal(strategy, signal)
             else:
-                # Log when no signal is generated (for debugging)
+                # Log when no signal is generated (for debugging) - only at debug level to avoid spam
                 strategy = self.strategy_manager.get_strategy(strategy_name)
                 if strategy:
                     symbol = strategy.symbol
@@ -647,9 +692,13 @@ class MainWindow(QMainWindow):
     
     def execute_strategy_signal(self, strategy, signal: str):
         """Execute a strategy signal"""
-        logger.info(f"execute_strategy_signal: Executing {signal} signal for strategy {strategy.name}")
+        logger.info(f"execute_strategy_signal: Starting execution of {signal} signal for strategy {strategy.name}")
         symbol = strategy.symbol
         default_lot = self.config.get('trading.default_lot_size', 0.01)
+        
+        # Log strategy state
+        logger.debug(f"execute_strategy_signal: Strategy {strategy.name} - enabled={getattr(strategy, 'enabled', True)}, "
+                    f"symbol={symbol}, signal={signal}")
         
         # Find the correct symbol case from data feed (case-insensitive)
         actual_symbol = symbol
@@ -658,7 +707,8 @@ class MainWindow(QMainWindow):
                 actual_symbol = feed_symbol
                 break
         
-        logger.debug(f"execute_strategy_signal: Using symbol {actual_symbol} (requested {symbol})")
+        if actual_symbol != symbol:
+            logger.debug(f"execute_strategy_signal: Symbol case adjusted: {symbol} -> {actual_symbol}")
         
         # Get current price
         tick = self.data_feed.get_latest_tick(actual_symbol)
@@ -670,35 +720,44 @@ class MainWindow(QMainWindow):
         symbol = actual_symbol
         
         entry_price = tick['ask'] if signal == 'BUY' else tick['bid']
-        logger.debug(f"execute_strategy_signal: Entry price for {signal} = {entry_price}")
+        logger.info(f"execute_strategy_signal: Entry price for {signal} = {entry_price:.5f} (ask={tick.get('ask', 0):.5f}, bid={tick.get('bid', 0):.5f})")
         
         # Calculate stop loss and take profit from strategy settings
         sl, tp = self.calculate_strategy_sl_tp(strategy, symbol, entry_price, signal)
-        logger.debug(f"execute_strategy_signal: SL={sl}, TP={tp}")
+        logger.info(f"execute_strategy_signal: Calculated SL={sl:.5f}, TP={tp:.5f} for {signal} order")
         
         # Always check for existing positions to prevent duplicate entries (strict)
         # If strategy already has a position in the same direction, skip
-        if self.order_manager.position_tracker.has_position(strategy.name, symbol, signal):
-            logger.info(f"Strategy {strategy.name} already has {signal} position for {symbol}, skipping duplicate entry (strict)")
+        has_position = self.order_manager.position_tracker.has_position(strategy.name, symbol, signal)
+        if has_position:
+            tracked_positions = self.order_manager.position_tracker.get_positions_for_strategy(strategy.name, symbol)
+            matching_positions = [p for p in tracked_positions if p.get('direction') == signal]
+            logger.info(f"Strategy {strategy.name} already has {signal} position for {symbol}, skipping duplicate entry. "
+                      f"Tracked matching positions: {[p.get('ticket') for p in matching_positions]}")
             return
         
         # Additional check: Verify position exists in MT5 (backup check in case tracker is out of sync)
         mt5_position_exists, mt5_position = self._check_mt5_position_exists(strategy.name, symbol, signal)
         if mt5_position_exists:
-            logger.warning(f"Strategy {strategy.name} has {signal} position in MT5 (ticket: {mt5_position.get('ticket')}) but tracker was out of sync. Syncing tracker and skipping duplicate entry.")
+            ticket = mt5_position.get('ticket')
+            logger.warning(f"Strategy {strategy.name} has {signal} position in MT5 (ticket: {ticket}) but tracker was out of sync. "
+                          f"Syncing tracker and skipping duplicate entry.")
             # Sync the position tracker with the MT5 position
             self.order_manager.position_tracker.add_position(
                 strategy_name=strategy.name,
                 symbol=symbol,
                 direction=signal,
-                ticket=mt5_position.get('ticket'),
+                ticket=ticket,
                 entry_price=mt5_position.get('price_open'),
                 entry_time=mt5_position.get('time'),
                 volume=mt5_position.get('volume'),
                 sl=mt5_position.get('sl'),
                 tp=mt5_position.get('tp')
             )
+            logger.info(f"Synced position {ticket} to tracker for strategy {strategy.name}")
             return
+        
+        logger.info(f"execute_strategy_signal: No existing positions found, proceeding with order placement")
         
         # Cross-strategy position management: Check for opposite-direction positions
         opposite_direction = 'SELL' if signal == 'BUY' else 'BUY'
@@ -883,6 +942,28 @@ class MainWindow(QMainWindow):
                         entry_condition_text = self._get_entry_condition_text(strategy, signal)
                         entry_time = datetime.now()
                         
+                        # Verify position was opened with correct TP/SL values
+                        actual_position = self.mt5.get_positions(symbol=symbol)
+                        position_found = None
+                        for pos in actual_position:
+                            if pos.get('ticket') == ticket:
+                                position_found = pos
+                                break
+                        
+                        if position_found:
+                            actual_sl = position_found.get('sl', 0.0)
+                            actual_tp = position_found.get('tp', 0.0)
+                            logger.info(f"Position {ticket} opened: {symbol} {signal} @ {entry_price:.5f}, "
+                                      f"SL={actual_sl:.5f} (requested {sl:.5f}), TP={actual_tp:.5f} (requested {tp:.5f})")
+                            
+                            # Warn if TP/SL values don't match
+                            if abs(actual_tp - tp) > 0.00001 and tp > 0:
+                                logger.warning(f"Position {ticket} TP mismatch: requested {tp:.5f}, actual {actual_tp:.5f}")
+                            if abs(actual_sl - sl) > 0.00001 and sl > 0:
+                                logger.warning(f"Position {ticket} SL mismatch: requested {sl:.5f}, actual {actual_sl:.5f}")
+                        else:
+                            logger.warning(f"Position {ticket} not found in MT5 after opening - may need to wait")
+                        
                         # Add to position tracker
                         self.order_manager.position_tracker.add_position(
                             strategy.name, symbol, signal, ticket,
@@ -1046,11 +1127,10 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 logger.error(f"Error updating advanced risk management: {e}", exc_info=True)
         
-        # Update position displays (existing code)
-        if self.mt5.is_connected():
-            self.strategy_panel.update_positions()
-        if self.mt5.is_connected():
-            self.strategy_panel.update_positions()
+        # Update position displays in Operation & Monitoring panel
+        if self.mt5.is_connected() and hasattr(self, 'operation_monitoring_panel'):
+            self.operation_monitoring_panel.update_positions()
+            self.operation_monitoring_panel.update_open_pnl()
     
     def monitor_trades(self):
         """Monitor open positions and check SL/TP based on monitoring mode"""
@@ -1061,6 +1141,16 @@ class MainWindow(QMainWindow):
         positions = self.order_manager.get_positions()
         if not positions:
             return
+        
+        # Log all positions being monitored for debugging
+        logger.debug(f"Monitoring {len(positions)} open position(s) for SL/TP")
+        for pos in positions:
+            ticket = pos.get('ticket')
+            symbol = pos.get('symbol', 'UNKNOWN')
+            pos_type = 'BUY' if pos.get('type', 0) == 0 else 'SELL'
+            sl = pos.get('sl', 0.0)
+            tp = pos.get('tp', 0.0)
+            logger.debug(f"  Position {ticket}: {symbol} {pos_type}, SL={sl:.5f}, TP={tp:.5f}")
         
         # Group positions by strategy (based on comment)
         strategy_positions = {}
@@ -1513,31 +1603,29 @@ class MainWindow(QMainWindow):
             return
         
         # Load strategy into builder
-        self.strategy_builder.load_strategy(strategy)
-        
-        # Switch to Strategy Builder tab
+        # Strategy Builder tab has been removed
+        # Switch to Execution tab instead
         for i in range(self.tab_widget.count()):
-            if self.tab_widget.tabText(i) == "Strategy Builder":
+            if self.tab_widget.tabText(i) == "Execution":
                 self.tab_widget.setCurrentIndex(i)
                 break
     
     def on_strategy_edit_requested(self, strategy_name: str):
-        """Handle strategy edit request - load strategy into builder"""
+        """Handle strategy edit request - strategy builder removed, use strategy panel for editing"""
         strategy = self.strategy_manager.get_strategy(strategy_name)
         if not strategy:
             QMessageBox.warning(self, "Error", f"Strategy '{strategy_name}' not found")
             return
         
-        # Load strategy into builder
-        if hasattr(self.strategy_builder, 'load_strategy_for_editing'):
-            self.strategy_builder.load_strategy_for_editing(strategy)
-            # Switch to strategy builder tab
-            for i in range(self.tab_widget.count()):
-                if self.tab_widget.widget(i) == self.strategy_builder:
-                    self.tab_widget.setCurrentIndex(i)
-                    break
-        else:
-            QMessageBox.warning(self, "Not Implemented", "Strategy editing is not yet fully implemented")
+        # Switch to Execution tab for editing
+        for i in range(self.tab_widget.count()):
+            if self.tab_widget.tabText(i) == "Execution":
+                self.tab_widget.setCurrentIndex(i)
+                break
+        
+        QMessageBox.information(self, "Strategy Editing", 
+                              f"Use the Execution tab to edit '{strategy_name}'. "
+                              f"The Strategy Builder tab has been removed.")
     
     def show_about(self):
         """Show about dialog"""
@@ -1721,8 +1809,12 @@ class MainWindow(QMainWindow):
                 if hasattr(self, 'telegram_test_btn'):
                     self.telegram_test_btn.setEnabled(True)
             elif self.config.get('telegram.enabled', False):
-                self.telegram_status_label.setText("Telegram: ❌ Failed")
+                error_msg = ""
+                if self.telegram_bot and hasattr(self.telegram_bot, '_init_error'):
+                    error_msg = f" ({self.telegram_bot._init_error[:30]}...)" if self.telegram_bot._init_error else ""
+                self.telegram_status_label.setText(f"Telegram: ❌ Failed{error_msg}")
                 self.telegram_status_label.setStyleSheet("padding: 2px 8px; border-radius: 3px; background-color: #F44336; color: white;")
+                self.telegram_status_label.setToolTip(f"Telegram bot failed to initialize. Check Settings > Telegram configuration.{error_msg}")
                 if hasattr(self, 'telegram_test_btn'):
                     self.telegram_test_btn.setEnabled(False)
             else:

@@ -321,13 +321,37 @@ class TradeHistory:
         Args:
             hours: Number of hours to keep (default: 24)
         """
+        from datetime import timezone
+        
+        # cutoff_time is always naive (datetime.now() returns naive)
         cutoff_time = datetime.now() - timedelta(hours=hours)
         trades_to_remove = []
         
         for ticket, trade in self.trades.items():
             entry_time = trade.get('entry_time')
-            if isinstance(entry_time, datetime) and entry_time < cutoff_time:
-                trades_to_remove.append(ticket)
+            if isinstance(entry_time, datetime):
+                try:
+                    # Normalize entry_time to naive UTC for comparison with naive cutoff_time
+                    # This ensures we can safely compare regardless of timezone awareness
+                    if hasattr(entry_time, 'tzinfo') and entry_time.tzinfo is not None:
+                        # entry_time is timezone-aware, convert to UTC and remove tzinfo
+                        entry_time_normalized = entry_time.astimezone(timezone.utc).replace(tzinfo=None)
+                    else:
+                        # entry_time is already naive, use as-is
+                        entry_time_normalized = entry_time
+                    
+                    # Ensure cutoff_time is also naive (it should be, but double-check)
+                    cutoff_time_normalized = cutoff_time
+                    if hasattr(cutoff_time, 'tzinfo') and cutoff_time.tzinfo is not None:
+                        cutoff_time_normalized = cutoff_time.replace(tzinfo=None)
+                    
+                    # Now both are guaranteed to be naive datetimes, safe to compare
+                    if entry_time_normalized < cutoff_time_normalized:
+                        trades_to_remove.append(ticket)
+                except (TypeError, AttributeError, ValueError) as e:
+                    # Fallback: if normalization fails, skip this trade
+                    logger.warning(f"Could not normalize entry_time for trade {ticket}: {e}")
+                    continue
         
         for ticket in trades_to_remove:
             del self.trades[ticket]

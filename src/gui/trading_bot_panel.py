@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
 from PyQt6.QtCore import Qt, QTimer, QTime
 from typing import Dict, Optional
 import logging
+import re
 
 from ..data_feed import DataFeed
 from ..strategy.strategy_manager import StrategyManager
@@ -126,8 +127,8 @@ class TradingBotPanel(QWidget):
         
         # Current bot strategy (can be OHLC or VWAP)
         self.current_bot: Optional[BaseStrategy] = None
-        self.editing_bot_name: Optional[str] = None
-        self.strategy_type: str = 'ohlc'  # 'ohlc' | 'vwap' | 'smc' | 'ema'
+        self.editing_strategy_name: Optional[str] = None
+        self.strategy_type: str = 'ohlc'  # Will be determined dynamically from conditions
         self.buy_rows = []
         self.sell_rows = []
         
@@ -160,21 +161,21 @@ class TradingBotPanel(QWidget):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
         
-        # Strategy Type Selector
-        strategy_type_group = QGroupBox("Strategy Type")
-        strategy_type_layout = QFormLayout()
+        # Strategy Name Section
+        strategy_name_group = QGroupBox("Strategy Name")
+        strategy_name_layout = QFormLayout()
         
-        self.strategy_type_combo = QComboBox()
-        self.strategy_type_combo.addItem("OHLC Price Strategy", "ohlc")
-        self.strategy_type_combo.addItem("VWAP Strategy", "vwap")
-        self.strategy_type_combo.addItem("EMA Strategy", "ema")
-        self.strategy_type_combo.addItem("SuperTrend Strategy", "supertrend")
-        self.strategy_type_combo.addItem("SMC (Smart Money Concepts)", "smc")
-        self.strategy_type_combo.currentIndexChanged.connect(self._on_strategy_type_changed)
-        strategy_type_layout.addRow("Strategy Type:", self.strategy_type_combo)
+        self.strategy_name_input = QLineEdit()
+        self.strategy_name_input.setPlaceholderText("e.g., EMA_Crossover_EURUSD_M1")
+        self.strategy_name_input.textChanged.connect(self._validate_strategy_name)
+        strategy_name_layout.addRow("Strategy Name:", self.strategy_name_input)
         
-        strategy_type_group.setLayout(strategy_type_layout)
-        layout.addWidget(strategy_type_group)
+        self.strategy_name_error_label = QLabel("")
+        self.strategy_name_error_label.setStyleSheet("color: red; font-size: 11px;")
+        strategy_name_layout.addRow("", self.strategy_name_error_label)
+        
+        strategy_name_group.setLayout(strategy_name_layout)
+        layout.addWidget(strategy_name_group)
         
         # Strategy Direction
         direction_group = QGroupBox("Strategy Direction")
@@ -193,10 +194,6 @@ class TradingBotPanel(QWidget):
         # Basic Information
         basic_group = QGroupBox("Basic Information")
         basic_layout = QFormLayout()
-        
-        self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("e.g., OHLC Breakout Bot")
-        basic_layout.addRow("Bot Name:", self.name_input)
         
         self.symbol_combo = QComboBox()
         self.symbol_combo.setEditable(True)
@@ -835,29 +832,55 @@ class TradingBotPanel(QWidget):
             self.session_combo.addItem("US Session (18:30–03:30 IST)", "us")
             self.session_combo.setCurrentIndex(0)  # Default to Daily
     
-    def _on_strategy_type_changed(self, index: int):
-        """Handle strategy type change"""
-        self.strategy_type = self.strategy_type_combo.currentData()
-        self._update_session_combo()
+    def _validate_strategy_name(self):
+        """Validate strategy name for uniqueness and format"""
+        name = self.strategy_name_input.text().strip()
+        if not name:
+            self.strategy_name_error_label.setText("Strategy name is required")
+            return False
         
-        # Show/hide VWAP-specific UI
-        is_vwap = self.strategy_type == 'vwap'
-        is_smc = self.strategy_type == 'smc'
-        is_ema = self.strategy_type == 'ema'
-        is_supertrend = self.strategy_type == 'supertrend'
-        self.vwap_config_group.setVisible(is_vwap)
-        self.vwap_display_group.setVisible(is_vwap)
-        self.ema_config_group.setVisible(is_ema)
-        self.ema_display_group.setVisible(is_ema)
-        self.supertrend_config_group.setVisible(is_supertrend)
-        self.supertrend_display_group.setVisible(is_supertrend)
-        self.smc_config_group.setVisible(is_smc)
-        self.smc_status_label.setVisible(is_smc)
-        self.ohlc_label.setVisible((not is_vwap) and (not is_smc) and (not is_ema) and (not is_supertrend))
-
-        # Hide manual condition builders for SuperTrend (SMC now can use filters)
-        self.buy_group.setVisible((not is_supertrend))
-        self.sell_group.setVisible((not is_supertrend))
+        # Check format (alphanumeric, underscores, hyphens)
+        if not re.match(r'^[a-zA-Z0-9_-]+$', name):
+            self.strategy_name_error_label.setText("Invalid format. Use alphanumeric, underscores, or hyphens")
+            return False
+        
+        # Check uniqueness (skip if editing same name)
+        if hasattr(self, 'editing_strategy_name') and name == self.editing_strategy_name:
+            self.strategy_name_error_label.setText("")
+            return True
+        
+        existing_strategies = self.strategy_manager.get_all_strategies()
+        for strategy in existing_strategies:
+            if strategy.name == name:
+                self.strategy_name_error_label.setText("Strategy name already exists")
+                return False
+        
+        self.strategy_name_error_label.setText("")
+        return True
+    
+    def _on_strategy_type_changed(self, index: int):
+        """Handle strategy type change - DEPRECATED: Strategy type now determined dynamically"""
+        # This method is kept for compatibility but strategy type is determined from conditions
+        pass
+    
+    def _update_ui_visibility(self):
+        """Update UI visibility based on detected strategy type from conditions"""
+        # Show all config groups - user can configure any indicator
+        self.vwap_config_group.setVisible(True)
+        self.ema_config_group.setVisible(True)
+        self.supertrend_config_group.setVisible(True)
+        self.smc_config_group.setVisible(True)
+        
+        # Show all display groups
+        self.vwap_display_group.setVisible(True)
+        self.ema_display_group.setVisible(True)
+        self.supertrend_display_group.setVisible(True)
+        self.smc_status_label.setVisible(True)
+        self.ohlc_label.setVisible(True)
+        
+        # Always show condition builders
+        self.buy_group.setVisible(True)
+        self.sell_group.setVisible(True)
         
         # Update value combo boxes for VWAP
         self._update_value_combos()
@@ -878,20 +901,23 @@ class TradingBotPanel(QWidget):
             ("Any_Cross", "Any_Cross"),
         ]
 
-        # VWAP specific extra operators
-        if self.strategy_type == 'vwap':
-            operators.extend([
-                ("Within_Band", "Within Band"),
-                ("Outside_Band", "Outside Band"),
-            ])
+        # VWAP specific extra operators (always available)
+        operators.extend([
+            ("Within_Band", "Within Band"),
+            ("Outside_Band", "Outside Band"),
+        ])
 
         for row in self.buy_rows + self.sell_rows:
             row.set_options(operands, operators)
 
     def _get_operand_options(self):
-        """Operand options depending on strategy type."""
-        base = [
+        """Get all available operand options (all indicators)."""
+        operands = [
             ("Current Price", "price"),
+            ("Previous Open", "prev_open"),
+            ("Previous High", "prev_high"),
+            ("Previous Low", "prev_low"),
+            ("Previous Close", "prev_close"),
             ("Open", "open"),
             ("High", "high"),
             ("Low", "low"),
@@ -900,28 +926,44 @@ class TradingBotPanel(QWidget):
             ("(H + L + C)/3", "hlc3"),
             ("(O + H + L + C)/4", "ohlc4"),
         ]
-        if self.strategy_type == 'ema':
-            p1 = int(self.ema_20_spin.value())
-            p2 = int(self.ema_50_spin.value())
-            p3 = int(self.ema_100_spin.value())
-            p4 = int(self.ema_200_spin.value())
-            base.extend([
-                (f"EMA ({p1})", "ema_1"),
-                (f"EMA ({p2})", "ema_2"),
-                (f"EMA ({p3})", "ema_3"),
-                (f"EMA ({p4})", "ema_4"),
-            ])
-        if self.strategy_type == 'vwap':
-            base.extend([
-                ("VWAP", "vwap"),
-                ("Upper Band (1 STD)", "upper_band_1"),
-                ("Upper Band (1.5 STD)", "upper_band_1.5"),
-                ("Upper Band (2 STD)", "upper_band_2"),
-                ("Lower Band (1 STD)", "lower_band_1"),
-                ("Lower Band (1.5 STD)", "lower_band_1.5"),
-                ("Lower Band (2 STD)", "lower_band_2"),
-            ])
-        return base
+        
+        # Add EMA options (configurable periods)
+        p1 = int(self.ema_20_spin.value())
+        p2 = int(self.ema_50_spin.value())
+        p3 = int(self.ema_100_spin.value())
+        p4 = int(self.ema_200_spin.value())
+        operands.extend([
+            (f"EMA_{p1}", f"ema_{p1}"),
+            (f"EMA_{p2}", f"ema_{p2}"),
+            (f"EMA_{p3}", f"ema_{p3}"),
+            (f"EMA_{p4}", f"ema_{p4}"),
+        ])
+        
+        # Add SuperTrend
+        operands.extend([
+            ("SuperTrend Value", "supertrend_value"),
+            ("SuperTrend Upper", "supertrend_upper"),
+            ("SuperTrend Lower", "supertrend_lower"),
+        ])
+        
+        # Add VWAP
+        operands.extend([
+            ("VWAP", "vwap"),
+            ("VWAP Upper 1.0σ", "vwap_upper_1.0"),
+            ("VWAP Upper 1.5σ", "vwap_upper_1.5"),
+            ("VWAP Upper 2.0σ", "vwap_upper_2.0"),
+            ("VWAP Lower 1.0σ", "vwap_lower_1.0"),
+            ("VWAP Lower 1.5σ", "vwap_lower_1.5"),
+            ("VWAP Lower 2.0σ", "vwap_lower_2.0"),
+        ])
+        
+        # Add SMC
+        operands.extend([
+            ("SMC Pivot High", "smc_pivot_high"),
+            ("SMC Pivot Low", "smc_pivot_low"),
+        ])
+        
+        return operands
 
     def _reset_condition_rows(self):
         """Clear all condition rows."""
@@ -972,10 +1014,11 @@ class TradingBotPanel(QWidget):
     
     def clear_form(self):
         """Clear the form"""
-        self.name_input.clear()
+        self.strategy_name_input.clear()
+        self.strategy_name_error_label.setText("")
         self._reset_condition_rows()
         self._ensure_minimum_rows()
-        self.editing_bot_name = None
+        self.editing_strategy_name = None
         self.current_bot = None
 
         # Reset direction
@@ -1066,22 +1109,27 @@ class TradingBotPanel(QWidget):
     
     def save_bot(self):
         """Save the trading bot"""
-        name = self.name_input.text().strip()
+        strategy_name = self.strategy_name_input.text().strip()
         symbol = self.symbol_combo.currentText().strip().upper()
         
-        if not name or not symbol:
-            QMessageBox.warning(self, "Validation Error", "Please enter bot name and symbol")
+        if not strategy_name or not symbol:
+            QMessageBox.warning(self, "Validation Error", "Please enter strategy name and symbol")
             return
         
-        # Check if editing existing bot
-        is_editing = self.editing_bot_name is not None
-        if is_editing and name != self.editing_bot_name:
-            QMessageBox.warning(self, "Error", "Cannot change bot name when editing. Please use the original name.")
-            self.name_input.setText(self.editing_bot_name)
+        # Validate strategy name
+        if not self._validate_strategy_name():
+            QMessageBox.warning(self, "Validation Error", "Please fix the strategy name errors")
             return
         
-        # Validate conditions (SMC doesn't use manual condition lists)
-        strategy_type = self.strategy_type_combo.currentData()
+        # Check if editing existing strategy
+        is_editing = self.editing_strategy_name is not None
+        if is_editing and strategy_name != self.editing_strategy_name:
+            QMessageBox.warning(self, "Error", "Cannot change strategy name when editing. Please use the original name.")
+            self.strategy_name_input.setText(self.editing_strategy_name)
+            return
+        
+        # Determine strategy type dynamically from conditions (default to ohlc)
+        strategy_type = 'ohlc'  # Default, can be determined from conditions if needed
         direction = self.direction_combo.currentData()
         if strategy_type not in ('supertrend'):
             active_buy = [r for r in self.buy_rows if r.get_data().get("enabled")]
@@ -1107,13 +1155,14 @@ class TradingBotPanel(QWidget):
         if is_editing and self.current_bot:
             # Update existing bot
             bot = self.current_bot
+            bot.name = strategy_name  # Update name
             bot.symbol = symbol
             bot.session_type = session_type
             bot.timeframe = timeframe
         else:
-            # Create new bot based on strategy type
+            # Create new bot based on strategy type (default to OHLC for now)
             if strategy_type == 'vwap':
-                bot = VWAPStrategy(name, symbol, session_type, timeframe)
+                bot = VWAPStrategy(strategy_name, symbol, session_type, timeframe)
                 bot.set_mt5_connector(self.mt5)
                 
                 # Set VWAP-specific configuration
@@ -1134,11 +1183,11 @@ class TradingBotPanel(QWidget):
                     'ema_3': int(self.ema_100_spin.value()),
                     'ema_4': int(self.ema_200_spin.value()),
                 }
-                bot = EMAStrategy(name=name, symbol=symbol, timeframe=timeframe, ema_periods=periods)
+                bot = EMAStrategy(name=strategy_name, symbol=symbol, timeframe=timeframe, ema_periods=periods)
                 bot.set_mt5_connector(self.mt5)
             elif strategy_type == 'smc':
                 bot = SMCStrategy(
-                    name=name,
+                    name=strategy_name,
                     symbol=symbol,
                     timeframe=timeframe,
                     pivot_left=int(self.smc_pivot_left_spin.value()),
@@ -1148,7 +1197,7 @@ class TradingBotPanel(QWidget):
                 bot.set_mt5_connector(self.mt5)
             elif strategy_type == 'supertrend':
                 bot = SuperTrendStrategy(
-                    name=name,
+                    name=strategy_name,
                     symbol=symbol,
                     timeframe=timeframe,
                     period=int(self.supertrend_period_spin.value()),
@@ -1157,7 +1206,7 @@ class TradingBotPanel(QWidget):
                 )
                 bot.set_mt5_connector(self.mt5)
             else:  # ohlc or smc (smc handled above but keep fallback)
-                bot = OHLCPriceStrategy(name, symbol, session_type, timeframe)
+                bot = OHLCPriceStrategy(strategy_name, symbol, session_type, timeframe)
                 bot.set_market_data_panel(self.market_data_panel)
         
         # Clear existing conditions (not used by SMC)
@@ -1312,17 +1361,17 @@ class TradingBotPanel(QWidget):
         # Add to strategy manager
         if is_editing:
             # Update existing strategy
-            existing = self.strategy_manager.get_strategy(name)
+            existing = self.strategy_manager.get_strategy(strategy_name)
             if existing:
                 # Remove old and add new
-                self.strategy_manager.remove_strategy(name)
+                self.strategy_manager.remove_strategy(strategy_name)
             self.strategy_manager.add_strategy(bot)
             system_log_service.log(
                 "MESSAGE",
-                f"Strategy {name} edited",
-                strategy=name,
+                f"Strategy {strategy_name} edited",
+                strategy=strategy_name,
             )
-            QMessageBox.information(self, "Success", f"Bot '{name}' updated successfully")
+            QMessageBox.information(self, "Success", f"Strategy '{strategy_name}' updated successfully")
         else:
             if self.strategy_manager.add_strategy(bot):
                 # Save to disk
@@ -1331,24 +1380,24 @@ class TradingBotPanel(QWidget):
                 if persistence.save_strategy(bot):
                     system_log_service.log(
                         "MESSAGE",
-                        f"Strategy {name} created",
-                        strategy=name,
+                        f"Strategy {strategy_name} created",
+                        strategy=strategy_name,
                     )
-                    QMessageBox.information(self, "Success", f"Bot '{name}' saved and enabled successfully")
+                    QMessageBox.information(self, "Success", f"Strategy '{strategy_name}' saved and enabled successfully")
                 else:
                     system_log_service.log(
                         "WARNING",
-                        f"Strategy {name} created but could not save to disk",
-                        strategy=name,
+                        f"Strategy {strategy_name} created but could not save to disk",
+                        strategy=strategy_name,
                     )
-                    QMessageBox.warning(self, "Warning", f"Bot '{name}' added but could not save to disk")
+                    QMessageBox.warning(self, "Warning", f"Strategy '{strategy_name}' added but could not save to disk")
             else:
                 system_log_service.log(
                     "WARNING",
-                    f"Strategy {name} could not be created (already exists)",
-                    strategy=name,
+                    f"Strategy {strategy_name} could not be created (already exists)",
+                    strategy=strategy_name,
                 )
-                QMessageBox.warning(self, "Error", f"Bot '{name}' already exists")
+                QMessageBox.warning(self, "Error", f"Strategy '{strategy_name}' already exists")
         
         # Attach SMC filters if applicable
         if strategy_type == 'smc' and hasattr(bot, "set_filters"):

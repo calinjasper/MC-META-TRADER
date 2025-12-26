@@ -11,7 +11,6 @@ from typing import List, Optional
 from ..strategy.strategy_manager import StrategyManager
 from ..strategy.base_strategy import BaseStrategy
 from ..trading.order_manager import OrderManager
-from .trade_book_panel import TradeBookPanel
 from .system_logs_panel import SystemLogsPanel
 from .system_log_service import system_log_service
 
@@ -71,32 +70,8 @@ class StrategyPanel(QWidget):
         self.strategies_table.setAlternatingRowColors(True)
         
         layout.addWidget(self.strategies_table)
-        
-        # Positions section
-        positions_label = QLabel("Open Positions")
-        positions_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-        layout.addWidget(positions_label)
-        
-        self.positions_table = QTableWidget()
-        self.positions_table.setColumnCount(9)
-        self.positions_table.setHorizontalHeaderLabels([
-            "Ticket", "Symbol", "Type", "Volume", "Price", "SL", "TP", "Profit", "Actions"
-        ])
-        self.positions_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.positions_table.setAlternatingRowColors(True)
-        
-        layout.addWidget(self.positions_table)
-        
-        # Log Viewer section
-        # Trade Book section
-        trade_book_label = QLabel("Trade Book")
-        trade_book_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-        layout.addWidget(trade_book_label)
-        
-        self.trade_book_panel = TradeBookPanel(self.order_manager, self)
-        layout.addWidget(self.trade_book_panel)
 
-        # System Logs section (requested under Strategies page, bottom)
+        # System Logs section (requested under Execution page, bottom)
         self.system_logs_panel = SystemLogsPanel(self)
         layout.addWidget(self.system_logs_panel)
     
@@ -235,63 +210,6 @@ class StrategyPanel(QWidget):
             
             self.strategies_table.setCellWidget(row, 7, action_widget)
     
-    def update_positions(self):
-        """Update positions table"""
-        positions = self.order_manager.get_positions()
-        
-        self.positions_table.setRowCount(len(positions))
-        
-        for row, pos in enumerate(positions):
-            # Ticket
-            self.positions_table.setItem(row, 0, QTableWidgetItem(str(pos['ticket'])))
-            
-            # Symbol
-            self.positions_table.setItem(row, 1, QTableWidgetItem(pos['symbol']))
-            
-            # Type
-            pos_type = "BUY" if pos['type'] == 0 else "SELL"
-            self.positions_table.setItem(row, 2, QTableWidgetItem(pos_type))
-            
-            # Volume
-            self.positions_table.setItem(row, 3, QTableWidgetItem(f"{pos['volume']:.2f}"))
-            
-            # Price
-            self.positions_table.setItem(row, 4, QTableWidgetItem(f"{pos['price_open']:.5f}"))
-            
-            # Stop Loss
-            sl = pos.get('sl', 0.0)
-            sl_text = f"{sl:.5f}" if sl > 0 else "--"
-            self.positions_table.setItem(row, 5, QTableWidgetItem(sl_text))
-            
-            # Take Profit
-            tp = pos.get('tp', 0.0)
-            tp_text = f"{tp:.5f}" if tp > 0 else "--"
-            self.positions_table.setItem(row, 6, QTableWidgetItem(tp_text))
-            
-            # Profit
-            profit_item = QTableWidgetItem(f"{pos['profit']:.2f}")
-            if pos['profit'] >= 0:
-                profit_item.setForeground(Qt.GlobalColor.green)
-            else:
-                profit_item.setForeground(Qt.GlobalColor.red)
-            self.positions_table.setItem(row, 7, profit_item)
-            
-            # Actions
-            action_widget = QWidget()
-            action_layout = QHBoxLayout(action_widget)
-            action_layout.setContentsMargins(2, 2, 2, 2)
-            
-            close_btn = QPushButton("Close")
-            close_btn.clicked.connect(lambda checked, t=pos['ticket']: self.close_position(t))
-            action_layout.addWidget(close_btn)
-            
-            self.positions_table.setCellWidget(row, 8, action_widget)
-        
-        # Log viewer updates automatically via log handler
-        # Update trade book when positions change
-        if hasattr(self, 'trade_book_panel'):
-            self.trade_book_panel.update_trade_book()
-    
     def enable_strategy(self, name: str):
         """Enable a strategy"""
         if self.strategy_manager.enable_strategy(name):
@@ -341,96 +259,6 @@ class StrategyPanel(QWidget):
             if strategy.enabled:
                 self.disable_strategy(strategy.name)
     
-    def close_position(self, ticket: int):
-        """Close a position"""
-        # Get position details before closing
-        position = self.order_manager.get_position_by_ticket(ticket)
-        if not position:
-            # Try to get from position tracker
-            for strategy_name in self.order_manager.position_tracker.positions.keys():
-                for symbol in self.order_manager.position_tracker.positions[strategy_name].keys():
-                    for direction, pos_data in self.order_manager.position_tracker.positions[strategy_name][symbol].items():
-                        if pos_data.get('ticket') == ticket:
-                            # Found in tracker, get position details
-                            strategy_name_found = strategy_name
-                            symbol_found = symbol
-                            direction_found = direction
-                            
-                            # Close position in MT5
-                            if self.order_manager.close_position(ticket):
-                                system_log_service.log(
-                                    "TRADING",
-                                    f"Manual square off: Position closed for {symbol_found} (ticket {ticket})",
-                                    strategy=strategy_name_found,
-                                )
-                                # Call manual close handler if available
-                                if self.manual_close_handler:
-                                    try:
-                                        self.manual_close_handler(
-                                            ticket=ticket,
-                                            strategy_name=strategy_name_found,
-                                            symbol=symbol_found,
-                                            direction=direction_found,
-                                            pos_data=pos_data
-                                        )
-                                    except Exception as e:
-                                        import logging
-                                        logging.error(f"Error in manual close handler: {e}", exc_info=True)
-                                
-                                self.update_positions()
-                            return
-        
-        # If position found in MT5 but not in tracker, still close it
-        if position:
-            # Extract strategy name from comment
-            comment = position.get('comment', '')
-            strategy_name = '--'
-            if 'Strategy:' in comment:
-                strategy_name = comment.replace('Strategy:', '').strip()
-            
-            direction = 'BUY' if position.get('type', 0) == 0 else 'SELL'
-            symbol = position.get('symbol', '')
-            
-            # Create pos_data from MT5 position
-            pos_data = {
-                'ticket': ticket,
-                'entry_price': position.get('price_open', 0.0),
-                'entry_time': position.get('time'),
-                'volume': position.get('volume', 0.01),
-                'sl': position.get('sl', 0.0),
-                'tp': position.get('tp', 0.0)
-            }
-            
-            # Close position in MT5
-            if self.order_manager.close_position(ticket):
-                system_log_service.log(
-                    "TRADING",
-                    f"Manual square off: Position closed for {symbol} (ticket {ticket})",
-                    strategy=strategy_name if strategy_name != "--" else "",
-                )
-                # Call manual close handler if available
-                if self.manual_close_handler:
-                    try:
-                        self.manual_close_handler(
-                            ticket=ticket,
-                            strategy_name=strategy_name,
-                            symbol=symbol,
-                            direction=direction,
-                            pos_data=pos_data
-                        )
-                    except Exception as e:
-                        import logging
-                        logging.error(f"Error in manual close handler: {e}", exc_info=True)
-                
-                self.update_positions()
-        else:
-            # Position not found, just try to close
-            if self.order_manager.close_position(ticket):
-                system_log_service.log(
-                    "TRADING",
-                    f"Manual square off: Position closed (ticket {ticket})",
-                )
-                self.update_positions()
     
     def show_strategy_detail(self, name: str):
         """Show strategy detail dialog"""
@@ -574,7 +402,6 @@ class StrategyPanel(QWidget):
                                       f"Check the orderbook for trade details.")
                 # Refresh strategies table to show updated positions
                 self.update_strategies()
-                self.update_positions()
             else:
                 # Condition not met
                 QMessageBox.information(self, "Condition Not Met", 

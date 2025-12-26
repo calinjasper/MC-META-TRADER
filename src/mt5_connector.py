@@ -1059,6 +1059,10 @@ class MT5Connector:
         ask = tick.ask
         validation_errors = []
 
+        # Get current SL/TP values from position
+        current_sl = pos.sl if hasattr(pos, 'sl') else 0.0
+        current_tp = pos.tp if hasattr(pos, 'tp') else 0.0
+
         if sl > 0:
             sl = round(sl, digits)
             if pos.type == mt5.ORDER_TYPE_BUY:
@@ -1094,6 +1098,25 @@ class MT5Connector:
             logger.error(f"Failed to modify position {ticket}: {self.last_error}")
             return False
         
+        # Check if values are effectively the same (within tolerance)
+        # Use tolerance based on symbol point size (minimum 0.00001 for 5-digit symbols)
+        tolerance = max(point * 0.1, 0.00001)
+        sl_changed = abs(sl - current_sl) >= tolerance
+        tp_changed = abs(tp - current_tp) >= tolerance
+        
+        if not sl_changed and not tp_changed:
+            # No changes needed - values are effectively the same
+            logger.debug(f"Position {ticket} modification skipped: SL and TP values unchanged (SL={sl:.{digits}f}, TP={tp:.{digits}f})")
+            return True
+        
+        # Log the modification attempt with current vs new values
+        changes = []
+        if sl_changed:
+            changes.append(f"SL: {current_sl:.{digits}f} → {sl:.{digits}f}")
+        if tp_changed:
+            changes.append(f"TP: {current_tp:.{digits}f} → {tp:.{digits}f}")
+        logger.info(f"Modifying position {ticket}: {', '.join(changes)}")
+        
         request = {
             "action": mt5.TRADE_ACTION_SLTP,
             "symbol": pos.symbol,
@@ -1109,6 +1132,11 @@ class MT5Connector:
             logger.error(f"Failed to modify position {ticket}: {self.last_error}")
             return False
 
+        # Handle retcode 10025 (TRADE_RETCODE_NO_CHANGES) as a warning, not an error
+        if result.retcode == 10025:  # TRADE_RETCODE_NO_CHANGES
+            logger.warning(f"Position {ticket} modification: No changes (retcode 10025) - values may have been set by another process")
+            return True  # Return True since this is not a real failure
+        
         if result.retcode != mt5.TRADE_RETCODE_DONE:
             comment = result.comment if hasattr(result, "comment") else "Unknown error"
             self.last_error = f"{comment} (retcode {result.retcode})"
