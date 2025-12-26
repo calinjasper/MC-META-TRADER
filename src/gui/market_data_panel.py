@@ -28,6 +28,19 @@ class MarketDataPanel(QWidget):
         self.ohlc_calculator = PreviousSessionOHLCCalculator(session_type='daily')
         self.session_type = 'daily'
         self.setup_ui()
+        self.setup_connections()
+    
+    def setup_connections(self):
+        """Setup signal connections for automatic OHLC loading"""
+        # Connect to tick_received signal to fetch OHLC when new symbols get ticks
+        if hasattr(self.data_feed, 'tick_received'):
+            self.data_feed.tick_received.connect(self._on_tick_received)
+    
+    def _on_tick_received(self, symbol: str, tick_data: dict):
+        """Handle tick received - fetch OHLC if not already loaded for this symbol"""
+        # Only fetch OHLC if we haven't loaded it yet for this symbol
+        if symbol not in self.ohlc_data and self.mt5.is_connected():
+            self.fetch_ohlc_for_symbols([symbol])
     
     def setup_ui(self):
         """Setup the UI"""
@@ -178,6 +191,10 @@ class MarketDataPanel(QWidget):
             
             # Save symbols to config for persistence
             self._save_symbols_to_config()
+            
+            # Fetch OHLC immediately when symbol is added
+            if correct_symbol and self.mt5.is_connected():
+                self.fetch_ohlc_for_symbols([correct_symbol])
             
             self.refresh_data()
         else:

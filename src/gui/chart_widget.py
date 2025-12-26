@@ -387,6 +387,12 @@ class ChartWidget(QWidget):
             },
             'VWAP': {
                 'bands': [1.0, 1.5, 2.0],
+                'band_visibility': {1.0: True, 1.5: False, 2.0: False},
+                'band_colors': {
+                    1.0: {'upper': '#FF6B6B', 'lower': '#66BB6A'},
+                    1.5: {'upper': '#FF5252', 'lower': '#4CAF50'},
+                    2.0: {'upper': '#F44336', 'lower': '#388E3C'}
+                },
                 'swing_period': 10,
                 'color': '#00FFFF',
                 'line_width': 2,
@@ -411,7 +417,7 @@ class ChartWidget(QWidget):
                 'visible': True
             },
             'OHLC': {
-                'session_type': 'auto',
+                'session_type': 'daily',
                 'show_open': True,
                 'show_high': True,
                 'show_low': True,
@@ -794,15 +800,29 @@ class ChartWidget(QWidget):
             rates_list = []
             for r in rates:
                 if hasattr(r, 'keys'):
+                    # Ensure tick_volume exists
+                    if 'tick_volume' not in r and 'volume' not in r:
+                        r['tick_volume'] = 1.0
+                    elif 'tick_volume' not in r and 'volume' in r:
+                        r['tick_volume'] = r['volume']
                     rates_list.append(r)
                 else:
+                    # Handle structured array
+                    tick_vol = 0
+                    if 'tick_volume' in r.dtype.names:
+                        tick_vol = int(r['tick_volume'])
+                    elif 'volume' in r.dtype.names:
+                        tick_vol = int(r['volume'])
+                    else:
+                        tick_vol = 1.0  # Default to 1.0 instead of 0 for VWAP calculation
+                    
                     rates_list.append({
                         'time': r['time'],
                         'open': float(r['open']),
                         'high': float(r['high']),
                         'low': float(r['low']),
                         'close': float(r['close']),
-                        'tick_volume': int(r['tick_volume']) if 'tick_volume' in r.dtype.names else 0
+                        'tick_volume': tick_vol
                     })
             
             # Loop through active indicators and calculate each one
@@ -848,30 +868,169 @@ class ChartWidget(QWidget):
                                    settings: Dict[str, Any], ind_id: str) -> List[Dict]:
         """Calculate VWAP indicator data with custom settings"""
         try:
+            # Validate input data
+            if not rates or not times:
+                logger.warning(f"VWAP: Empty rates or times data for indicator {ind_id}")
+                return []
+            
+            # Validate that rates have required fields
+            required_fields = ['time', 'high', 'low', 'close']
+            sample_rate = rates[0] if rates else {}
+            missing_fields = [field for field in required_fields if field not in sample_rate]
+            if missing_fields:
+                logger.error(f"VWAP: Missing required fields in rates: {missing_fields}")
+                return []
+            
+            # Ensure rates have tick_volume field (VWAP needs it)
+            # If missing, add default value of 1.0
+            for rate in rates:
+                if 'tick_volume' not in rate and 'volume' not in rate:
+                    rate['tick_volume'] = 1.0
+                elif 'tick_volume' not in rate and 'volume' in rate:
+                    rate['tick_volume'] = rate['volume']
+            
             from ..indicators.vwap import VWAP
             vwap = VWAP()
-            vwap_values = vwap.calculate(rates)
+            
+            # Get band configuration from settings
+            std_levels = settings.get('bands', [1.0, 1.5, 2.0])
+            band_visibility = settings.get('band_visibility', {1.0: True, 1.5: False, 2.0: False})
+            band_colors = settings.get('band_colors', {
+                1.0: {'upper': '#FF6B6B', 'lower': '#66BB6A'},
+                1.5: {'upper': '#FF5252', 'lower': '#4CAF50'},
+                2.0: {'upper': '#F44336', 'lower': '#388E3C'}
+            })
+            
+            # Calculate VWAP with bands
+            vwap_values, bands_dict = vwap.calculate_with_bands(rates, std_levels)
+            
+            # Debug: Check if VWAP calculation returned values
+            if not vwap_values:
+                logger.warning(f"VWAP: calculate_with_bands() returned empty list for indicator {ind_id}")
+                return []
+            
+            # Check if all values are None
+            valid_count = sum(1 for v in vwap_values if v is not None)
+            if valid_count == 0:
+                logger.warning(f"VWAP: All calculated values are None for indicator {ind_id}")
+                return []
+            
+            # Validate that vwap_values matches times length
+            if len(vwap_values) != len(times):
+                logger.warning(f"VWAP: Length mismatch - times: {len(times)}, vwap_values: {len(vwap_values)}")
+                # Use minimum length to avoid index errors
+                min_len = min(len(times), len(vwap_values))
+                times = times[:min_len]
+                vwap_values = vwap_values[:min_len]
+                # Also truncate bands
+                for std_dev in bands_dict:
+                    bands_dict[std_dev] = (
+                        bands_dict[std_dev][0][:min_len],
+                        bands_dict[std_dev][1][:min_len]
+                    )
             
             # Get settings
             color = settings.get('color', '#00FFFF')
             line_width = settings.get('line_width', 2)
             
+            indicators = []
+            
+            # Create VWAP line
             if vwap_values:
                 points = []
                 for i, (time_val, vwap_val) in enumerate(zip(times, vwap_values)):
                     if vwap_val is not None:
-                        time_unix = int(time_val.timestamp()) if isinstance(time_val, datetime) else int(time_val)
-                        points.append({'time': time_unix, 'value': float(vwap_val)})
+                        # Handle time conversion - support both datetime and timestamp
+                        try:
+                            if isinstance(time_val, datetime):
+                                time_unix = int(time_val.timestamp())
+                            elif isinstance(time_val, (int, float)):
+                                time_unix = int(time_val)
+                            else:
+                                # Try to convert string or other formats
+                                logger.warning(f"VWAP: Unexpected time format at index {i}: {type(time_val)}")
+                                continue
+                            
+                            points.append({'time': time_unix, 'value': float(vwap_val)})
+                        except (ValueError, TypeError, AttributeError) as e:
+                            logger.warning(f"VWAP: Error converting time at index {i}: {e}")
+                            continue
                 
                 if points:
-                    return [{
+                    logger.info(f"VWAP: Successfully calculated {len(points)} points for indicator {ind_id}")
+                    indicators.append({
                         'name': f'VWAP_{ind_id}',
                         'color': color,
                         'width': line_width,
                         'points': points
-                    }]
+                    })
+            
+            # Create band lines for each enabled band level
+            for std_dev in sorted(std_levels):
+                if not band_visibility.get(std_dev, False):
+                    continue
+                
+                upper_bands, lower_bands = bands_dict.get(std_dev, ([], []))
+                colors = band_colors.get(std_dev, {'upper': '#FF6B6B', 'lower': '#66BB6A'})
+                upper_color = colors.get('upper', '#FF6B6B')
+                lower_color = colors.get('lower', '#66BB6A')
+                
+                # Upper band
+                upper_points = []
+                for i, (time_val, upper_val) in enumerate(zip(times, upper_bands)):
+                    if upper_val is not None and i < len(times):
+                        try:
+                            if isinstance(time_val, datetime):
+                                time_unix = int(time_val.timestamp())
+                            elif isinstance(time_val, (int, float)):
+                                time_unix = int(time_val)
+                            else:
+                                continue
+                            
+                            upper_points.append({'time': time_unix, 'value': float(upper_val)})
+                        except (ValueError, TypeError, AttributeError):
+                            continue
+                
+                if upper_points:
+                    indicators.append({
+                        'name': f'VWAP_Upper_{std_dev}σ_{ind_id}',
+                        'color': upper_color,
+                        'width': 1,
+                        'points': upper_points,
+                        'line_style': 2  # Dashed line
+                    })
+                
+                # Lower band
+                lower_points = []
+                for i, (time_val, lower_val) in enumerate(zip(times, lower_bands)):
+                    if lower_val is not None and i < len(times):
+                        try:
+                            if isinstance(time_val, datetime):
+                                time_unix = int(time_val.timestamp())
+                            elif isinstance(time_val, (int, float)):
+                                time_unix = int(time_val)
+                            else:
+                                continue
+                            
+                            lower_points.append({'time': time_unix, 'value': float(lower_val)})
+                        except (ValueError, TypeError, AttributeError):
+                            continue
+                
+                if lower_points:
+                    indicators.append({
+                        'name': f'VWAP_Lower_{std_dev}σ_{ind_id}',
+                        'color': lower_color,
+                        'width': 1,
+                        'points': lower_points,
+                        'line_style': 2  # Dashed line
+                    })
+            
+            if indicators:
+                return indicators
+            else:
+                logger.warning(f"VWAP: No valid points generated for indicator {ind_id}")
         except Exception as e:
-            logger.debug(f"Error calculating VWAP: {e}")
+            logger.error(f"Error calculating VWAP indicator {ind_id}: {e}", exc_info=True)
         
         return []
     
@@ -993,21 +1152,288 @@ class ChartWidget(QWidget):
     def _calculate_smc_indicator(self, times: List, rates: List[Dict], 
                                   settings: Dict[str, Any], ind_id: str) -> List[Dict]:
         """Calculate SMC indicator data with custom settings"""
-        # SMC indicators (pivots/markers) typically need special rendering
-        # For now, return empty list as line series may not work for markers
-        # This would need special implementation in the HTML/JS side
         try:
+            # Validate input data
+            if not rates or not times:
+                logger.warning(f"SMC: Empty rates or times data for indicator {ind_id}")
+                return []
+            
+            if len(rates) != len(times):
+                logger.warning(f"SMC: Length mismatch - times: {len(times)}, rates: {len(rates)}")
+                return []
+            
             # Get settings
             pivot_left = settings.get('pivot_left', 2)
             pivot_right = settings.get('pivot_right', 2)
+            emit_signals = settings.get('emit_signals', 'CHoCH only (bias flips)')
             high_color = settings.get('high_color', '#FFCA28')
             low_color = settings.get('low_color', '#29B6F6')
+            line_width = settings.get('line_width', 2)
             
-            # TODO: Implement SMC pivot detection and rendering
-            # This requires marker support in the chart HTML/JS
-            logger.debug(f"SMC indicator rendering not yet implemented (ID: {ind_id})")
+            # Normalize emit_signals setting
+            emit_mode = 'Both'
+            if 'CHoCH' in emit_signals and 'BOS' not in emit_signals:
+                emit_mode = 'CHoCH'
+            elif 'BOS' in emit_signals and 'CHoCH' not in emit_signals:
+                emit_mode = 'BOS'
+            elif 'Both' in emit_signals or ('BOS' in emit_signals and 'CHoCH' in emit_signals):
+                emit_mode = 'Both'
+            
+            # Import fractal pivot functions
+            from ..strategy.smc_strategy import _fractal_pivot_high, _fractal_pivot_low
+            
+            # Extract high, low, and close price arrays from rates
+            highs = []
+            lows = []
+            closes = []
+            for r in rates:
+                high = r.get('high')
+                low = r.get('low')
+                close = r.get('close')
+                if high is None or low is None or close is None:
+                    logger.warning(f"SMC: Missing high/low/close in rate data")
+                    return []
+                highs.append(float(high))
+                lows.append(float(low))
+                closes.append(float(close))
+            
+            # Get chart time range for horizontal line segments
+            candles = self.get_candle_data()
+            if not candles or len(candles) < 2:
+                logger.warning(f"SMC: Not enough candles for line segments: {len(candles) if candles else 0}")
+                return []
+            
+            # Get time range for horizontal segments
+            start_time = candles[0]['time']
+            end_time = candles[-1]['time']
+            
+            # Convert to Unix timestamp if needed
+            if isinstance(start_time, datetime):
+                start_time = int(start_time.timestamp())
+            elif not isinstance(start_time, int):
+                try:
+                    start_time = int(start_time)
+                except (ValueError, TypeError):
+                    logger.error(f"SMC: Invalid start_time format: {start_time}")
+                    return []
+            
+            if isinstance(end_time, datetime):
+                end_time = int(end_time.timestamp())
+            elif not isinstance(end_time, int):
+                try:
+                    end_time = int(end_time)
+                except (ValueError, TypeError):
+                    logger.error(f"SMC: Invalid end_time format: {end_time}")
+                    return []
+            
+            # Calculate segment duration (small portion of total range for visibility)
+            time_range = end_time - start_time
+            segment_duration = max(3600, time_range // 50)  # At least 1 hour, or 2% of total range
+            
+            # Detect all pivot highs and pivot lows
+            all_pivot_highs = []  # List of (index, price)
+            all_pivot_lows = []   # List of (index, price)
+            
+            # Valid range for pivot detection: from pivot_left to len - pivot_right
+            start_idx = pivot_left
+            end_idx = len(highs) - pivot_right
+            
+            for i in range(start_idx, end_idx):
+                if _fractal_pivot_high(highs, i, pivot_left, pivot_right):
+                    all_pivot_highs.append((i, highs[i]))
+                if _fractal_pivot_low(lows, i, pivot_left, pivot_right):
+                    all_pivot_lows.append((i, lows[i]))
+            
+            # Track structure for filtering
+            last_pivot_high = None  # (index, price)
+            last_pivot_low = None   # (index, price)
+            bias = None  # "BULLISH" | "BEARISH" | None
+            relevant_pivot_highs = []  # Pivots that match emit_signals filter
+            relevant_pivot_lows = []   # Pivots that match emit_signals filter
+            structure_events = {}  # Map pivot index to structure event type
+            
+            # Process pivots chronologically and detect structure breaks
+            # Combine and sort all pivots by index
+            all_pivots = []
+            for idx, price in all_pivot_highs:
+                all_pivots.append(('high', idx, price))
+            for idx, price in all_pivot_lows:
+                all_pivots.append(('low', idx, price))
+            all_pivots.sort(key=lambda x: x[1])  # Sort by index
+            
+            # Track structure breaks by iterating through candles and checking for breaks
+            # After each pivot is detected, check subsequent candles for structure breaks
+            for pivot_type, pivot_idx, pivot_price in all_pivots:
+                # Update last pivot
+                if pivot_type == 'high':
+                    last_pivot_high = (pivot_idx, pivot_price)
+                else:
+                    last_pivot_low = (pivot_idx, pivot_price)
+                
+                # Check for structure breaks after this pivot
+                # Look ahead to see if price breaks structure (up to 100 candles or next pivot)
+                check_start = pivot_idx + pivot_right + 1  # Wait for pivot confirmation
+                check_end = min(pivot_idx + 100, len(closes))
+                
+                structure_event = None
+                for check_idx in range(check_start, check_end):
+                    if check_idx >= len(closes):
+                        break
+                    
+                    close_price = closes[check_idx]
+                    
+                    # Check if THIS specific pivot was broken
+                    if pivot_type == 'high' and close_price > pivot_price:
+                        # Price broke above THIS pivot high
+                        if bias == "BEARISH":
+                            structure_event = "CHoCH"
+                        elif bias == "BULLISH":
+                            structure_event = "BOS"
+                        else:
+                            structure_event = "BOS"  # Unknown bias = BOS
+                        
+                        # Update bias on CHoCH
+                        if structure_event == "CHoCH":
+                            bias = "BULLISH"
+                        elif bias is None:
+                            bias = "BULLISH"
+                        
+                        structure_events[pivot_idx] = structure_event
+                        break
+                    
+                    if pivot_type == 'low' and close_price < pivot_price:
+                        # Price broke below THIS pivot low
+                        if bias == "BULLISH":
+                            structure_event = "CHoCH"
+                        elif bias == "BEARISH":
+                            structure_event = "BOS"
+                        else:
+                            structure_event = "BOS"  # Unknown bias = BOS
+                        
+                        # Update bias on CHoCH
+                        if structure_event == "CHoCH":
+                            bias = "BEARISH"
+                        elif bias is None:
+                            bias = "BEARISH"
+                        
+                        structure_events[pivot_idx] = structure_event
+                        break
+            
+            # Filter pivots based on emit_signals setting
+            for pivot_type, pivot_idx, pivot_price in all_pivots:
+                structure_event = structure_events.get(pivot_idx)
+                should_include = False
+                
+                if emit_mode == 'Both':
+                    # Show all structure-defining pivots
+                    should_include = True
+                elif emit_mode == 'CHoCH':
+                    # Only show pivots that caused CHoCH
+                    if structure_event == 'CHoCH':
+                        should_include = True
+                    # Also show last structure-defining pivots (current structure)
+                    elif structure_event is None:
+                        if (pivot_type == 'high' and last_pivot_high and pivot_idx == last_pivot_high[0]) or \
+                           (pivot_type == 'low' and last_pivot_low and pivot_idx == last_pivot_low[0]):
+                            should_include = True
+                elif emit_mode == 'BOS':
+                    # Only show pivots that caused BOS
+                    if structure_event == 'BOS':
+                        should_include = True
+                    # Also show last structure-defining pivots (current structure)
+                    elif structure_event is None:
+                        if (pivot_type == 'high' and last_pivot_high and pivot_idx == last_pivot_high[0]) or \
+                           (pivot_type == 'low' and last_pivot_low and pivot_idx == last_pivot_low[0]):
+                            should_include = True
+                
+                if should_include:
+                    if pivot_type == 'high':
+                        relevant_pivot_highs.append((pivot_idx, pivot_price))
+                    else:
+                        relevant_pivot_lows.append((pivot_idx, pivot_price))
+            
+            # Fallback: If no pivots match filter, show last structure-defining pivots
+            if not relevant_pivot_highs and not relevant_pivot_lows:
+                if last_pivot_high:
+                    relevant_pivot_highs.append(last_pivot_high)
+                if last_pivot_low:
+                    relevant_pivot_lows.append(last_pivot_low)
+            
+            indicators = []
+            
+            # Create separate horizontal line segments for each relevant pivot high
+            for idx, price in relevant_pivot_highs:
+                if idx < len(times):
+                    time_val = times[idx]
+                    
+                    # Convert time to Unix timestamp
+                    try:
+                        if isinstance(time_val, datetime):
+                            pivot_time = int(time_val.timestamp())
+                        elif isinstance(time_val, (int, float)):
+                            pivot_time = int(time_val)
+                        else:
+                            logger.warning(f"SMC: Unexpected time format at index {idx}: {type(time_val)}")
+                            continue
+                        
+                        # Create a horizontal line segment around the pivot point
+                        segment_start = pivot_time - segment_duration // 2
+                        segment_end = pivot_time + segment_duration // 2
+                        
+                        indicators.append({
+                            'name': f'SMC_PivotHigh_{ind_id}_{idx}',
+                            'color': high_color,
+                            'width': line_width,
+                            'points': [
+                                {'time': segment_start, 'value': float(price)},
+                                {'time': segment_end, 'value': float(price)}
+                            ]
+                        })
+                    except (ValueError, TypeError, AttributeError) as e:
+                        logger.warning(f"SMC: Error converting time at index {idx}: {e}")
+                        continue
+            
+            # Create separate horizontal line segments for each relevant pivot low
+            for idx, price in relevant_pivot_lows:
+                if idx < len(times):
+                    time_val = times[idx]
+                    
+                    # Convert time to Unix timestamp
+                    try:
+                        if isinstance(time_val, datetime):
+                            pivot_time = int(time_val.timestamp())
+                        elif isinstance(time_val, (int, float)):
+                            pivot_time = int(time_val)
+                        else:
+                            logger.warning(f"SMC: Unexpected time format at index {idx}: {type(time_val)}")
+                            continue
+                        
+                        # Create a horizontal line segment around the pivot point
+                        segment_start = pivot_time - segment_duration // 2
+                        segment_end = pivot_time + segment_duration // 2
+                        
+                        indicators.append({
+                            'name': f'SMC_PivotLow_{ind_id}_{idx}',
+                            'color': low_color,
+                            'width': line_width,
+                            'points': [
+                                {'time': segment_start, 'value': float(price)},
+                                {'time': segment_end, 'value': float(price)}
+                            ]
+                        })
+                    except (ValueError, TypeError, AttributeError) as e:
+                        logger.warning(f"SMC: Error converting time at index {idx}: {e}")
+                        continue
+            
+            if indicators:
+                logger.info(f"SMC: Successfully calculated {len(relevant_pivot_highs)} pivot highs and {len(relevant_pivot_lows)} pivot lows for indicator {ind_id} (emit_mode: {emit_mode}, total detected: {len(all_pivot_highs)} highs, {len(all_pivot_lows)} lows)")
+            else:
+                logger.info(f"SMC: No relevant pivots detected for indicator {ind_id} (emit_mode: {emit_mode})")
+            
+            return indicators
+            
         except Exception as e:
-            logger.debug(f"Error calculating SMC: {e}")
+            logger.error(f"Error calculating SMC indicator {ind_id}: {e}", exc_info=True)
         
         return []
     
@@ -1071,8 +1497,8 @@ class ChartWidget(QWidget):
                 actual_symbol = self.current_symbol
             logger.info(f"OHLC: Using symbol {actual_symbol} (from {self.current_symbol})")
             
-            # Get session type
-            session_type = settings.get('session_type', 'auto')
+            # Get session type (default to 'daily' to match Market Watch)
+            session_type = settings.get('session_type', 'daily')
             
             # Auto-detect if set to 'auto'
             if session_type == 'auto':
@@ -1092,9 +1518,16 @@ class ChartWidget(QWidget):
             logger.info(f"OHLC values: Open={ohlc.get('open')}, High={ohlc.get('high')}, "
                        f"Low={ohlc.get('low')}, Close={ohlc.get('close')}")
             
-            # Validate OHLC values
-            if not any([ohlc.get('open'), ohlc.get('high'), ohlc.get('low'), ohlc.get('close')]):
-                logger.warning("All OHLC values are None or missing")
+            # Validate OHLC values - check each value individually
+            has_valid_values = False
+            for key in ['open', 'high', 'low', 'close']:
+                val = ohlc.get(key)
+                if val is not None and val != 0:
+                    has_valid_values = True
+                    break
+            
+            if not has_valid_values:
+                logger.warning(f"All OHLC values are None, zero, or missing. OHLC data: {ohlc}")
                 return []
             
             # Get current time range for horizontal lines
@@ -1107,64 +1540,104 @@ class ChartWidget(QWidget):
             start_time = candles[0]['time']
             end_time = candles[-1]['time']
             
-            # Convert to Unix timestamp if needed
+            # Convert to Unix timestamp if needed (candles should already be integers, but handle edge cases)
             if isinstance(start_time, datetime):
                 start_time = int(start_time.timestamp())
+            elif not isinstance(start_time, int):
+                # Try to convert if it's a string or other type
+                try:
+                    start_time = int(start_time)
+                except (ValueError, TypeError):
+                    logger.error(f"Invalid start_time format: {start_time} (type: {type(start_time)})")
+                    return []
+            
             if isinstance(end_time, datetime):
                 end_time = int(end_time.timestamp())
+            elif not isinstance(end_time, int):
+                # Try to convert if it's a string or other type
+                try:
+                    end_time = int(end_time)
+                except (ValueError, TypeError):
+                    logger.error(f"Invalid end_time format: {end_time} (type: {type(end_time)})")
+                    return []
             
             logger.info(f"OHLC time range: {start_time} to {end_time}")
             
             # Create horizontal lines for each OHLC value
             lines_data = []
             
-            if settings.get('show_open', True) and ohlc.get('open'):
-                lines_data.append({
-                    'name': f'OHLC_Open_{ind_id}',
-                    'color': settings.get('open_color', '#4CAF50'),
-                    'width': settings.get('line_width', 2),
-                    'points': [
-                        {'time': start_time, 'value': float(ohlc['open'])},
-                        {'time': end_time, 'value': float(ohlc['open'])}
-                    ]
-                })
-                logger.debug(f"Added Open line at {ohlc['open']}")
+            # Create lines for each OHLC value that is valid and enabled
+            if settings.get('show_open', True):
+                open_val = ohlc.get('open')
+                if open_val is not None and open_val != 0:
+                    try:
+                        plot_value = float(open_val)
+                        lines_data.append({
+                            'name': f'OHLC_Open_{ind_id}',
+                            'color': settings.get('open_color', '#4CAF50'),
+                            'width': settings.get('line_width', 2),
+                            'points': [
+                                {'time': start_time, 'value': plot_value},
+                                {'time': end_time, 'value': plot_value}
+                            ]
+                        })
+                        logger.info(f"Added OHLC Open line at {open_val:.5f}")
+                    except (ValueError, TypeError) as e:
+                        logger.error(f"Error creating Open line: {e}, value={open_val}")
             
-            if settings.get('show_high', True) and ohlc.get('high'):
-                lines_data.append({
-                    'name': f'OHLC_High_{ind_id}',
-                    'color': settings.get('high_color', '#2196F3'),
-                    'width': settings.get('line_width', 2),
-                    'points': [
-                        {'time': start_time, 'value': float(ohlc['high'])},
-                        {'time': end_time, 'value': float(ohlc['high'])}
-                    ]
-                })
-                logger.debug(f"Added High line at {ohlc['high']}")
+            if settings.get('show_high', True):
+                high_val = ohlc.get('high')
+                if high_val is not None and high_val != 0:
+                    try:
+                        plot_value = float(high_val)
+                        lines_data.append({
+                            'name': f'OHLC_High_{ind_id}',
+                            'color': settings.get('high_color', '#2196F3'),
+                            'width': settings.get('line_width', 2),
+                            'points': [
+                                {'time': start_time, 'value': plot_value},
+                                {'time': end_time, 'value': plot_value}
+                            ]
+                        })
+                        logger.info(f"Added OHLC High line at {high_val:.5f}")
+                    except (ValueError, TypeError) as e:
+                        logger.error(f"Error creating High line: {e}, value={high_val}")
             
-            if settings.get('show_low', True) and ohlc.get('low'):
-                lines_data.append({
-                    'name': f'OHLC_Low_{ind_id}',
-                    'color': settings.get('low_color', '#FF9800'),
-                    'width': settings.get('line_width', 2),
-                    'points': [
-                        {'time': start_time, 'value': float(ohlc['low'])},
-                        {'time': end_time, 'value': float(ohlc['low'])}
-                    ]
-                })
-                logger.debug(f"Added Low line at {ohlc['low']}")
+            if settings.get('show_low', True):
+                low_val = ohlc.get('low')
+                if low_val is not None and low_val != 0:
+                    try:
+                        plot_value = float(low_val)
+                        lines_data.append({
+                            'name': f'OHLC_Low_{ind_id}',
+                            'color': settings.get('low_color', '#FF9800'),
+                            'width': settings.get('line_width', 2),
+                            'points': [
+                                {'time': start_time, 'value': plot_value},
+                                {'time': end_time, 'value': plot_value}
+                            ]
+                        })
+                        logger.info(f"Added OHLC Low line at {low_val:.5f}")
+                    except (ValueError, TypeError) as e:
+                        logger.error(f"Error creating Low line: {e}, value={low_val}")
             
-            if settings.get('show_close', True) and ohlc.get('close'):
-                lines_data.append({
-                    'name': f'OHLC_Close_{ind_id}',
-                    'color': settings.get('close_color', '#9C27B0'),
-                    'width': settings.get('line_width', 2),
-                    'points': [
-                        {'time': start_time, 'value': float(ohlc['close'])},
-                        {'time': end_time, 'value': float(ohlc['close'])}
-                    ]
-                })
-                logger.debug(f"Added Close line at {ohlc['close']}")
+            if settings.get('show_close', True):
+                close_val = ohlc.get('close')
+                if close_val is not None and close_val != 0:
+                    try:
+                        plot_value = float(close_val)
+                        lines_data.append({
+                            'name': f'OHLC_Close_{ind_id}',
+                            'color': settings.get('close_color', '#9C27B0'),
+                            'width': settings.get('line_width', 2),
+                            'points': [
+                                {'time': start_time, 'value': plot_value},
+                                {'time': end_time, 'value': plot_value}
+                            ]
+                        })
+                        logger.info(f"Added OHLC Close line at {close_val:.5f}")
+                    except (ValueError, TypeError) as e:
+                        logger.error(f"Error creating Close line: {e}, value={close_val}")
             
             logger.info(f"OHLC: Returning {len(lines_data)} lines")
             return lines_data

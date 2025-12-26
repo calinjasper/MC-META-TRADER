@@ -69,8 +69,11 @@ class VWAP(BaseIndicator):
         if not session_time:
             return current_time
         
-        # Get today's session start
+        # Get today's session start - preserve timezone info if present
         session_start = datetime.combine(current_time.date(), session_time)
+        if current_time.tzinfo is not None:
+            # Make session_start timezone-aware to match current_time
+            session_start = session_start.replace(tzinfo=current_time.tzinfo)
         
         # If current time is before session start today, use yesterday's session
         if current_time < session_start:
@@ -175,6 +178,109 @@ class VWAP(BaseIndicator):
                 vwap_values.append(None)
         
         return vwap_values
+    
+    def calculate_with_bands(self, data: List[Dict], std_levels: List[float]) -> Tuple[List[float], Dict[float, Tuple[List[float], List[float]]]]:
+        """
+        Calculate VWAP values along with standard deviation bands for each candle
+        
+        Args:
+            data: List of dictionaries with 'open', 'high', 'low', 'close', 'time', 'tick_volume' keys
+            std_levels: List of standard deviation multipliers (e.g., [1.0, 1.5, 2.0])
+            
+        Returns:
+            Tuple of (vwap_values, bands_dict) where:
+            - vwap_values: List of VWAP values (one per candle)
+            - bands_dict: Dictionary mapping std_dev -> (upper_bands_list, lower_bands_list)
+        """
+        if not data:
+            return ([], {std_dev: ([], []) for std_dev in std_levels})
+        
+        vwap_values = []
+        bands = {std_dev: ([], []) for std_dev in std_levels}
+        
+        for candle in data:
+            candle_time = candle.get('time')
+            if isinstance(candle_time, (int, float)):
+                # Convert timestamp to datetime
+                candle_time = datetime.fromtimestamp(candle_time)
+            elif not isinstance(candle_time, datetime):
+                # Try to parse if it's a string
+                try:
+                    candle_time = datetime.fromisoformat(str(candle_time))
+                except:
+                    logger.warning(f"Could not parse time: {candle_time}")
+                    vwap_values.append(None)
+                    for std_dev in std_levels:
+                        bands[std_dev][0].append(None)
+                        bands[std_dev][1].append(None)
+                    continue
+            
+            # Check if session should reset
+            if self._should_reset_session(candle_time):
+                session_start = self._get_session_start_time(candle_time)
+                self._reset_session(session_start)
+            
+            # Get price and volume
+            price = self._get_price(candle)
+            volume = float(candle.get('tick_volume', candle.get('volume', 1.0)))
+            
+            if volume <= 0:
+                # Use previous VWAP if volume is 0
+                vwap_values.append(self.current_vwap if self.current_vwap else None)
+                # Use previous bands if available, otherwise None
+                if self.current_vwap is not None and len(self.prices) >= 2:
+                    price_array = np.array(self.prices)
+                    price_deviations = price_array - self.current_vwap
+                    std = np.std(price_deviations)
+                    for std_dev in std_levels:
+                        upper = self.current_vwap + (std_dev * std)
+                        lower = self.current_vwap - (std_dev * std)
+                        bands[std_dev][0].append(upper)
+                        bands[std_dev][1].append(lower)
+                else:
+                    for std_dev in std_levels:
+                        bands[std_dev][0].append(None)
+                        bands[std_dev][1].append(None)
+                continue
+            
+            # Update cumulative values
+            self.cumulative_price_volume += price * volume
+            self.cumulative_volume += volume
+            
+            # Calculate VWAP
+            if self.cumulative_volume > 0:
+                vwap = self.cumulative_price_volume / self.cumulative_volume
+                self.current_vwap = vwap
+                vwap_values.append(vwap)
+                
+                # Store price and volume for STD calculation
+                self.prices.append(price)
+                self.volumes.append(volume)
+                
+                # Calculate std dev of prices from VWAP up to this point
+                if len(self.prices) >= 2:
+                    price_array = np.array(self.prices)
+                    price_deviations = price_array - vwap
+                    std = np.std(price_deviations)
+                    
+                    # Calculate bands for each level
+                    for std_dev in std_levels:
+                        upper = vwap + (std_dev * std)
+                        lower = vwap - (std_dev * std)
+                        bands[std_dev][0].append(upper)
+                        bands[std_dev][1].append(lower)
+                else:
+                    # Not enough data yet
+                    for std_dev in std_levels:
+                        bands[std_dev][0].append(None)
+                        bands[std_dev][1].append(None)
+            else:
+                vwap_values.append(None)
+                for std_dev in std_levels:
+                    bands[std_dev][0].append(None)
+                    bands[std_dev][1].append(None)
+        
+        return (vwap_values, bands)
     
     def get_vwap(self) -> Optional[float]:
         """Get current VWAP value"""

@@ -153,7 +153,11 @@ class StrategyPersistence:
     def _dict_to_strategy(self, strategy_dict: Dict) -> Optional[BaseStrategy]:
         """Convert dictionary to strategy object"""
         from .base_strategy import BaseStrategy as Base
-        from ..gui.strategy_builder import CustomStrategy
+        # CustomStrategy import is optional (strategy builder may be removed)
+        try:
+            from ..gui.strategy_builder import CustomStrategy
+        except ImportError:
+            CustomStrategy = None
         
         name = strategy_dict.get('name')
         symbol = strategy_dict.get('symbol')
@@ -199,8 +203,10 @@ class StrategyPersistence:
             strategy.enabled = enabled
             return strategy
         elif strategy_dict.get('type') == 'CustomStrategy':
-            # Create a CustomStrategy instance
-            from ..gui.strategy_builder import CustomStrategy
+            # Create a CustomStrategy instance (if available)
+            if CustomStrategy is None:
+                logger.warning(f"CustomStrategy not available - strategy builder removed. Cannot load strategy '{name}'")
+                return None
             import MetaTrader5 as mt5
             timeframe = strategy_dict.get('timeframe', mt5.TIMEFRAME_M1)  # Default to M1
             strategy = CustomStrategy(name, symbol, builder=None, timeframe=timeframe)
