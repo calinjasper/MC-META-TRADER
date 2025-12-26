@@ -124,8 +124,10 @@ class StrategyPersistence:
             # Save SL/TP configuration
             strategy_dict['sl_type'] = getattr(strategy, 'sl_type', None)
             strategy_dict['sl_value'] = getattr(strategy, 'sl_value', 20.0)
+            strategy_dict['sl_enabled'] = getattr(strategy, 'sl_enabled', True)
             strategy_dict['use_ratio'] = getattr(strategy, 'use_ratio', True)
             strategy_dict['tp_value'] = getattr(strategy, 'tp_value', 40.0)
+            strategy_dict['tp_enabled'] = getattr(strategy, 'tp_enabled', True)
             
             # Advanced Risk Management
             strategy_dict['enable_trailing_sl'] = getattr(strategy, 'enable_trailing_sl', False)
@@ -255,8 +257,10 @@ class StrategyPersistence:
             # Load SL/TP configuration
             strategy.sl_type = strategy_dict.get('sl_type', None)
             strategy.sl_value = strategy_dict.get('sl_value', 20.0)
+            strategy.sl_enabled = strategy_dict.get('sl_enabled', True)
             strategy.use_ratio = strategy_dict.get('use_ratio', True)
             strategy.tp_value = strategy_dict.get('tp_value', 40.0)
+            strategy.tp_enabled = strategy_dict.get('tp_enabled', True)
             
             # Advanced Risk Management (with defaults for backward compatibility)
             strategy.enable_trailing_sl = strategy_dict.get('enable_trailing_sl', False)

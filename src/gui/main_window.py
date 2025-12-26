@@ -1728,17 +1728,36 @@ class MainWindow(QMainWindow):
         point = symbol_info.get('point', 0.0001)
         digits = symbol_info.get('digits', 5)
         
+        # Check if SL/TP are enabled
+        sl_enabled = getattr(strategy, 'sl_enabled', True)
+        tp_enabled = getattr(strategy, 'tp_enabled', True)
+        
+        # If both are disabled, return zeros
+        if not sl_enabled and not tp_enabled:
+            return 0.0, 0.0
+        
         # Check if strategy has SL/TP configuration
         if not hasattr(strategy, 'sl_type') or strategy.sl_type is None:
-            # Use default risk manager calculation
-            sl = self.risk_manager.calculate_stop_loss(symbol, entry_price, signal)
-            tp = self.risk_manager.calculate_take_profit(symbol, entry_price, signal, stop_loss=sl)
-            return sl, tp
+            # Use default risk manager calculation if enabled, otherwise return 0.0
+            if sl_enabled and tp_enabled:
+                sl = self.risk_manager.calculate_stop_loss(symbol, entry_price, signal)
+                tp = self.risk_manager.calculate_take_profit(symbol, entry_price, signal, stop_loss=sl)
+                return sl, tp
+            elif sl_enabled:
+                sl = self.risk_manager.calculate_stop_loss(symbol, entry_price, signal)
+                return sl, 0.0
+            elif tp_enabled:
+                sl = self.risk_manager.calculate_stop_loss(symbol, entry_price, signal)
+                tp = self.risk_manager.calculate_take_profit(symbol, entry_price, signal, stop_loss=sl)
+                return 0.0, tp
+            else:
+                return 0.0, 0.0
         
-        # Calculate SL based on type
+        # Get SL configuration (needed for TP calculation even if SL is disabled)
         sl_value = getattr(strategy, 'sl_value', 20.0)
         sl_type = strategy.sl_type
         
+        # Calculate SL distance (needed for TP calculation even if SL is disabled)
         if "Pips" in sl_type:
             # Convert pips to price points (1 pip = 10 points for 5-digit, 1 point for 4-digit)
             pip_size = point * (10 if digits == 5 else 1)
@@ -1750,33 +1769,39 @@ class MainWindow(QMainWindow):
             # Percentage-based
             sl_distance = entry_price * (sl_value / 100.0)
         
-        # Calculate SL price
-        if signal == 'BUY':
-            sl = entry_price - sl_distance
-        else:  # SELL
-            sl = entry_price + sl_distance
-        
-        # Calculate TP
-        use_ratio = getattr(strategy, 'use_ratio', True)
-        if use_ratio:
-            # Use 1:2 ratio (TP = 2x SL distance)
-            tp_distance = sl_distance * 2.0
+        # Calculate SL price (only if enabled)
+        if sl_enabled:
+            if signal == 'BUY':
+                sl = entry_price - sl_distance
+            else:  # SELL
+                sl = entry_price + sl_distance
         else:
-            # Use manual TP value
-            tp_value = getattr(strategy, 'tp_value', sl_value * 2.0)
-            if "Pips" in sl_type:
-                pip_size = point * (10 if digits == 5 else 1)
-                tp_distance = tp_value * pip_size
-            elif "Points" in sl_type:
-                tp_distance = tp_value * point
-            else:  # Percentage
-                tp_distance = entry_price * (tp_value / 100.0)
+            sl = 0.0
         
-        # Calculate TP price
-        if signal == 'BUY':
-            tp = entry_price + tp_distance
-        else:  # SELL
-            tp = entry_price - tp_distance
+        # Calculate TP (only if enabled)
+        if tp_enabled:
+            use_ratio = getattr(strategy, 'use_ratio', True)
+            if use_ratio:
+                # Use 1:2 ratio (TP = 2x SL distance)
+                tp_distance = sl_distance * 2.0
+            else:
+                # Use manual TP value
+                tp_value = getattr(strategy, 'tp_value', sl_value * 2.0)
+                if "Pips" in sl_type:
+                    pip_size = point * (10 if digits == 5 else 1)
+                    tp_distance = tp_value * pip_size
+                elif "Points" in sl_type:
+                    tp_distance = tp_value * point
+                else:  # Percentage
+                    tp_distance = entry_price * (tp_value / 100.0)
+            
+            # Calculate TP price
+            if signal == 'BUY':
+                tp = entry_price + tp_distance
+            else:  # SELL
+                tp = entry_price - tp_distance
+        else:
+            tp = 0.0
         
         return sl, tp
     

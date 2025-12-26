@@ -94,6 +94,9 @@ class ChartWidget(QWidget):
         self.current_symbol = "EURUSD"
         self.current_timeframe = None
         self.timeframe_combo = None
+        self.current_chart_type = "Candles"
+        self.current_theme = "Dark"
+        self.crosshair_enabled = True
         
         # Bridge for QWebChannel
         self.bridge = TradingViewBridge()
@@ -168,6 +171,11 @@ class ChartWidget(QWidget):
             logger.error(f"TradingView chart HTML not found: {html_path}")
         
         layout.addWidget(self.web_view, stretch=1)
+        
+        # Status bar at bottom
+        from .chart_status_bar import ChartStatusBar
+        self.status_bar = ChartStatusBar(self)
+        layout.addWidget(self.status_bar)
     
     def create_control_panel(self) -> QWidget:
         """Create the control panel with symbol, timeframe, and add indicator dropdown"""
@@ -197,6 +205,27 @@ class ChartWidget(QWidget):
         
         layout.addSpacing(20)
         
+        # Chart Type selector
+        layout.addWidget(QLabel("Chart Type:"))
+        self.chart_type_combo = QComboBox()
+        self.chart_type_combo.addItems(["Candles", "Line", "Area", "Bars", "Hollow Candles", "Heikin Ashi"])
+        self.chart_type_combo.setCurrentText("Candles")
+        self.chart_type_combo.currentTextChanged.connect(self.on_chart_type_changed)
+        layout.addWidget(self.chart_type_combo)
+        
+        layout.addSpacing(20)
+        
+        # Theme selector
+        layout.addWidget(QLabel("Theme:"))
+        self.theme_combo = QComboBox()
+        from ..config.chart_themes import get_available_themes
+        self.theme_combo.addItems(get_available_themes())
+        self.theme_combo.setCurrentText("Dark")
+        self.theme_combo.currentTextChanged.connect(self.on_theme_changed)
+        layout.addWidget(self.theme_combo)
+        
+        layout.addSpacing(20)
+        
         # Add Indicator dropdown
         layout.addWidget(QLabel("Indicator:"))
         self.add_indicator_combo = QComboBox()
@@ -207,7 +236,10 @@ class ChartWidget(QWidget):
             "VWAP",
             "SuperTrend",
             "SMC",
-            "OHLC"
+            "OHLC",
+            "RSI",
+            "MACD",
+            "Bollinger Bands"
         ])
         self.add_indicator_combo.currentTextChanged.connect(self.on_add_indicator)
         layout.addWidget(self.add_indicator_combo)
@@ -225,6 +257,15 @@ class ChartWidget(QWidget):
         self.trade_levels_check.setToolTip("Display entry/exit lines for active trades")
         self.trade_levels_check.toggled.connect(self.on_trade_levels_toggled)
         layout.addWidget(self.trade_levels_check)
+        
+        layout.addSpacing(20)
+        
+        # Crosshair checkbox
+        self.crosshair_check = QCheckBox("Crosshair")
+        self.crosshair_check.setToolTip("Enable crosshair with price/time display")
+        self.crosshair_check.setChecked(True)  # Default enabled
+        self.crosshair_check.toggled.connect(self.on_crosshair_toggled)
+        layout.addWidget(self.crosshair_check)
         
         layout.addSpacing(20)
         
@@ -282,6 +323,11 @@ class ChartWidget(QWidget):
         if self.data_feed:
             # Subscribe to updates for the current symbol
             self.ensure_symbol_subscribed()
+        
+        # Setup automatic refresh timer for live updates
+        self.refresh_timer = QTimer()
+        self.refresh_timer.timeout.connect(self.refresh_chart)
+        self.refresh_timer.start(1000)  # Refresh every 1 second for live updates
     
     def ensure_symbol_subscribed(self):
         """Ensure current symbol is subscribed in data feed"""
@@ -330,6 +376,33 @@ class ChartWidget(QWidget):
         logger.info(f"Timeframe changed to: {timeframe_str}")
         self.ensure_symbol_subscribed()
         self.refresh_chart()
+    
+    def on_chart_type_changed(self, chart_type: str):
+        """Handle chart type change"""
+        logger.info(f"Chart type changed to: {chart_type}")
+        self.current_chart_type = chart_type
+        if self.bridge.is_ready():
+            # Send chart type change to JavaScript
+            self.web_view.page().runJavaScript(f"changeChartType('{chart_type}');")
+            self.refresh_chart()
+    
+    def on_theme_changed(self, theme_name: str):
+        """Handle theme change"""
+        logger.info(f"Theme changed to: {theme_name}")
+        self.current_theme = theme_name
+        if self.bridge.is_ready():
+            from ..config.chart_themes import get_theme
+            theme = get_theme(theme_name)
+            # Send theme to JavaScript
+            theme_json = json.dumps(theme)
+            self.web_view.page().runJavaScript(f"applyTheme({theme_json});")
+    
+    def on_crosshair_toggled(self, enabled: bool):
+        """Handle crosshair enable/disable"""
+        logger.info(f"Crosshair {'enabled' if enabled else 'disabled'}")
+        self.crosshair_enabled = enabled
+        if self.bridge.is_ready():
+            self.web_view.page().runJavaScript(f"setCrosshairEnabled({str(enabled).lower()});")
     
     def on_add_indicator(self, indicator_type: str):
         """Handle adding a new indicator from dropdown"""
@@ -428,6 +501,37 @@ class ChartWidget(QWidget):
                 'close_color': '#9C27B0',
                 'line_width': 2,
                 'line_style': 2,
+                'visible': True
+            },
+            'RSI': {
+                'period': 14,
+                'overbought': 70,
+                'oversold': 30,
+                'color': '#FF6B6B',
+                'line_width': 2,
+                'show_levels': True,
+                'overbought_color': '#FF1744',
+                'oversold_color': '#00E676',
+                'visible': True
+            },
+            'MACD': {
+                'fast_period': 12,
+                'slow_period': 26,
+                'signal_period': 9,
+                'macd_color': '#2196F3',
+                'signal_color': '#FF9800',
+                'histogram_color': '#9E9E9E',
+                'line_width': 2,
+                'visible': True
+            },
+            'Bollinger Bands': {
+                'period': 20,
+                'num_std': 2.0,
+                'upper_color': '#FF6B6B',
+                'middle_color': '#42A5F5',
+                'lower_color': '#66BB6A',
+                'line_width': 2,
+                'show_middle': True,
                 'visible': True
             }
         }
@@ -529,6 +633,18 @@ class ChartWidget(QWidget):
         elif ind_type == 'OHLC':
             session = settings.get('session_type', 'daily').capitalize()
             return f"OHLC ({session})"
+        elif ind_type == 'RSI':
+            period = settings.get('period', 14)
+            return f"RSI ({period})"
+        elif ind_type == 'MACD':
+            fast = settings.get('fast_period', 12)
+            slow = settings.get('slow_period', 26)
+            signal = settings.get('signal_period', 9)
+            return f"MACD ({fast}, {slow}, {signal})"
+        elif ind_type == 'Bollinger Bands':
+            period = settings.get('period', 20)
+            std = settings.get('num_std', 2.0)
+            return f"BB ({period}, {std}σ)"
         
         return ind_type
     
@@ -607,6 +723,10 @@ class ChartWidget(QWidget):
             logger.debug("Chart not ready yet, skipping refresh")
             return
         
+        # Only refresh if widget is visible (performance optimization)
+        if not self.isVisible():
+            return
+        
         try:
             # Get candle data
             candles = self.get_candle_data()
@@ -636,9 +756,57 @@ class ChartWidget(QWidget):
             if all_markers or self.show_signals or self.show_trade_levels:  # Send even empty to clear
                 self.bridge.markersUpdated.emit(all_markers)
                 logger.debug(f"Updated {len(all_markers)} total markers")
+            
+            # Update status bar
+            self._update_status_bar()
         
         except Exception as e:
             logger.error(f"Error refreshing chart: {e}", exc_info=True)
+    
+    def _update_status_bar(self):
+        """Update status bar with current market data"""
+        if not hasattr(self, 'status_bar'):
+            return
+        
+        try:
+            actual_symbol = self.symbol_mapper.find_symbol(self.current_symbol)
+            if not actual_symbol:
+                actual_symbol = self.current_symbol
+            
+            # Get current tick
+            if self.data_feed:
+                tick = self.data_feed.get_latest_tick(actual_symbol)
+                if tick:
+                    bid = tick.get('bid', 0)
+                    ask = tick.get('ask', 0)
+                    spread = tick.get('spread', 0)
+                    
+                    if bid > 0 and ask > 0:
+                        self.status_bar.update_price(bid=bid, ask=ask)
+                        if spread:
+                            self.status_bar.update_spread(spread)
+            
+            # Get last candle OHLC
+            candles = self.get_candle_data()
+            if candles and len(candles) > 0:
+                last_candle = candles[-1]
+                open_val = last_candle.get('open')
+                high_val = last_candle.get('high')
+                low_val = last_candle.get('low')
+                close_val = last_candle.get('close')
+                
+                if all(v is not None for v in [open_val, high_val, low_val, close_val]):
+                    self.status_bar.update_ohlc(open_val, high_val, low_val, close_val)
+            
+            # Get volume from last candle if available
+            if candles and len(candles) > 0:
+                last_candle = candles[-1]
+                volume = last_candle.get('tick_volume') or last_candle.get('volume')
+                if volume:
+                    self.status_bar.update_volume(volume)
+        
+        except Exception as e:
+            logger.debug(f"Error updating status bar: {e}")
     
     def get_candle_data(self) -> List[Dict]:
         """
@@ -661,6 +829,8 @@ class ChartWidget(QWidget):
                 else:
                     logger.info(f"Symbol Resolution: Using exact symbol: {actual_symbol}")
             
+            candles = []
+            
             # Try to get from market data panel first (if available)
             if self.market_data_panel and hasattr(self.market_data_panel, 'get_ohlc_data'):
                 ohlc_data = self.market_data_panel.get_ohlc_data(actual_symbol)
@@ -669,10 +839,9 @@ class ChartWidget(QWidget):
                     candles = self._convert_to_tradingview_candles(ohlc_data)
                     if candles:
                         self._log_price_verification(candles, actual_symbol)
-                    return candles
             
-            # Fallback to data feed
-            if self.data_feed:
+            # Fallback to data feed if market data panel didn't provide candles
+            if not candles and self.data_feed:
                 timeframe = self.get_mt5_timeframe()
                 if timeframe is not None:
                     rates = self.data_feed.get_rates(actual_symbol, timeframe, count=500)
@@ -681,10 +850,48 @@ class ChartWidget(QWidget):
                         candles = self._convert_to_tradingview_candles(rates)
                         if candles:
                             self._log_price_verification(candles, actual_symbol)
-                        return candles
             
-            logger.warning(f"No candle data available for {self.current_symbol} (resolved to: {actual_symbol})")
-            return []
+            if not candles:
+                logger.warning(f"No candle data available for {self.current_symbol} (resolved to: {actual_symbol})")
+                return []
+            
+            # Update the last candle with current tick price for live price movement
+            if candles and len(candles) > 0:
+                # Get current tick to update the last (forming) candle
+                if self.data_feed:
+                    tick = self.data_feed.get_latest_tick(actual_symbol)
+                    if tick:
+                        # Calculate current price (mid of bid/ask)
+                        bid = tick.get('bid', 0)
+                        ask = tick.get('ask', 0)
+                        if bid > 0 and ask > 0:
+                            current_price = (bid + ask) / 2.0
+                        elif bid > 0:
+                            current_price = bid
+                        elif ask > 0:
+                            current_price = ask
+                        else:
+                            current_price = None
+                        
+                        if current_price and current_price > 0:
+                            # Update the last candle with current tick price
+                            last_candle = candles[-1].copy()
+                            
+                            # Ensure we have valid OHLC values
+                            last_open = last_candle.get('open', current_price)
+                            last_high = last_candle.get('high', current_price)
+                            last_low = last_candle.get('low', current_price)
+                            
+                            # Update high/low/close with current price
+                            last_candle['high'] = max(last_high, current_price)
+                            last_candle['low'] = min(last_low, current_price)
+                            last_candle['close'] = current_price
+                            
+                            # Replace the last candle with updated one
+                            candles[-1] = last_candle
+                            logger.debug(f"Updated last candle with current price: {current_price:.5f} (H: {last_candle['high']:.5f}, L: {last_candle['low']:.5f})")
+            
+            return candles
         
         except Exception as e:
             logger.error(f"Error getting candle data: {e}", exc_info=True)
@@ -858,6 +1065,21 @@ class ChartWidget(QWidget):
                     ohlc_data = self._calculate_ohlc_indicator(settings, ind_id)
                     if ohlc_data:
                         indicators.extend(ohlc_data)
+                
+                elif ind_type == 'RSI':
+                    rsi_data = self._calculate_rsi_indicator(times, rates_list, settings, ind_id)
+                    if rsi_data:
+                        indicators.extend(rsi_data)
+                
+                elif ind_type == 'MACD':
+                    macd_data = self._calculate_macd_indicator(times, rates_list, settings, ind_id)
+                    if macd_data:
+                        indicators.extend(macd_data)
+                
+                elif ind_type == 'Bollinger Bands':
+                    bb_data = self._calculate_bollinger_indicator(times, rates_list, settings, ind_id)
+                    if bb_data:
+                        indicators.extend(bb_data)
         
         except Exception as e:
             logger.error(f"Error getting indicator data: {e}", exc_info=True)
@@ -1644,6 +1866,236 @@ class ChartWidget(QWidget):
             
         except Exception as e:
             logger.error(f"Error calculating OHLC indicator: {e}", exc_info=True)
+            return []
+    
+    def _calculate_rsi_indicator(self, times: List, rates: List[Dict], 
+                                  settings: Dict[str, Any], ind_id: str) -> List[Dict]:
+        """Calculate RSI indicator data with custom settings"""
+        try:
+            from ..indicators.rsi import RSI
+            
+            # Get settings
+            period = settings.get('period', 14)
+            overbought = settings.get('overbought', 70)
+            oversold = settings.get('oversold', 30)
+            color = settings.get('color', '#FF6B6B')
+            line_width = settings.get('line_width', 2)
+            show_levels = settings.get('show_levels', True)
+            overbought_color = settings.get('overbought_color', '#FF1744')
+            oversold_color = settings.get('oversold_color', '#00E676')
+            
+            # Calculate RSI
+            rsi = RSI(period)
+            rsi_values = rsi.calculate(rates)
+            
+            if not rsi_values:
+                return []
+            
+            indicators = []
+            
+            # RSI line
+            points = []
+            for time_val, rsi_val in zip(times, rsi_values):
+                if rsi_val is not None:
+                    time_unix = int(time_val.timestamp()) if isinstance(time_val, datetime) else int(time_val)
+                    points.append({'time': time_unix, 'value': float(rsi_val)})
+            
+            if points:
+                indicators.append({
+                    'name': f'RSI({period})_{ind_id}',
+                    'color': color,
+                    'width': line_width,
+                    'points': points
+                })
+                
+                # Add overbought/oversold levels if enabled
+                if show_levels and len(points) > 0:
+                    # Get time range from points
+                    start_time = points[0]['time']
+                    end_time = points[-1]['time']
+                    
+                    # Overbought level
+                    indicators.append({
+                        'name': f'RSI_Overbought_{ind_id}',
+                        'color': overbought_color,
+                        'width': 1,
+                        'points': [
+                            {'time': start_time, 'value': float(overbought)},
+                            {'time': end_time, 'value': float(overbought)}
+                        ]
+                    })
+                    
+                    # Oversold level
+                    indicators.append({
+                        'name': f'RSI_Oversold_{ind_id}',
+                        'color': oversold_color,
+                        'width': 1,
+                        'points': [
+                            {'time': start_time, 'value': float(oversold)},
+                            {'time': end_time, 'value': float(oversold)}
+                        ]
+                    })
+            
+            return indicators
+        
+        except Exception as e:
+            logger.error(f"Error calculating RSI indicator: {e}", exc_info=True)
+            return []
+    
+    def _calculate_macd_indicator(self, times: List, rates: List[Dict], 
+                                   settings: Dict[str, Any], ind_id: str) -> List[Dict]:
+        """Calculate MACD indicator data with custom settings"""
+        try:
+            from ..indicators.macd import MACD
+            
+            # Get settings
+            fast_period = settings.get('fast_period', 12)
+            slow_period = settings.get('slow_period', 26)
+            signal_period = settings.get('signal_period', 9)
+            macd_color = settings.get('macd_color', '#2196F3')
+            signal_color = settings.get('signal_color', '#FF9800')
+            histogram_color = settings.get('histogram_color', '#9E9E9E')
+            line_width = settings.get('line_width', 2)
+            
+            # Calculate MACD
+            macd = MACD(fast_period, slow_period, signal_period)
+            macd_line_values = macd.calculate(rates)
+            signal_line_values = macd.get_signal_line()
+            histogram_values = macd.get_histogram()
+            
+            if not macd_line_values:
+                return []
+            
+            indicators = []
+            
+            # MACD line
+            macd_points = []
+            for time_val, macd_val in zip(times, macd_line_values):
+                if macd_val is not None:
+                    time_unix = int(time_val.timestamp()) if isinstance(time_val, datetime) else int(time_val)
+                    macd_points.append({'time': time_unix, 'value': float(macd_val)})
+            
+            if macd_points:
+                indicators.append({
+                    'name': f'MACD_Line_{ind_id}',
+                    'color': macd_color,
+                    'width': line_width,
+                    'points': macd_points
+                })
+            
+            # Signal line
+            signal_points = []
+            for time_val, signal_val in zip(times, signal_line_values):
+                if signal_val is not None:
+                    time_unix = int(time_val.timestamp()) if isinstance(time_val, datetime) else int(time_val)
+                    signal_points.append({'time': time_unix, 'value': float(signal_val)})
+            
+            if signal_points:
+                indicators.append({
+                    'name': f'MACD_Signal_{ind_id}',
+                    'color': signal_color,
+                    'width': line_width,
+                    'points': signal_points
+                })
+            
+            # Histogram (as bars/columns)
+            histogram_points = []
+            for time_val, hist_val in zip(times, histogram_values):
+                if hist_val is not None:
+                    time_unix = int(time_val.timestamp()) if isinstance(time_val, datetime) else int(time_val)
+                    histogram_points.append({'time': time_unix, 'value': float(hist_val)})
+            
+            if histogram_points:
+                indicators.append({
+                    'name': f'MACD_Histogram_{ind_id}',
+                    'color': histogram_color,
+                    'width': 1,
+                    'points': histogram_points,
+                    'type': 'histogram'  # Special type for histogram rendering
+                })
+            
+            return indicators
+        
+        except Exception as e:
+            logger.error(f"Error calculating MACD indicator: {e}", exc_info=True)
+            return []
+    
+    def _calculate_bollinger_indicator(self, times: List, rates: List[Dict], 
+                                       settings: Dict[str, Any], ind_id: str) -> List[Dict]:
+        """Calculate Bollinger Bands indicator data with custom settings"""
+        try:
+            from ..indicators.bollinger_bands import BollingerBands
+            
+            # Get settings
+            period = settings.get('period', 20)
+            num_std = settings.get('num_std', 2.0)
+            upper_color = settings.get('upper_color', '#FF6B6B')
+            middle_color = settings.get('middle_color', '#42A5F5')
+            lower_color = settings.get('lower_color', '#66BB6A')
+            line_width = settings.get('line_width', 2)
+            show_middle = settings.get('show_middle', True)
+            
+            # Calculate Bollinger Bands
+            bb = BollingerBands(period, num_std)
+            middle_band_values = bb.calculate(rates)
+            upper_band_values = bb.get_upper_band()
+            lower_band_values = bb.get_lower_band()
+            
+            if not middle_band_values:
+                return []
+            
+            indicators = []
+            
+            # Upper band
+            upper_points = []
+            for time_val, upper_val in zip(times, upper_band_values):
+                if upper_val is not None:
+                    time_unix = int(time_val.timestamp()) if isinstance(time_val, datetime) else int(time_val)
+                    upper_points.append({'time': time_unix, 'value': float(upper_val)})
+            
+            if upper_points:
+                indicators.append({
+                    'name': f'BB_Upper_{ind_id}',
+                    'color': upper_color,
+                    'width': line_width,
+                    'points': upper_points
+                })
+            
+            # Middle band (SMA)
+            if show_middle:
+                middle_points = []
+                for time_val, middle_val in zip(times, middle_band_values):
+                    if middle_val is not None:
+                        time_unix = int(time_val.timestamp()) if isinstance(time_val, datetime) else int(time_val)
+                        middle_points.append({'time': time_unix, 'value': float(middle_val)})
+                
+                if middle_points:
+                    indicators.append({
+                        'name': f'BB_Middle_{ind_id}',
+                        'color': middle_color,
+                        'width': line_width,
+                        'points': middle_points
+                    })
+            
+            # Lower band
+            lower_points = []
+            for time_val, lower_val in zip(times, lower_band_values):
+                if lower_val is not None:
+                    time_unix = int(time_val.timestamp()) if isinstance(time_val, datetime) else int(time_val)
+                    lower_points.append({'time': time_unix, 'value': float(lower_val)})
+            
+            if lower_points:
+                indicators.append({
+                    'name': f'BB_Lower_{ind_id}',
+                    'color': lower_color,
+                    'width': line_width,
+                    'points': lower_points
+                })
+            
+            return indicators
+        
+        except Exception as e:
+            logger.error(f"Error calculating Bollinger Bands indicator: {e}", exc_info=True)
             return []
     
     def add_strategy_signal(self, symbol: str, signal_type: str, price: float, 

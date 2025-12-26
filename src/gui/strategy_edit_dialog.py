@@ -106,6 +106,14 @@ class StrategyEditDialog(QDialog):
         sl_tp_group = QGroupBox("Stop Loss / Take Profit")
         sl_tp_layout = QFormLayout()
         
+        # Enable/Disable Stop Loss
+        self.enable_sl_check = QComboBox()
+        self.enable_sl_check.addItem("Enabled", True)
+        self.enable_sl_check.addItem("Disabled", False)
+        self.enable_sl_check.setCurrentIndex(0)  # Default: Enabled
+        self.enable_sl_check.currentIndexChanged.connect(self._on_sl_enabled_changed)
+        sl_tp_layout.addRow("Enable Stop Loss:", self.enable_sl_check)
+        
         self.sl_type_combo = QComboBox()
         self.sl_type_combo.addItem("Price (Pips)", "Price (Pips)")
         self.sl_type_combo.addItem("Price (Points)", "Price (Points)")
@@ -117,6 +125,14 @@ class StrategyEditDialog(QDialog):
         self.sl_value_spin.setMaximum(100000.0)
         self.sl_value_spin.setDecimals(2)
         sl_tp_layout.addRow("SL Value:", self.sl_value_spin)
+        
+        # Enable/Disable Take Profit
+        self.enable_tp_check = QComboBox()
+        self.enable_tp_check.addItem("Enabled", True)
+        self.enable_tp_check.addItem("Disabled", False)
+        self.enable_tp_check.setCurrentIndex(0)  # Default: Enabled
+        self.enable_tp_check.currentIndexChanged.connect(self._on_tp_enabled_changed)
+        sl_tp_layout.addRow("Enable Take Profit:", self.enable_tp_check)
         
         self.use_ratio_check = QCheckBox("Use 1:2 Ratio")
         sl_tp_layout.addRow("", self.use_ratio_check)
@@ -250,6 +266,10 @@ class StrategyEditDialog(QDialog):
                 self.sell_conditions_list.addItem(condition_text)
         
         # Load SL/TP
+        sl_enabled = getattr(self.strategy, 'sl_enabled', True)
+        tp_enabled = getattr(self.strategy, 'tp_enabled', True)
+        self.enable_sl_check.setCurrentIndex(0 if sl_enabled else 1)
+        self.enable_tp_check.setCurrentIndex(0 if tp_enabled else 1)
         self.sl_type_combo.setCurrentText(getattr(self.strategy, 'sl_type', 'Price (Pips)'))
         self.sl_value_spin.setValue(getattr(self.strategy, 'sl_value', 20.0))
         self.use_ratio_check.setChecked(getattr(self.strategy, 'use_ratio', True))
@@ -394,6 +414,18 @@ class StrategyEditDialog(QDialog):
         
         return None
     
+    def _on_sl_enabled_changed(self, index: int):
+        """Handle SL enable/disable toggle"""
+        enabled = self.enable_sl_check.currentData()
+        self.sl_type_combo.setEnabled(enabled)
+        self.sl_value_spin.setEnabled(enabled)
+
+    def _on_tp_enabled_changed(self, index: int):
+        """Handle TP enable/disable toggle"""
+        enabled = self.enable_tp_check.currentData()
+        self.tp_value_spin.setEnabled(enabled)
+        self.use_ratio_check.setEnabled(enabled)
+
     def remove_condition(self, list_widget: QListWidget):
         """Remove selected condition from list"""
         current_row = list_widget.currentRow()
@@ -418,10 +450,25 @@ class StrategyEditDialog(QDialog):
                 self.strategy.sell_conditions.extend(self.sell_conditions_data)
             
             # Update SL/TP
-            self.strategy.sl_type = self.sl_type_combo.currentData()
-            self.strategy.sl_value = self.sl_value_spin.value()
-            self.strategy.use_ratio = self.use_ratio_check.isChecked()
-            self.strategy.tp_value = self.tp_value_spin.value()
+            sl_enabled = self.enable_sl_check.currentData()
+            tp_enabled = self.enable_tp_check.currentData()
+            
+            if sl_enabled:
+                self.strategy.sl_type = self.sl_type_combo.currentData()
+                self.strategy.sl_value = self.sl_value_spin.value()
+            else:
+                self.strategy.sl_type = None
+                self.strategy.sl_value = 0.0
+            
+            self.strategy.sl_enabled = sl_enabled
+            
+            if tp_enabled:
+                self.strategy.use_ratio = self.use_ratio_check.isChecked()
+                self.strategy.tp_value = self.tp_value_spin.value()
+            else:
+                self.strategy.tp_value = 0.0
+            
+            self.strategy.tp_enabled = tp_enabled
             
             # Update Re-Entry
             self.strategy.reentry_on_sl_enabled = self.reentry_sl_enabled.isChecked()

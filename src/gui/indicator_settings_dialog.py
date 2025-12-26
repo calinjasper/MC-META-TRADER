@@ -76,6 +76,12 @@ class IndicatorSettingsDialog(QDialog):
             self.smc_inputs(layout)
         elif self.indicator_type == "OHLC":
             self.ohlc_inputs(layout)
+        elif self.indicator_type == "RSI":
+            self.rsi_inputs(layout)
+        elif self.indicator_type == "MACD":
+            self.macd_inputs(layout)
+        elif self.indicator_type == "Bollinger Bands":
+            self.bollinger_inputs(layout)
         
         return widget
     
@@ -213,6 +219,67 @@ class IndicatorSettingsDialog(QDialog):
         self.ohlc_show_close.setChecked(True)
         layout.addRow("", self.ohlc_show_close)
     
+    def rsi_inputs(self, layout: QFormLayout):
+        """RSI indicator inputs"""
+        layout.addRow(QLabel("<b>RSI Configuration</b>"))
+        
+        self.rsi_period = QSpinBox()
+        self.rsi_period.setRange(1, 100)
+        self.rsi_period.setValue(14)
+        layout.addRow("Period:", self.rsi_period)
+        
+        self.rsi_overbought = QSpinBox()
+        self.rsi_overbought.setRange(50, 100)
+        self.rsi_overbought.setValue(70)
+        layout.addRow("Overbought Level:", self.rsi_overbought)
+        
+        self.rsi_oversold = QSpinBox()
+        self.rsi_oversold.setRange(0, 50)
+        self.rsi_oversold.setValue(30)
+        layout.addRow("Oversold Level:", self.rsi_oversold)
+        
+        self.rsi_show_levels = QCheckBox("Show Overbought/Oversold Levels")
+        self.rsi_show_levels.setChecked(True)
+        layout.addRow("", self.rsi_show_levels)
+    
+    def macd_inputs(self, layout: QFormLayout):
+        """MACD indicator inputs"""
+        layout.addRow(QLabel("<b>MACD Configuration</b>"))
+        
+        self.macd_fast_period = QSpinBox()
+        self.macd_fast_period.setRange(1, 100)
+        self.macd_fast_period.setValue(12)
+        layout.addRow("Fast EMA Period:", self.macd_fast_period)
+        
+        self.macd_slow_period = QSpinBox()
+        self.macd_slow_period.setRange(1, 100)
+        self.macd_slow_period.setValue(26)
+        layout.addRow("Slow EMA Period:", self.macd_slow_period)
+        
+        self.macd_signal_period = QSpinBox()
+        self.macd_signal_period.setRange(1, 100)
+        self.macd_signal_period.setValue(9)
+        layout.addRow("Signal EMA Period:", self.macd_signal_period)
+    
+    def bollinger_inputs(self, layout: QFormLayout):
+        """Bollinger Bands indicator inputs"""
+        layout.addRow(QLabel("<b>Bollinger Bands Configuration</b>"))
+        
+        self.bb_period = QSpinBox()
+        self.bb_period.setRange(1, 200)
+        self.bb_period.setValue(20)
+        layout.addRow("Period:", self.bb_period)
+        
+        self.bb_num_std = QDoubleSpinBox()
+        self.bb_num_std.setRange(0.1, 5.0)
+        self.bb_num_std.setSingleStep(0.1)
+        self.bb_num_std.setValue(2.0)
+        layout.addRow("Standard Deviations:", self.bb_num_std)
+        
+        self.bb_show_middle = QCheckBox("Show Middle Band (SMA)")
+        self.bb_show_middle.setChecked(True)
+        layout.addRow("", self.bb_show_middle)
+    
     def create_style_tab(self) -> QWidget:
         """Create the style tab"""
         widget = QWidget()
@@ -232,6 +299,12 @@ class IndicatorSettingsDialog(QDialog):
             self.create_smc_style_controls(color_layout)
         elif self.indicator_type == "OHLC":
             self.create_ohlc_style_controls(color_layout)
+        elif self.indicator_type == "RSI":
+            self.create_rsi_style_controls(color_layout)
+        elif self.indicator_type == "MACD":
+            self.create_macd_style_controls(color_layout)
+        elif self.indicator_type == "Bollinger Bands":
+            self.create_bollinger_style_controls(color_layout)
         
         color_group.setLayout(color_layout)
         layout.addWidget(color_group)
@@ -364,6 +437,93 @@ class IndicatorSettingsDialog(QDialog):
         self.ohlc_close_color = '#9C27B0'
         layout.addRow("Close Color:", self.ohlc_close_btn)
     
+    def create_rsi_style_controls(self, layout: QFormLayout):
+        """RSI style controls"""
+        self.rsi_color_btn = QPushButton()
+        self.rsi_color_btn.setFixedSize(60, 25)
+        self.rsi_color_btn.setStyleSheet("background-color: #FF6B6B; border: 1px solid #ccc;")
+        self.rsi_color_btn.clicked.connect(
+            lambda: self.choose_single_color(self.rsi_color_btn, 'rsi')
+        )
+        self.rsi_color = '#FF6B6B'
+        layout.addRow("RSI Line Color:", self.rsi_color_btn)
+        
+        self.rsi_overbought_color_btn = QPushButton()
+        self.rsi_overbought_color_btn.setFixedSize(60, 25)
+        self.rsi_overbought_color_btn.setStyleSheet("background-color: #FF1744; border: 1px solid #ccc;")
+        self.rsi_overbought_color_btn.clicked.connect(
+            lambda: self.choose_single_color(self.rsi_overbought_color_btn, 'rsi_overbought')
+        )
+        self.rsi_overbought_color = '#FF1744'
+        layout.addRow("Overbought Level Color:", self.rsi_overbought_color_btn)
+        
+        self.rsi_oversold_color_btn = QPushButton()
+        self.rsi_oversold_color_btn.setFixedSize(60, 25)
+        self.rsi_oversold_color_btn.setStyleSheet("background-color: #00E676; border: 1px solid #ccc;")
+        self.rsi_oversold_color_btn.clicked.connect(
+            lambda: self.choose_single_color(self.rsi_oversold_color_btn, 'rsi_oversold')
+        )
+        self.rsi_oversold_color = '#00E676'
+        layout.addRow("Oversold Level Color:", self.rsi_oversold_color_btn)
+    
+    def create_macd_style_controls(self, layout: QFormLayout):
+        """MACD style controls"""
+        self.macd_line_color_btn = QPushButton()
+        self.macd_line_color_btn.setFixedSize(60, 25)
+        self.macd_line_color_btn.setStyleSheet("background-color: #2196F3; border: 1px solid #ccc;")
+        self.macd_line_color_btn.clicked.connect(
+            lambda: self.choose_single_color(self.macd_line_color_btn, 'macd_line')
+        )
+        self.macd_line_color = '#2196F3'
+        layout.addRow("MACD Line Color:", self.macd_line_color_btn)
+        
+        self.macd_signal_color_btn = QPushButton()
+        self.macd_signal_color_btn.setFixedSize(60, 25)
+        self.macd_signal_color_btn.setStyleSheet("background-color: #FF9800; border: 1px solid #ccc;")
+        self.macd_signal_color_btn.clicked.connect(
+            lambda: self.choose_single_color(self.macd_signal_color_btn, 'macd_signal')
+        )
+        self.macd_signal_color = '#FF9800'
+        layout.addRow("Signal Line Color:", self.macd_signal_color_btn)
+        
+        self.macd_histogram_color_btn = QPushButton()
+        self.macd_histogram_color_btn.setFixedSize(60, 25)
+        self.macd_histogram_color_btn.setStyleSheet("background-color: #9E9E9E; border: 1px solid #ccc;")
+        self.macd_histogram_color_btn.clicked.connect(
+            lambda: self.choose_single_color(self.macd_histogram_color_btn, 'macd_histogram')
+        )
+        self.macd_histogram_color = '#9E9E9E'
+        layout.addRow("Histogram Color:", self.macd_histogram_color_btn)
+    
+    def create_bollinger_style_controls(self, layout: QFormLayout):
+        """Bollinger Bands style controls"""
+        self.bb_upper_color_btn = QPushButton()
+        self.bb_upper_color_btn.setFixedSize(60, 25)
+        self.bb_upper_color_btn.setStyleSheet("background-color: #FF6B6B; border: 1px solid #ccc;")
+        self.bb_upper_color_btn.clicked.connect(
+            lambda: self.choose_single_color(self.bb_upper_color_btn, 'bb_upper')
+        )
+        self.bb_upper_color = '#FF6B6B'
+        layout.addRow("Upper Band Color:", self.bb_upper_color_btn)
+        
+        self.bb_middle_color_btn = QPushButton()
+        self.bb_middle_color_btn.setFixedSize(60, 25)
+        self.bb_middle_color_btn.setStyleSheet("background-color: #42A5F5; border: 1px solid #ccc;")
+        self.bb_middle_color_btn.clicked.connect(
+            lambda: self.choose_single_color(self.bb_middle_color_btn, 'bb_middle')
+        )
+        self.bb_middle_color = '#42A5F5'
+        layout.addRow("Middle Band Color:", self.bb_middle_color_btn)
+        
+        self.bb_lower_color_btn = QPushButton()
+        self.bb_lower_color_btn.setFixedSize(60, 25)
+        self.bb_lower_color_btn.setStyleSheet("background-color: #66BB6A; border: 1px solid #ccc;")
+        self.bb_lower_color_btn.clicked.connect(
+            lambda: self.choose_single_color(self.bb_lower_color_btn, 'bb_lower')
+        )
+        self.bb_lower_color = '#66BB6A'
+        layout.addRow("Lower Band Color:", self.bb_lower_color_btn)
+    
     def create_visibility_tab(self) -> QWidget:
         """Create the visibility tab"""
         widget = QWidget()
@@ -407,6 +567,32 @@ class IndicatorSettingsDialog(QDialog):
                 std_dev = float(color_type.replace('vwap_band_lower_', ''))
                 if std_dev in self.vwap_band_widgets:
                     self.vwap_band_widgets[std_dev]['lower_color'] = color.name()
+            elif color_type == 'ohlc_open':
+                self.ohlc_open_color = color.name()
+            elif color_type == 'ohlc_high':
+                self.ohlc_high_color = color.name()
+            elif color_type == 'ohlc_low':
+                self.ohlc_low_color = color.name()
+            elif color_type == 'ohlc_close':
+                self.ohlc_close_color = color.name()
+            elif color_type == 'rsi':
+                self.rsi_color = color.name()
+            elif color_type == 'rsi_overbought':
+                self.rsi_overbought_color = color.name()
+            elif color_type == 'rsi_oversold':
+                self.rsi_oversold_color = color.name()
+            elif color_type == 'macd_line':
+                self.macd_line_color = color.name()
+            elif color_type == 'macd_signal':
+                self.macd_signal_color = color.name()
+            elif color_type == 'macd_histogram':
+                self.macd_histogram_color = color.name()
+            elif color_type == 'bb_upper':
+                self.bb_upper_color = color.name()
+            elif color_type == 'bb_middle':
+                self.bb_middle_color = color.name()
+            elif color_type == 'bb_lower':
+                self.bb_lower_color = color.name()
     
     def _add_vwap_band_row(self, std_dev: float = None):
         """Add a new band row to VWAP configuration"""
@@ -632,6 +818,46 @@ class IndicatorSettingsDialog(QDialog):
             self.ohlc_low_btn.setStyleSheet(f"background-color: {self.ohlc_low_color}; border: 1px solid #ccc;")
             self.ohlc_close_btn.setStyleSheet(f"background-color: {self.ohlc_close_color}; border: 1px solid #ccc;")
         
+        elif self.indicator_type == "RSI":
+            self.rsi_period.setValue(self.settings.get('period', 14))
+            self.rsi_overbought.setValue(self.settings.get('overbought', 70))
+            self.rsi_oversold.setValue(self.settings.get('oversold', 30))
+            self.rsi_show_levels.setChecked(self.settings.get('show_levels', True))
+            
+            self.rsi_color = self.settings.get('color', '#FF6B6B')
+            self.rsi_overbought_color = self.settings.get('overbought_color', '#FF1744')
+            self.rsi_oversold_color = self.settings.get('oversold_color', '#00E676')
+            
+            self.rsi_color_btn.setStyleSheet(f"background-color: {self.rsi_color}; border: 1px solid #ccc;")
+            self.rsi_overbought_color_btn.setStyleSheet(f"background-color: {self.rsi_overbought_color}; border: 1px solid #ccc;")
+            self.rsi_oversold_color_btn.setStyleSheet(f"background-color: {self.rsi_oversold_color}; border: 1px solid #ccc;")
+        
+        elif self.indicator_type == "MACD":
+            self.macd_fast_period.setValue(self.settings.get('fast_period', 12))
+            self.macd_slow_period.setValue(self.settings.get('slow_period', 26))
+            self.macd_signal_period.setValue(self.settings.get('signal_period', 9))
+            
+            self.macd_line_color = self.settings.get('macd_color', '#2196F3')
+            self.macd_signal_color = self.settings.get('signal_color', '#FF9800')
+            self.macd_histogram_color = self.settings.get('histogram_color', '#9E9E9E')
+            
+            self.macd_line_color_btn.setStyleSheet(f"background-color: {self.macd_line_color}; border: 1px solid #ccc;")
+            self.macd_signal_color_btn.setStyleSheet(f"background-color: {self.macd_signal_color}; border: 1px solid #ccc;")
+            self.macd_histogram_color_btn.setStyleSheet(f"background-color: {self.macd_histogram_color}; border: 1px solid #ccc;")
+        
+        elif self.indicator_type == "Bollinger Bands":
+            self.bb_period.setValue(self.settings.get('period', 20))
+            self.bb_num_std.setValue(self.settings.get('num_std', 2.0))
+            self.bb_show_middle.setChecked(self.settings.get('show_middle', True))
+            
+            self.bb_upper_color = self.settings.get('upper_color', '#FF6B6B')
+            self.bb_middle_color = self.settings.get('middle_color', '#42A5F5')
+            self.bb_lower_color = self.settings.get('lower_color', '#66BB6A')
+            
+            self.bb_upper_color_btn.setStyleSheet(f"background-color: {self.bb_upper_color}; border: 1px solid #ccc;")
+            self.bb_middle_color_btn.setStyleSheet(f"background-color: {self.bb_middle_color}; border: 1px solid #ccc;")
+            self.bb_lower_color_btn.setStyleSheet(f"background-color: {self.bb_lower_color}; border: 1px solid #ccc;")
+        
         # Common settings
         self.line_width.setValue(self.settings.get('line_width', 2))
         self.show_indicator_checkbox.setChecked(self.settings.get('visible', True))
@@ -706,6 +932,31 @@ class IndicatorSettingsDialog(QDialog):
             settings['high_color'] = self.ohlc_high_color
             settings['low_color'] = self.ohlc_low_color
             settings['close_color'] = self.ohlc_close_color
+        
+        elif self.indicator_type == "RSI":
+            settings['period'] = self.rsi_period.value()
+            settings['overbought'] = self.rsi_overbought.value()
+            settings['oversold'] = self.rsi_oversold.value()
+            settings['show_levels'] = self.rsi_show_levels.isChecked()
+            settings['color'] = self.rsi_color
+            settings['overbought_color'] = self.rsi_overbought_color
+            settings['oversold_color'] = self.rsi_oversold_color
+        
+        elif self.indicator_type == "MACD":
+            settings['fast_period'] = self.macd_fast_period.value()
+            settings['slow_period'] = self.macd_slow_period.value()
+            settings['signal_period'] = self.macd_signal_period.value()
+            settings['macd_color'] = self.macd_line_color
+            settings['signal_color'] = self.macd_signal_color
+            settings['histogram_color'] = self.macd_histogram_color
+        
+        elif self.indicator_type == "Bollinger Bands":
+            settings['period'] = self.bb_period.value()
+            settings['num_std'] = self.bb_num_std.value()
+            settings['show_middle'] = self.bb_show_middle.isChecked()
+            settings['upper_color'] = self.bb_upper_color
+            settings['middle_color'] = self.bb_middle_color
+            settings['lower_color'] = self.bb_lower_color
         
         settings['line_width'] = self.line_width.value()
         

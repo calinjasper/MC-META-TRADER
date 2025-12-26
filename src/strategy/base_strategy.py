@@ -32,8 +32,10 @@ class BaseStrategy(ABC):
         # SL/TP configuration
         self.sl_type: Optional[str] = None  # "Price (Pips)", "Price (Points)", "Percentage"
         self.sl_value: float = 20.0  # SL value
+        self.sl_enabled: bool = True  # Default: enabled
         self.use_ratio: bool = True  # Use 1:2 ratio
         self.tp_value: float = 40.0  # TP value (or calculated if use_ratio)
+        self.tp_enabled: bool = True  # Default: enabled
         
         # Re-Entry configuration (AlgoTest architecture)
         self.reentry_on_sl_enabled: bool = False
@@ -327,8 +329,10 @@ class BaseStrategy(ABC):
             # SL/TP configuration
             'sl_type': getattr(self, 'sl_type', None),
             'sl_value': getattr(self, 'sl_value', 20.0),
+            'sl_enabled': getattr(self, 'sl_enabled', True),
             'use_ratio': getattr(self, 'use_ratio', True),
             'tp_value': getattr(self, 'tp_value', 40.0),
+            'tp_enabled': getattr(self, 'tp_enabled', True),
 
             # Advanced Risk Management
             'enable_trailing_sl': getattr(self, 'enable_trailing_sl', False),

@@ -402,6 +402,14 @@ class TradingBotPanel(QWidget):
         sltp_group = QGroupBox("Stop Loss / Take Profit")
         sltp_layout = QFormLayout()
 
+        # Enable/Disable Stop Loss
+        self.enable_sl_check = QComboBox()
+        self.enable_sl_check.addItem("Enabled", True)
+        self.enable_sl_check.addItem("Disabled", False)
+        self.enable_sl_check.setCurrentIndex(0)  # Default: Enabled
+        self.enable_sl_check.currentIndexChanged.connect(self._on_sl_enabled_changed)
+        sltp_layout.addRow("Enable Stop Loss:", self.enable_sl_check)
+
         self.sl_type_combo = QComboBox()
         self.sl_type_combo.addItem("Price (Points)", "points")
         sltp_layout.addRow("SL Type:", self.sl_type_combo)
@@ -413,6 +421,14 @@ class TradingBotPanel(QWidget):
         self.sl_value_spin.setValue(20.0)
         self.sl_value_spin.setSuffix(" points")
         sltp_layout.addRow("Stop Loss:", self.sl_value_spin)
+
+        # Enable/Disable Take Profit
+        self.enable_tp_check = QComboBox()
+        self.enable_tp_check.addItem("Enabled", True)
+        self.enable_tp_check.addItem("Disabled", False)
+        self.enable_tp_check.setCurrentIndex(0)  # Default: Enabled
+        self.enable_tp_check.currentIndexChanged.connect(self._on_tp_enabled_changed)
+        sltp_layout.addRow("Enable Take Profit:", self.enable_tp_check)
 
         self.tp_value_spin = QDoubleSpinBox()
         self.tp_value_spin.setMinimum(0.0)
@@ -1051,6 +1067,8 @@ class TradingBotPanel(QWidget):
             self.wt_is_percentage_check.setEnabled(False)
 
         # Reset SL/TP
+        self.enable_sl_check.setCurrentIndex(0)  # Enabled
+        self.enable_tp_check.setCurrentIndex(0)  # Enabled
         self.sl_type_combo.setCurrentIndex(0)
         self.sl_value_spin.setValue(20.0)
         self.tp_value_spin.setValue(40.0)
@@ -1094,6 +1112,17 @@ class TradingBotPanel(QWidget):
         """Update suffix when switching between points and percent mode."""
         is_pct = self.wt_is_percentage_check.isChecked()
         self.wt_value_spin.setSuffix(" %" if is_pct else " points")
+
+    def _on_sl_enabled_changed(self, index: int):
+        """Handle SL enable/disable toggle"""
+        enabled = self.enable_sl_check.currentData()
+        self.sl_type_combo.setEnabled(enabled)
+        self.sl_value_spin.setEnabled(enabled)
+
+    def _on_tp_enabled_changed(self, index: int):
+        """Handle TP enable/disable toggle"""
+        enabled = self.enable_tp_check.currentData()
+        self.tp_value_spin.setEnabled(enabled)
 
     def _on_direction_changed(self, index: int):
         """Show/hide buy/sell blocks based on direction selection."""
@@ -1320,10 +1349,25 @@ class TradingBotPanel(QWidget):
         bot.trade_direction = direction or "both"
 
         # SL/TP configuration (points)
-        bot.sl_type = "Price (Points)"
-        bot.sl_value = self.sl_value_spin.value()
-        bot.use_ratio = False
-        bot.tp_value = self.tp_value_spin.value()
+        sl_enabled = self.enable_sl_check.currentData()
+        tp_enabled = self.enable_tp_check.currentData()
+        
+        if sl_enabled:
+            bot.sl_type = "Price (Points)"
+            bot.sl_value = self.sl_value_spin.value()
+        else:
+            bot.sl_type = None  # Disabled
+            bot.sl_value = 0.0
+        
+        bot.sl_enabled = sl_enabled
+        
+        if tp_enabled:
+            bot.use_ratio = False
+            bot.tp_value = self.tp_value_spin.value()
+        else:
+            bot.tp_value = 0.0  # Disabled
+        
+        bot.tp_enabled = tp_enabled
 
         # Re-Entry configuration
         bot.reentry_on_sl_enabled = self.sl_reentry_enabled.isChecked()
