@@ -162,6 +162,22 @@ class TradingBotPanel(QWidget):
         layout.setSpacing(10)
         
         # Strategy Name Section
+        # Strategy Type Selection
+        strategy_type_group = QGroupBox("Strategy Type")
+        strategy_type_layout = QFormLayout()
+        
+        self.strategy_type_combo = QComboBox()
+        self.strategy_type_combo.addItem("OHLC Price Strategy", "ohlc")
+        self.strategy_type_combo.addItem("VWAP Strategy", "vwap")
+        self.strategy_type_combo.addItem("EMA Strategy", "ema")
+        self.strategy_type_combo.addItem("SuperTrend Strategy", "supertrend")
+        self.strategy_type_combo.addItem("SMC (Smart Money Concepts)", "smc")
+        self.strategy_type_combo.addItem("No Strategy", "no_strategy")
+        self.strategy_type_combo.currentIndexChanged.connect(self._on_strategy_type_changed)
+        strategy_type_layout.addRow("Strategy Type:", self.strategy_type_combo)
+        strategy_type_group.setLayout(strategy_type_layout)
+        layout.addWidget(strategy_type_group)
+        
         strategy_name_group = QGroupBox("Strategy Name")
         strategy_name_layout = QFormLayout()
         
@@ -212,6 +228,16 @@ class TradingBotPanel(QWidget):
         self.timeframe_combo.addItem("D1 (Daily)", mt5.TIMEFRAME_D1)
         self.timeframe_combo.setCurrentIndex(0)  # Default to M1
         basic_layout.addRow("Timeframe:", self.timeframe_combo)
+        
+        # Lot size for this strategy
+        self.lot_size_spin = QDoubleSpinBox()
+        self.lot_size_spin.setMinimum(0.01)
+        self.lot_size_spin.setMaximum(100.0)
+        self.lot_size_spin.setSingleStep(0.01)
+        self.lot_size_spin.setDecimals(2)
+        self.lot_size_spin.setValue(0.01)  # Default lot size
+        self.lot_size_spin.setToolTip("Lot size for this strategy. Leave as default to use global default lot size.")
+        basic_layout.addRow("Lot Size:", self.lot_size_spin)
         
         # Session type selector (different for OHLC vs VWAP)
         self.session_combo = QComboBox()
@@ -825,6 +851,10 @@ class TradingBotPanel(QWidget):
             # SuperTrend is calculated on candle history; no explicit session boundaries.
             self.session_combo.addItem("All Candles", "All")
             self.session_combo.setCurrentIndex(0)
+        elif self.strategy_type == 'no_strategy':
+            # No Strategy doesn't use session boundaries
+            self.session_combo.addItem("All Candles", "All")
+            self.session_combo.setCurrentIndex(0)
         else:  # ohlc
             self.session_combo.addItem("Daily (24h Mon–Fri)", "daily")
             self.session_combo.addItem("Asian Session (05:30–14:30 IST)", "asian")
@@ -859,28 +889,32 @@ class TradingBotPanel(QWidget):
         return True
     
     def _on_strategy_type_changed(self, index: int):
-        """Handle strategy type change - DEPRECATED: Strategy type now determined dynamically"""
-        # This method is kept for compatibility but strategy type is determined from conditions
-        pass
+        """Handle strategy type change"""
+        self.strategy_type = self.strategy_type_combo.currentData()
+        self._update_ui_visibility()
     
     def _update_ui_visibility(self):
-        """Update UI visibility based on detected strategy type from conditions"""
-        # Show all config groups - user can configure any indicator
-        self.vwap_config_group.setVisible(True)
-        self.ema_config_group.setVisible(True)
-        self.supertrend_config_group.setVisible(True)
-        self.smc_config_group.setVisible(True)
-        
-        # Show all display groups
-        self.vwap_display_group.setVisible(True)
-        self.ema_display_group.setVisible(True)
-        self.supertrend_display_group.setVisible(True)
-        self.smc_status_label.setVisible(True)
-        self.ohlc_label.setVisible(True)
-        
-        # Always show condition builders
-        self.buy_group.setVisible(True)
-        self.sell_group.setVisible(True)
+        """Update UI visibility based on strategy type"""
+        # Show/hide VWAP-specific UI
+        is_vwap = self.strategy_type == 'vwap'
+        is_smc = self.strategy_type == 'smc'
+        is_ema = self.strategy_type == 'ema'
+        is_supertrend = self.strategy_type == 'supertrend'
+        is_no_strategy = self.strategy_type == 'no_strategy'
+        self.vwap_config_group.setVisible(is_vwap)
+        self.vwap_display_group.setVisible(is_vwap)
+        self.ema_config_group.setVisible(is_ema)
+        self.ema_display_group.setVisible(is_ema)
+        self.supertrend_config_group.setVisible(is_supertrend)
+        self.supertrend_display_group.setVisible(is_supertrend)
+        self.smc_config_group.setVisible(is_smc)
+        self.smc_status_label.setVisible(is_smc)
+        self.ohlc_label.setVisible((not is_vwap) and (not is_smc) and (not is_ema) and (not is_supertrend) and (not is_no_strategy))
+
+        # Hide manual condition builders for SuperTrend (SMC now can use filters)
+        # Show buy/sell conditions for no_strategy
+        self.buy_group.setVisible((not is_supertrend))
+        self.sell_group.setVisible((not is_supertrend))
         
         # Update value combo boxes for VWAP
         self._update_value_combos()
@@ -1128,24 +1162,27 @@ class TradingBotPanel(QWidget):
             self.strategy_name_input.setText(self.editing_strategy_name)
             return
         
-        # Determine strategy type dynamically from conditions (default to ohlc)
-        strategy_type = 'ohlc'  # Default, can be determined from conditions if needed
+        # Get strategy type from combo box
+        strategy_type = self.strategy_type_combo.currentData()
         direction = self.direction_combo.currentData()
         if strategy_type not in ('supertrend'):
             active_buy = [r for r in self.buy_rows if r.get_data().get("enabled")]
             active_sell = [r for r in self.sell_rows if r.get_data().get("enabled")]
-            if direction in ("both", None):
-                if len(active_buy) == 0 and len(active_sell) == 0 and strategy_type != 'smc':
-                    QMessageBox.warning(self, "Validation Error", "Please add at least one buy or sell condition")
-                    return
-            elif direction == "long":
-                if len(active_buy) == 0:
-                    QMessageBox.warning(self, "Validation Error", "Please add at least one buy condition for Long-only direction")
-                    return
-            elif direction == "short":
-                if len(active_sell) == 0:
-                    QMessageBox.warning(self, "Validation Error", "Please add at least one sell condition for Short-only direction")
-                    return
+            # No Strategy: Conditions are optional - if no conditions, will execute directly based on direction
+            # So we skip validation for no_strategy - it can have 0 conditions for direct execution
+            if strategy_type != 'no_strategy' and strategy_type != 'smc':
+                if direction in ("both", None):
+                    if len(active_buy) == 0 and len(active_sell) == 0:
+                        QMessageBox.warning(self, "Validation Error", "Please add at least one buy or sell condition")
+                        return
+                elif direction == "long":
+                    if len(active_buy) == 0:
+                        QMessageBox.warning(self, "Validation Error", "Please add at least one buy condition for Long-only direction")
+                        return
+                elif direction == "short":
+                    if len(active_sell) == 0:
+                        QMessageBox.warning(self, "Validation Error", "Please add at least one sell condition for Short-only direction")
+                        return
         
         # Get timeframe and session type
         timeframe = self.timeframe_combo.currentData()
@@ -1205,7 +1242,11 @@ class TradingBotPanel(QWidget):
                     use_wilder_atr=bool(self.supertrend_atr_method_combo.currentData()),
                 )
                 bot.set_mt5_connector(self.mt5)
-            else:  # ohlc or smc (smc handled above but keep fallback)
+            elif strategy_type == 'no_strategy':
+                from ..strategy.simple_condition_strategy import SimpleConditionStrategy
+                bot = SimpleConditionStrategy(name=strategy_name, symbol=symbol, timeframe=timeframe)
+                bot.set_mt5_connector(self.mt5)
+            else:  # ohlc
                 bot = OHLCPriceStrategy(strategy_name, symbol, session_type, timeframe)
                 bot.set_market_data_panel(self.market_data_panel)
         
@@ -1215,7 +1256,7 @@ class TradingBotPanel(QWidget):
         if hasattr(bot, 'sell_conditions'):
             bot.sell_conditions.clear()
         
-        # Add buy/sell conditions (only for VWAP / OHLC / EMA). For SMC we store filters below.
+        # Add buy/sell conditions (only for VWAP / OHLC / EMA / no_strategy). For SMC we store filters below.
         smc_filters = {"buy": [], "sell": []}
         if strategy_type not in ('smc', 'supertrend'):
             def _add_conditions(rows, add_func):
@@ -1251,7 +1292,7 @@ class TradingBotPanel(QWidget):
                                 right_field=right_field,
                                 connector=connector
                         )
-                    else:  # ohlc
+                    else:  # ohlc or no_strategy - both use OHLCPriceCondition
                         condition = OHLCPriceCondition(
                                 price_reference='Current Price',
                                 operator=operator,
@@ -1267,18 +1308,21 @@ class TradingBotPanel(QWidget):
 
             added_buy = _add_conditions(self.buy_rows, bot.add_buy_condition)
             added_sell = _add_conditions(self.sell_rows, bot.add_sell_condition)
-            if direction in ("both", None):
-                if added_buy == 0 and added_sell == 0:
-                    QMessageBox.warning(self, "Validation Error", "No valid conditions added. Please complete the fields.")
-                    return
-            elif direction == "long":
-                if added_buy == 0:
-                    QMessageBox.warning(self, "Validation Error", "No valid buy conditions added for Long-only direction.")
-                    return
-            elif direction == "short":
-                if added_sell == 0:
-                    QMessageBox.warning(self, "Validation Error", "No valid sell conditions added for Short-only direction.")
-                    return
+            # No Strategy: Conditions are optional - if no conditions added, will execute directly based on direction
+            # So we skip validation for no_strategy here as well
+            if strategy_type != 'no_strategy':
+                if direction in ("both", None):
+                    if added_buy == 0 and added_sell == 0:
+                        QMessageBox.warning(self, "Validation Error", "No valid conditions added. Please complete the fields.")
+                        return
+                elif direction == "long":
+                    if added_buy == 0:
+                        QMessageBox.warning(self, "Validation Error", "No valid buy conditions added for Long-only direction.")
+                        return
+                elif direction == "short":
+                    if added_sell == 0:
+                        QMessageBox.warning(self, "Validation Error", "No valid sell conditions added for Short-only direction.")
+                        return
         else:
             # Collect SMC filter conditions for post-filtering
             def _collect(rows, target_key):
@@ -1319,6 +1363,9 @@ class TradingBotPanel(QWidget):
         # Strategy direction
         bot.trade_direction = direction or "both"
 
+        # Lot size configuration
+        bot.lot_size = self.lot_size_spin.value()
+        
         # SL/TP configuration (points)
         bot.sl_type = "Price (Points)"
         bot.sl_value = self.sl_value_spin.value()

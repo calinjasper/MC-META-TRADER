@@ -256,7 +256,7 @@ class SMCStrategy(BaseStrategy):
         if not candles or len(candles) < 20:
             return None
 
-        _, highs, lows, closes = _extract_ohlc_arrays(candles)
+        opens, highs, lows, closes = _extract_ohlc_arrays(candles)
         self._update_pivots(highs, lows)
 
         close = float(closes[-1])
@@ -332,6 +332,7 @@ class SMCStrategy(BaseStrategy):
 
         # Restore common configuration (backward compatible)
         strategy.trade_monitoring_mode = data.get("trade_monitoring_mode", getattr(strategy, "trade_monitoring_mode", "LTP"))
+        strategy.lot_size = data.get("lot_size", getattr(strategy, "lot_size", None))
         strategy.sl_type = data.get("sl_type", getattr(strategy, "sl_type", None))
         strategy.sl_value = data.get("sl_value", getattr(strategy, "sl_value", 20.0))
         strategy.use_ratio = data.get("use_ratio", getattr(strategy, "use_ratio", True))

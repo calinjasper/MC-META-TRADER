@@ -24,7 +24,6 @@ from ..mt5_connector import MT5Connector
 import logging
 
 logger = logging.getLogger(__name__)
-from ..mt5_connector import MT5Connector
 
 
 class OrderbookPanel(QWidget):

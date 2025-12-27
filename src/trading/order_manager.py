@@ -32,7 +32,7 @@ class OrderManager:
     
     def place_market_order(self, symbol: str, order_type: str, volume: float,
                           sl: float = 0.0, tp: float = 0.0, 
-                          comment: str = "Auto Trade") -> Optional[Dict]:
+                          comment: str = "Auto Trade", strategy_name: str = None) -> Optional[Dict]:
         """
         Place a market order
         
@@ -117,12 +117,24 @@ class OrderManager:
         if result is None:
             logger.error(f"mt5.place_order returned None for {symbol} {order_type} order")
             logger.error(f"Diagnostics: MT5 connected={self.mt5.is_connected()}, symbol={symbol}, order_type={order_type}")
-            system_log_service.log("ERROR", f"Order failed: no result from MT5 for {symbol} ({order_type})")
+            
+            # Check if this might be a connection/server issue
+            connection_ok = self.mt5.is_connected()
+            error_detail = "no response from server"
+            
+            if not connection_ok:
+                error_detail = "MT5 connection lost"
+            elif elapsed_time > 10.0:
+                error_detail = "server timeout (no response after 10+ seconds)"
+            else:
+                error_detail = "no response from server - check MT5 connection and AutoTrading settings"
+            
+            system_log_service.log("ERROR", f"Order failed: {error_detail} for {symbol} ({order_type})")
             return {
                 'success': False,
-                'error': 'MT5 place_order returned None - check MT5 connection and logs',
+                'error': f'Order failed: {error_detail}',
                 'retcode': 0,
-                'comment': 'MT5 place_order returned None'
+                'comment': error_detail
             }
         
         # Check if result contains error information
@@ -139,20 +151,83 @@ class OrderManager:
                 'error': error_msg
             }
         
-        # Only log as success if retcode indicates success
+        # Check if order was successful
+        # Success retcodes:
+        # 10009 (TRADE_RETCODE_DONE) = fully executed (position opened)
+        # 10010 (TRADE_RETCODE_DONE_PARTIAL) = partially executed (partial position opened)
+        # 10008 (TRADE_RETCODE_PLACED) = order placed but pending (not a position yet, but order accepted)
         retcode = result.get('retcode', 0)
-        if result.get('success', False) or retcode == 10009:  # TRADE_RETCODE_DONE
+        success = result.get('success', False)
+        
+        # Consider these retcodes as successful order placement
+        success_retcodes = [
+            10009,  # TRADE_RETCODE_DONE - fully executed
+            10010,  # TRADE_RETCODE_DONE_PARTIAL - partially executed
+            10008,  # TRADE_RETCODE_PLACED - order placed (pending execution)
+        ]
+        
+        is_success = success or retcode in success_retcodes
+        
+        if is_success:
             result['timestamp'] = datetime.now()
             result['symbol'] = symbol
             result['order_type'] = order_type
             self.order_history.append(result)
             ticket = result.get('order', 'N/A')
-            logger.info(f"✅ Market order placed successfully: {order_type} {volume} {symbol}, Ticket: {ticket}, Retcode: {retcode}")
-            system_log_service.log("TRADING", f"Order {ticket} placed for {symbol} ({order_type})")
+            
+            # Determine status message based on retcode
+            if retcode == 10009:
+                status_msg = "fully executed"
+            elif retcode == 10010:
+                status_msg = "partially executed"
+            elif retcode == 10008:
+                status_msg = "placed (pending execution)"
+            else:
+                status_msg = "placed"
+            
+            logger.info(f"✅ Market order {status_msg}: {order_type} {volume} {symbol}, Ticket: {ticket}, Retcode: {retcode}")
+            system_log_service.log("TRADING", f"Order {ticket} {status_msg} for {symbol} ({order_type})")
         else:
+            # Order failed - log detailed error
             comment = result.get('comment', 'No comment')
-            logger.warning(f"Order returned but may have failed: retcode={retcode}, comment={comment}, success={result.get('success', False)}")
-            system_log_service.log("WARNING", f"Order status uncertain for {symbol} ({order_type}): retcode={retcode} {comment}")
+            error_msg = result.get('error', '')
+            
+            # Build comprehensive error message
+            # Prefer error field (which now includes retcode meaning from mt5_connector)
+            # Otherwise fall back to comment with retcode
+            if error_msg:
+                full_error = error_msg  # Already includes retcode meaning from mt5_connector
+            elif comment and comment != 'No comment':
+                full_error = f"{comment} (retcode: {retcode})"
+            else:
+                # Fallback: provide retcode meaning
+                retcode_meanings = {
+                    10004: "Requote - price changed",
+                    10006: "Order rejected by broker",
+                    10007: "Order cancelled",
+                    10011: "General error",
+                    10012: "Timeout",
+                    10013: "Invalid request",
+                    10014: "Invalid volume",
+                    10015: "Invalid price",
+                    10016: "Invalid stop loss or take profit",
+                    10017: "Trading disabled",
+                    10018: "Market closed",
+                    10019: "Insufficient funds",
+                    10020: "Price changed",
+                    10031: "Connection error",
+                }
+                retcode_msg = retcode_meanings.get(retcode, f"Unknown error (code: {retcode})")
+                full_error = f"{retcode_msg} (retcode: {retcode})"
+            
+            logger.error(f"Order failed for {symbol} {order_type}: {full_error}")
+            # Log error with strategy name if provided
+            error_log_msg = f"Order failed for {symbol} ({order_type}): {full_error}"
+            system_log_service.log("ERROR", error_log_msg, strategy=strategy_name or "")
+            
+            # Log specific retcode for debugging
+            logger.error(f"Order failure details - Retcode: {retcode}, Comment: {comment}, Error: {error_msg}")
+        
         return result
     
     def close_position(self, ticket: int) -> bool:

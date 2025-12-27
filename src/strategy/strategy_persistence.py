@@ -121,6 +121,9 @@ class StrategyPersistence:
             # Save trade monitoring mode
             strategy_dict['trade_monitoring_mode'] = getattr(strategy, 'trade_monitoring_mode', 'LTP')
             
+            # Save Lot Size
+            strategy_dict['lot_size'] = getattr(strategy, 'lot_size', None)
+            
             # Save SL/TP configuration
             strategy_dict['sl_type'] = getattr(strategy, 'sl_type', None)
             strategy_dict['sl_value'] = getattr(strategy, 'sl_value', 20.0)
@@ -202,6 +205,13 @@ class StrategyPersistence:
             strategy = SuperTrendStrategy.from_dict(strategy_dict, mt5_connector=mt5_connector)
             strategy.enabled = enabled
             return strategy
+        elif strategy_dict.get('strategy_type') == 'simple_condition':
+            # Create SimpleConditionStrategy instance
+            from .simple_condition_strategy import SimpleConditionStrategy
+            mt5_connector = strategy_dict.get('_mt5_connector')  # Passed separately (optional)
+            strategy = SimpleConditionStrategy.from_dict(strategy_dict, mt5_connector=mt5_connector)
+            strategy.enabled = enabled
+            return strategy
         elif strategy_dict.get('type') == 'CustomStrategy':
             # Create a CustomStrategy instance (if available)
             if CustomStrategy is None:
@@ -251,6 +261,9 @@ class StrategyPersistence:
             
             # Load trade monitoring mode
             strategy.trade_monitoring_mode = strategy_dict.get('trade_monitoring_mode', 'LTP')
+            
+            # Load Lot Size
+            strategy.lot_size = strategy_dict.get('lot_size', None)
             
             # Load SL/TP configuration
             strategy.sl_type = strategy_dict.get('sl_type', None)

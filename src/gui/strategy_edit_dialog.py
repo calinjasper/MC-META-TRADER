@@ -130,6 +130,22 @@ class StrategyEditDialog(QDialog):
         sl_tp_group.setLayout(sl_tp_layout)
         content_layout.addWidget(sl_tp_group)
         
+        # Lot Size Configuration
+        lot_size_group = QGroupBox("Lot Size")
+        lot_size_layout = QFormLayout()
+        
+        self.lot_size_spin = QDoubleSpinBox()
+        self.lot_size_spin.setMinimum(0.01)
+        self.lot_size_spin.setMaximum(100.0)
+        self.lot_size_spin.setSingleStep(0.01)
+        self.lot_size_spin.setDecimals(2)
+        self.lot_size_spin.setValue(0.01)
+        self.lot_size_spin.setToolTip("Lot size for this strategy. Leave as default to use global default lot size.")
+        lot_size_layout.addRow("Lot Size:", self.lot_size_spin)
+        
+        lot_size_group.setLayout(lot_size_layout)
+        content_layout.addWidget(lot_size_group)
+        
         # Re-Entry Settings
         reentry_group = QGroupBox("Re-Entry Settings")
         reentry_layout = QFormLayout()
@@ -248,6 +264,16 @@ class StrategyEditDialog(QDialog):
             for condition in self.sell_conditions_data:
                 condition_text = self._format_condition(condition, "SELL")
                 self.sell_conditions_list.addItem(condition_text)
+        
+        # Load Lot Size
+        if hasattr(self.strategy, 'lot_size') and self.strategy.lot_size is not None:
+            self.lot_size_spin.setValue(self.strategy.lot_size)
+        else:
+            # Use default from config if strategy doesn't have lot_size set
+            from ..config import Config
+            config = Config()
+            default_lot = config.get('trading.default_lot_size', 0.01)
+            self.lot_size_spin.setValue(default_lot)
         
         # Load SL/TP
         self.sl_type_combo.setCurrentText(getattr(self.strategy, 'sl_type', 'Price (Pips)'))
@@ -416,6 +442,9 @@ class StrategyEditDialog(QDialog):
             if hasattr(self.strategy, 'sell_conditions'):
                 self.strategy.sell_conditions.clear()
                 self.strategy.sell_conditions.extend(self.sell_conditions_data)
+            
+            # Update Lot Size
+            self.strategy.lot_size = self.lot_size_spin.value()
             
             # Update SL/TP
             self.strategy.sl_type = self.sl_type_combo.currentData()

@@ -129,9 +129,16 @@ class RiskManager:
         return len(positions) < self.max_positions
     
     def validate_order(self, symbol: str, volume: float, 
-                      entry_price: float, stop_loss: float) -> Dict[str, any]:
+                      entry_price: float, stop_loss: float, take_profit: float = 0.0) -> Dict[str, any]:
         """
         Validate an order before execution
+        
+        Args:
+            symbol: Trading symbol
+            volume: Order volume
+            entry_price: Entry price
+            stop_loss: Stop loss price
+            take_profit: Take profit price (optional, defaults to 0.0 to skip TP validation)
         
         Returns:
             Dictionary with 'valid' (bool) and 'message' (str) keys
@@ -161,14 +168,28 @@ class RiskManager:
                 'message': f'Symbol {symbol} not found'
             }
         
+        # Get minimum distance requirement
+        trade_stops_level = symbol_info.get('trade_stops_level', 0)
+        point = symbol_info.get('point', 0.0001)
+        min_diff = trade_stops_level * point if trade_stops_level > 0 else 0
+        
         # Check if stop loss is too close
-        price_diff = abs(entry_price - stop_loss)
-        min_diff = symbol_info.get('trade_stops_level', 0) * symbol_info.get('point', 0.0001)
-        if price_diff < min_diff:
-            return {
-                'valid': False,
-                'message': f'Stop loss too close (minimum: {min_diff})'
-            }
+        if stop_loss > 0 and min_diff > 0:
+            sl_distance = abs(entry_price - stop_loss)
+            if sl_distance < min_diff:
+                return {
+                    'valid': False,
+                    'message': f'Stop loss too close (distance: {sl_distance:.5f}, minimum required: {min_diff:.5f}, trade_stops_level: {trade_stops_level})'
+                }
+        
+        # Check if take profit is too close
+        if take_profit > 0 and min_diff > 0:
+            tp_distance = abs(take_profit - entry_price)
+            if tp_distance < min_diff:
+                return {
+                    'valid': False,
+                    'message': f'Take profit too close (distance: {tp_distance:.5f}, minimum required: {min_diff:.5f}, trade_stops_level: {trade_stops_level})'
+                }
         
         return {
             'valid': True,
