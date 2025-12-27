@@ -15,6 +15,10 @@ from ..strategy.base_strategy import BaseStrategy
 from ..strategy.ohlc_price_strategy import OHLCPriceStrategy, OHLCPriceCondition
 from ..strategy.vwap_strategy import VWAPStrategy, VWAPCondition
 from ..strategy.strategy_persistence import StrategyPersistence
+from ..strategy.ema_strategy import EMAStrategy
+from ..indicators import SMA, EMA, RSI, MACD
+from ..indicators.vwap import VWAP
+from ..indicators.volume import Volume
 
 
 class StrategyEditDialog(QDialog):
@@ -59,6 +63,32 @@ class StrategyEditDialog(QDialog):
         
         basic_group.setLayout(basic_layout)
         content_layout.addWidget(basic_group)
+        
+        # Indicators Section
+        indicators_group = QGroupBox("Indicators")
+        indicators_layout = QVBoxLayout()
+        
+        self.indicators_list = QListWidget()
+        self.indicators_list.setMaximumHeight(150)
+        indicators_layout.addWidget(self.indicators_list)
+        
+        # Indicator buttons
+        indicator_btn_layout = QHBoxLayout()
+        self.add_indicator_btn = QPushButton("Add Indicator")
+        self.add_indicator_btn.clicked.connect(self.add_indicator)
+        indicator_btn_layout.addWidget(self.add_indicator_btn)
+        
+        self.edit_indicator_btn = QPushButton("Edit Selected")
+        self.edit_indicator_btn.clicked.connect(self.edit_indicator)
+        indicator_btn_layout.addWidget(self.edit_indicator_btn)
+        
+        self.remove_indicator_btn = QPushButton("Remove Selected")
+        self.remove_indicator_btn.clicked.connect(self.remove_indicator)
+        indicator_btn_layout.addWidget(self.remove_indicator_btn)
+        
+        indicators_layout.addLayout(indicator_btn_layout)
+        indicators_group.setLayout(indicators_layout)
+        content_layout.addWidget(indicators_group)
         
         # Buy Conditions
         buy_group = QGroupBox("Buy Conditions")
@@ -248,9 +278,15 @@ class StrategyEditDialog(QDialog):
         # Store conditions temporarily
         self.buy_conditions_data = []
         self.sell_conditions_data = []
+        
+        # Store indicator configurations temporarily
+        self.indicators_config = {}  # {name: {type, config}}
     
     def load_strategy(self):
         """Load strategy data into form"""
+        # Load indicators
+        self.load_indicators()
+        
         # Load buy conditions
         if hasattr(self.strategy, 'buy_conditions'):
             self.buy_conditions_data = list(self.strategy.buy_conditions)
@@ -439,6 +475,9 @@ class StrategyEditDialog(QDialog):
     def save_strategy(self):
         """Save strategy changes"""
         try:
+            # Update indicators
+            self.save_indicators()
+            
             # Update buy conditions
             if hasattr(self.strategy, 'buy_conditions'):
                 self.strategy.buy_conditions.clear()
@@ -519,4 +558,222 @@ class StrategyEditDialog(QDialog):
                 return f"{price_ref} {operator}"
         
         return str(condition)
+    
+    def load_indicators(self):
+        """Load current indicators from strategy"""
+        self.indicators_config.clear()
+        self.indicators_list.clear()
+        
+        if not hasattr(self.strategy, 'indicators') or not self.strategy.indicators:
+            return
+        
+        # Extract indicator configurations
+        for name, indicator in self.strategy.indicators.items():
+            ind_type = type(indicator).__name__
+            config = {}
+            
+            if hasattr(indicator, 'period'):
+                config['period'] = indicator.period
+            elif hasattr(indicator, 'fast_period'):  # MACD
+                config['fast_period'] = indicator.fast_period
+                config['slow_period'] = indicator.slow_period
+                config['signal_period'] = indicator.signal_period
+            elif hasattr(indicator, 'session_type'):  # VWAP
+                config['session_type'] = indicator.session_type
+                config['use_typical_price'] = getattr(indicator, 'use_typical_price', True)
+            
+            self.indicators_config[name] = {
+                'type': ind_type,
+                'config': config
+            }
+        
+        # Update list widget
+        self.update_indicator_list()
+    
+    def update_indicator_list(self):
+        """Update the indicators list widget"""
+        self.indicators_list.clear()
+        for name, ind_data in self.indicators_config.items():
+            ind_type = ind_data['type']
+            config = ind_data['config']
+            
+            # Format display text
+            if ind_type in ['SMA', 'EMA', 'RSI', 'Volume']:
+                period = config.get('period', '?')
+                display_text = f"{name} ({ind_type}, period: {period})"
+            elif ind_type == 'MACD':
+                fast = config.get('fast_period', '?')
+                slow = config.get('slow_period', '?')
+                signal = config.get('signal_period', '?')
+                display_text = f"{name} ({ind_type}, {fast}, {slow}, {signal})"
+            elif ind_type == 'VWAP':
+                session = config.get('session_type', '?')
+                display_text = f"{name} ({ind_type}, session: {session})"
+            else:
+                display_text = f"{name} ({ind_type})"
+            
+            self.indicators_list.addItem(display_text)
+    
+    def add_indicator(self):
+        """Add a new indicator"""
+        from .strategy_indicator_config_dialog import StrategyIndicatorConfigDialog
+        
+        dialog = StrategyIndicatorConfigDialog(self)
+        if dialog.exec() == dialog.DialogCode.Accepted:
+            config = dialog.get_config()
+            name = config['name']
+            
+            # Check if name already exists
+            if name in self.indicators_config:
+                QMessageBox.warning(
+                    self, "Duplicate Name",
+                    f"An indicator with name '{name}' already exists. Please choose a different name."
+                )
+                return
+            
+            # Store configuration
+            self.indicators_config[name] = {
+                'type': config['type'],
+                'config': {k: v for k, v in config.items() if k not in ['name', 'type']}
+            }
+            
+            self.update_indicator_list()
+    
+    def edit_indicator(self):
+        """Edit selected indicator"""
+        current_row = self.indicators_list.currentRow()
+        if current_row < 0:
+            QMessageBox.information(self, "No Selection", "Please select an indicator to edit.")
+            return
+        
+        # Get indicator name from list item
+        item = self.indicators_list.item(current_row)
+        display_text = item.text()
+        # Extract name (everything before the first '(')
+        name = display_text.split('(')[0].strip()
+        
+        if name not in self.indicators_config:
+            QMessageBox.warning(self, "Error", f"Indicator '{name}' not found in configuration.")
+            return
+        
+        ind_data = self.indicators_config[name]
+        ind_type = ind_data['type']
+        config = ind_data['config']
+        
+        from .strategy_indicator_config_dialog import StrategyIndicatorConfigDialog
+        
+        dialog = StrategyIndicatorConfigDialog(self, name, ind_type, config)
+        if dialog.exec() == dialog.DialogCode.Accepted:
+            new_config = dialog.get_config()
+            new_name = new_config['name']
+            
+            # If name changed, check for duplicates
+            if new_name != name and new_name in self.indicators_config:
+                QMessageBox.warning(
+                    self, "Duplicate Name",
+                    f"An indicator with name '{new_name}' already exists. Please choose a different name."
+                )
+                return
+            
+            # Update configuration
+            if new_name != name:
+                # Remove old entry and add new one
+                del self.indicators_config[name]
+            
+            self.indicators_config[new_name] = {
+                'type': new_config['type'],
+                'config': {k: v for k, v in new_config.items() if k not in ['name', 'type']}
+            }
+            
+            self.update_indicator_list()
+    
+    def remove_indicator(self):
+        """Remove selected indicator"""
+        current_row = self.indicators_list.currentRow()
+        if current_row < 0:
+            QMessageBox.information(self, "No Selection", "Please select an indicator to remove.")
+            return
+        
+        # Get indicator name from list item
+        item = self.indicators_list.item(current_row)
+        display_text = item.text()
+        name = display_text.split('(')[0].strip()
+        
+        reply = QMessageBox.question(
+            self, "Confirm Removal",
+            f"Are you sure you want to remove indicator '{name}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            if name in self.indicators_config:
+                del self.indicators_config[name]
+                self.update_indicator_list()
+    
+    def save_indicators(self):
+        """Save indicator configurations to strategy"""
+        # Clear existing indicators
+        self.strategy.indicators.clear()
+        
+        # Handle EMA Strategy special case
+        if isinstance(self.strategy, EMAStrategy):
+            # EMA Strategy uses ema_periods dict
+            ema_periods = {}
+            for name, ind_data in self.indicators_config.items():
+                if ind_data['type'] == 'EMA':
+                    # Extract ema number from name (e.g., "EMA_1" -> "ema_1")
+                    if name.startswith('EMA_') or name.startswith('ema_'):
+                        ema_key = name.lower()
+                        period = ind_data['config'].get('period', 20)
+                        ema_periods[ema_key] = period
+            
+            if ema_periods:
+                self.strategy.ema_periods = ema_periods
+                self.strategy._rebuild_indicators()
+        
+        # Handle VWAP Strategy special case
+        elif isinstance(self.strategy, VWAPStrategy):
+            # VWAP Strategy has built-in VWAP and Volume indicators
+            for name, ind_data in self.indicators_config.items():
+                if ind_data['type'] == 'VWAP':
+                    config = ind_data['config']
+                    session_type = config.get('session_type', 'NY')
+                    use_typical_price = config.get('use_typical_price', True)
+                    vwap_ind = VWAP(session_type=session_type, use_typical_price=use_typical_price)
+                    self.strategy.vwap_indicator = vwap_ind
+                    self.strategy.add_indicator(name, vwap_ind)
+                elif ind_data['type'] == 'Volume':
+                    period = ind_data['config'].get('period', 20)
+                    volume_ind = Volume(period=period)
+                    self.strategy.volume_indicator = volume_ind
+                    self.strategy.add_indicator(name, volume_ind)
+        
+        # Handle other indicators (SMA, RSI, MACD, etc.)
+        else:
+            for name, ind_data in self.indicators_config.items():
+                ind_type = ind_data['type']
+                config = ind_data['config']
+                
+                if ind_type == 'SMA':
+                    period = config.get('period', 20)
+                    self.strategy.add_indicator(name, SMA(period))
+                elif ind_type == 'EMA':
+                    period = config.get('period', 20)
+                    self.strategy.add_indicator(name, EMA(period))
+                elif ind_type == 'RSI':
+                    period = config.get('period', 14)
+                    self.strategy.add_indicator(name, RSI(period))
+                elif ind_type == 'MACD':
+                    fast = config.get('fast_period', 12)
+                    slow = config.get('slow_period', 26)
+                    signal = config.get('signal_period', 9)
+                    self.strategy.add_indicator(name, MACD(fast, slow, signal))
+                elif ind_type == 'VWAP':
+                    session_type = config.get('session_type', 'NY')
+                    use_typical_price = config.get('use_typical_price', True)
+                    self.strategy.add_indicator(name, VWAP(session_type=session_type, use_typical_price=use_typical_price))
+                elif ind_type == 'Volume':
+                    period = config.get('period', 20)
+                    self.strategy.add_indicator(name, Volume(period=period))
 

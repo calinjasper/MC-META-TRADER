@@ -84,27 +84,30 @@ class StrategyPersistence:
         # Get base dict
         strategy_dict = strategy.to_dict()
         
+        # Save indicator configurations for ALL strategy types (not just CustomStrategy)
+        strategy_dict['indicators_config'] = {}
+        if hasattr(strategy, 'indicators') and strategy.indicators:
+            for ind_name, indicator in strategy.indicators.items():
+                ind_type = type(indicator).__name__
+                ind_config = {'type': ind_type}
+                
+                if hasattr(indicator, 'period'):
+                    ind_config['period'] = indicator.period
+                elif hasattr(indicator, 'fast_period'):  # MACD
+                    ind_config['fast_period'] = indicator.fast_period
+                    ind_config['slow_period'] = indicator.slow_period
+                    ind_config['signal_period'] = indicator.signal_period
+                elif hasattr(indicator, 'session_type'):  # VWAP
+                    ind_config['session_type'] = indicator.session_type
+                    ind_config['use_typical_price'] = getattr(indicator, 'use_typical_price', True)
+                
+                strategy_dict['indicators_config'][ind_name] = ind_config
+        
         # Add additional info for custom strategies
         if hasattr(strategy, 'builder'):
             # This is a CustomStrategy - save its configuration
             strategy_dict['type'] = 'CustomStrategy'
-            strategy_dict['indicators_config'] = {}
             strategy_dict['entry_conditions'] = []
-            
-            # Save indicator configurations
-            for ind_name, indicator in strategy.indicators.items():
-                if hasattr(indicator, 'period'):
-                    strategy_dict['indicators_config'][ind_name] = {
-                        'type': type(indicator).__name__,
-                        'period': indicator.period
-                    }
-                elif hasattr(indicator, 'fast_period'):  # MACD
-                    strategy_dict['indicators_config'][ind_name] = {
-                        'type': type(indicator).__name__,
-                        'fast_period': indicator.fast_period,
-                        'slow_period': indicator.slow_period,
-                        'signal_period': indicator.signal_period
-                    }
             
             # Save entry condition texts for recreation
             if hasattr(strategy, 'entry_conditions_text'):
@@ -168,12 +171,44 @@ class StrategyPersistence:
         if not name or not symbol:
             return None
         
+        # Helper function to load indicators for any strategy type
+        def load_indicators_to_strategy(strategy, indicators_config):
+            """Load indicators from config into strategy"""
+            from ..indicators.vwap import VWAP
+            from ..indicators.volume import Volume
+            for ind_name, ind_config in indicators_config.items():
+                ind_type = ind_config.get('type')
+                if ind_type == 'SMA':
+                    period = ind_config.get('period', 20)
+                    strategy.add_indicator(ind_name, SMA(period))
+                elif ind_type == 'EMA':
+                    period = ind_config.get('period', 20)
+                    strategy.add_indicator(ind_name, EMA(period))
+                elif ind_type == 'RSI':
+                    period = ind_config.get('period', 14)
+                    strategy.add_indicator(ind_name, RSI(period))
+                elif ind_type == 'MACD':
+                    fast = ind_config.get('fast_period', 12)
+                    slow = ind_config.get('slow_period', 26)
+                    signal = ind_config.get('signal_period', 9)
+                    strategy.add_indicator(ind_name, MACD(fast, slow, signal))
+                elif ind_type == 'VWAP':
+                    session_type = ind_config.get('session_type', 'NY')
+                    use_typical_price = ind_config.get('use_typical_price', True)
+                    strategy.add_indicator(ind_name, VWAP(session_type=session_type, use_typical_price=use_typical_price))
+                elif ind_type == 'Volume':
+                    period = ind_config.get('period', 20)
+                    strategy.add_indicator(ind_name, Volume(period=period))
+        
         # Create strategy based on type
         if strategy_dict.get('strategy_type') == 'ohlc_price':
             # Create OHLCPriceStrategy instance
             from .ohlc_price_strategy import OHLCPriceStrategy, OHLCPriceCondition
             strategy = OHLCPriceStrategy.from_dict(strategy_dict, market_data_panel=None)
             strategy.enabled = enabled
+            # Load indicators
+            indicators_config = strategy_dict.get('indicators_config', {})
+            load_indicators_to_strategy(strategy, indicators_config)
             return strategy
         elif strategy_dict.get('strategy_type') == 'vwap':
             # Create VWAPStrategy instance
@@ -182,6 +217,9 @@ class StrategyPersistence:
             mt5_connector = strategy_dict.get('_mt5_connector')  # Passed separately
             strategy = VWAPStrategy.from_dict(strategy_dict, mt5_connector=mt5_connector)
             strategy.enabled = enabled
+            # Load indicators (VWAP strategy has built-in VWAP/Volume, but can have additional indicators)
+            indicators_config = strategy_dict.get('indicators_config', {})
+            load_indicators_to_strategy(strategy, indicators_config)
             return strategy
         elif strategy_dict.get('strategy_type') == 'smc':
             # Create SMCStrategy instance
@@ -189,6 +227,9 @@ class StrategyPersistence:
             mt5_connector = strategy_dict.get('_mt5_connector')  # Passed separately (optional)
             strategy = SMCStrategy.from_dict(strategy_dict, mt5_connector=mt5_connector)
             strategy.enabled = enabled
+            # Load indicators
+            indicators_config = strategy_dict.get('indicators_config', {})
+            load_indicators_to_strategy(strategy, indicators_config)
             return strategy
         elif strategy_dict.get('strategy_type') == 'ema':
             # Create EMAStrategy instance
@@ -196,6 +237,9 @@ class StrategyPersistence:
             mt5_connector = strategy_dict.get('_mt5_connector')  # Passed separately (optional)
             strategy = EMAStrategy.from_dict(strategy_dict, mt5_connector=mt5_connector)
             strategy.enabled = enabled
+            # Load indicators (EMA strategy has built-in EMAs, but can have additional indicators)
+            indicators_config = strategy_dict.get('indicators_config', {})
+            load_indicators_to_strategy(strategy, indicators_config)
             return strategy
         elif strategy_dict.get('strategy_type') == 'supertrend':
             # Create SuperTrendStrategy instance
@@ -203,6 +247,9 @@ class StrategyPersistence:
             mt5_connector = strategy_dict.get('_mt5_connector')  # Passed separately (optional)
             strategy = SuperTrendStrategy.from_dict(strategy_dict, mt5_connector=mt5_connector)
             strategy.enabled = enabled
+            # Load indicators
+            indicators_config = strategy_dict.get('indicators_config', {})
+            load_indicators_to_strategy(strategy, indicators_config)
             return strategy
         elif strategy_dict.get('type') == 'CustomStrategy':
             # Create a CustomStrategy instance (if available)
@@ -214,24 +261,9 @@ class StrategyPersistence:
             strategy = CustomStrategy(name, symbol, builder=None, timeframe=timeframe)
             strategy.enabled = enabled
             
-            # Recreate indicators
+            # Recreate indicators (using helper function defined above)
             indicators_config = strategy_dict.get('indicators_config', {})
-            for ind_name, ind_config in indicators_config.items():
-                ind_type = ind_config.get('type')
-                if ind_type == 'SMA':
-                    period = ind_config.get('period', 14)
-                    strategy.add_indicator(ind_name, SMA(period))
-                elif ind_type == 'EMA':
-                    period = ind_config.get('period', 14)
-                    strategy.add_indicator(ind_name, EMA(period))
-                elif ind_type == 'RSI':
-                    period = ind_config.get('period', 14)
-                    strategy.add_indicator(ind_name, RSI(period))
-                elif ind_type == 'MACD':
-                    fast = ind_config.get('fast_period', 12)
-                    slow = ind_config.get('slow_period', 26)
-                    signal = ind_config.get('signal_period', 9)
-                    strategy.add_indicator(ind_name, MACD(fast, slow, signal))
+            load_indicators_to_strategy(strategy, indicators_config)
             
             # Recreate time rules
             time_rules = strategy_dict.get('time_rules', [])
