@@ -566,49 +566,197 @@ class MT5Connector:
         logger.info(f"place_order: Current price for {symbol} - bid={tick.bid}, ask={tick.ask}")
         
         # Normalize price
+        # For market orders (price=0.0), use appropriate price based on order type
+        # For BUY: use ASK (we buy at ask price)
+        # For SELL: use BID (we sell at bid price)
         if price == 0.0:
             if order_type == mt5.ORDER_TYPE_BUY:
                 price = tick.ask
+                logger.info(f"place_order: Market BUY order - using ASK price: {price} (bid={tick.bid}, ask={tick.ask})")
+                # Defensive check: ensure we're using ASK, not BID
+                if price == tick.bid:
+                    logger.error(f"CRITICAL: Price was set to BID instead of ASK for BUY order! Fixing...")
+                    price = tick.ask
+                    logger.info(f"place_order: Corrected price to ASK: {price}")
             elif order_type == mt5.ORDER_TYPE_SELL:
                 price = tick.bid
+                logger.info(f"place_order: Market SELL order - using BID price: {price} (bid={tick.bid}, ask={tick.ask})")
+                # Defensive check: ensure we're using BID, not ASK
+                if price == tick.ask:
+                    logger.error(f"CRITICAL: Price was set to ASK instead of BID for SELL order! Fixing...")
+                    price = tick.bid
+                    logger.info(f"place_order: Corrected price to BID: {price}")
+        else:
+            # Price was provided (pending order), log which price is being used
+            logger.info(f"place_order: Pending order - using provided price: {price}")
         
         # Normalize prices to symbol's digits
         digits = symbol_info.digits
         price = round(price, digits)
+        
+        # Final validation: ensure price is correct for order type
+        if order_type == mt5.ORDER_TYPE_BUY and price <= tick.bid:
+            logger.error(f"CRITICAL: BUY order price ({price}) is <= BID ({tick.bid}). This is invalid! Using ASK instead.")
+            price = round(tick.ask, digits)
+        elif order_type == mt5.ORDER_TYPE_SELL and price >= tick.ask:
+            logger.error(f"CRITICAL: SELL order price ({price}) is >= ASK ({tick.ask}). This is invalid! Using BID instead.")
+            price = round(tick.bid, digits)
+        
+        # Validate and adjust SL/TP relative to current entry price
+        # This ensures SL/TP are valid even if price changed slightly since calculation
+        trade_stops_level = symbol_info.trade_stops_level
+        point = symbol_info.point
+        min_distance = trade_stops_level * point if trade_stops_level > 0 else 0
+        
+        logger.info(f"place_order: Validating and adjusting SL/TP for {symbol} - price={price}, sl={sl}, tp={tp}, order_type={order_type}, min_distance={min_distance}")
+        logger.info(f"place_order: Price source - bid={tick.bid}, ask={tick.ask}, using={'ASK' if order_type == mt5.ORDER_TYPE_BUY else 'BID'}")
+        
+        # Validate and adjust SL
         if sl > 0:
             sl = round(sl, digits)
+            
+            # Check if SL is on correct side
+            if order_type == mt5.ORDER_TYPE_BUY:
+                if sl >= price:
+                    # SL is invalid (above/equal to entry) - adjust it
+                    if min_distance > 0:
+                        sl = price - min_distance
+                        sl = round(sl, digits)
+                        logger.warning(f"SL was above entry price for BUY order. Adjusted SL to {sl} (min distance: {min_distance})")
+                    else:
+                        # No minimum distance requirement, use a reasonable default
+                        # For gold (XAUUSDm), use at least 0.5 (50 points) to ensure broker acceptance
+                        # For other symbols, use 10 points or 0.1% of price, whichever is larger
+                        default_distance = max(point * 50, price * 0.001)  # At least 50 points or 0.1% of price
+                        sl = price - default_distance
+                        sl = round(sl, digits)
+                        logger.warning(f"SL was above entry price for BUY order. Adjusted SL to {sl} (default distance: {default_distance:.5f})")
+                else:
+                    # SL is below entry (correct), check minimum distance
+                    sl_distance = abs(price - sl)
+                    if min_distance > 0 and sl_distance < min_distance:
+                        sl = price - min_distance
+                        sl = round(sl, digits)
+                        logger.warning(f"SL too close to entry price. Adjusted SL to {sl} (min distance: {min_distance})")
+            else:  # SELL
+                if sl <= price:
+                    # SL is invalid (below/equal to entry) - adjust it
+                    if min_distance > 0:
+                        sl = price + min_distance
+                        sl = round(sl, digits)
+                        logger.warning(f"SL was below entry price for SELL order. Adjusted SL to {sl} (min distance: {min_distance})")
+                    else:
+                        # No minimum distance requirement, use a reasonable default
+                        # For gold (XAUUSDm), use at least 0.5 (50 points) to ensure broker acceptance
+                        # For other symbols, use 10 points or 0.1% of price, whichever is larger
+                        default_distance = max(point * 50, price * 0.001)  # At least 50 points or 0.1% of price
+                        sl = price + default_distance
+                        sl = round(sl, digits)
+                        logger.warning(f"SL was below entry price for SELL order. Adjusted SL to {sl} (default distance: {default_distance:.5f})")
+                else:
+                    # SL is above entry (correct), check minimum distance
+                    sl_distance = abs(sl - price)
+                    if min_distance > 0 and sl_distance < min_distance:
+                        sl = price + min_distance
+                        sl = round(sl, digits)
+                        logger.warning(f"SL too close to entry price. Adjusted SL to {sl} (min distance: {min_distance})")
+        
+        # Validate and adjust TP
         if tp > 0:
             tp = round(tp, digits)
+            
+            # Check if TP is on correct side
+            if order_type == mt5.ORDER_TYPE_BUY:
+                if tp <= price:
+                    # TP is invalid (below/equal to entry) - adjust it
+                    if min_distance > 0:
+                        tp = price + min_distance
+                        tp = round(tp, digits)
+                        logger.warning(f"TP was below entry price for BUY order. Adjusted TP to {tp} (min distance: {min_distance})")
+                    else:
+                        # No minimum distance requirement, use a reasonable default
+                        # For gold (XAUUSDm), use at least 0.5 (50 points) to ensure broker acceptance
+                        # For other symbols, use 10 points or 0.1% of price, whichever is larger
+                        default_distance = max(point * 50, price * 0.001)  # At least 50 points or 0.1% of price
+                        tp = price + default_distance
+                        tp = round(tp, digits)
+                        logger.warning(f"TP was below entry price for BUY order. Adjusted TP to {tp} (default distance: {default_distance:.5f})")
+                else:
+                    # TP is above entry (correct), check minimum distance
+                    tp_distance = abs(tp - price)
+                    if min_distance > 0 and tp_distance < min_distance:
+                        tp = price + min_distance
+                        tp = round(tp, digits)
+                        logger.warning(f"TP too close to entry price. Adjusted TP to {tp} (min distance: {min_distance})")
+            else:  # SELL
+                if tp >= price:
+                    # TP is invalid (above/equal to entry) - adjust it
+                    if min_distance > 0:
+                        tp = price - min_distance
+                        tp = round(tp, digits)
+                        logger.warning(f"TP was above entry price for SELL order. Adjusted TP to {tp} (min distance: {min_distance})")
+                    else:
+                        # No minimum distance requirement, use a reasonable default
+                        # For gold (XAUUSDm), use at least 0.5 (50 points) to ensure broker acceptance
+                        # For other symbols, use 10 points or 0.1% of price, whichever is larger
+                        default_distance = max(point * 50, price * 0.001)  # At least 50 points or 0.1% of price
+                        tp = price - default_distance
+                        tp = round(tp, digits)
+                        logger.warning(f"TP was above entry price for SELL order. Adjusted TP to {tp} (default distance: {default_distance:.5f})")
+                else:
+                    # TP is below entry (correct), check minimum distance
+                    tp_distance = abs(price - tp)
+                    if min_distance > 0 and tp_distance < min_distance:
+                        tp = price - min_distance
+                        tp = round(tp, digits)
+                        logger.warning(f"TP too close to entry price. Adjusted TP to {tp} (min distance: {min_distance})")
         
-        # Validate SL/TP relative to entry price
-        logger.info(f"place_order: Validating SL/TP for {symbol} - price={price}, sl={sl}, tp={tp}, order_type={order_type}")
+        # Final validation - ensure SL/TP are still valid after adjustments
         if sl > 0:
             if order_type == mt5.ORDER_TYPE_BUY and sl >= price:
-                error_msg = f"Stop loss ({sl}) must be below entry price ({price}) for BUY order"
-                logger.info(f"place_order validation failed: {error_msg}")
+                error_msg = f"Stop loss ({sl}) is invalid for BUY order at price {price}. Cannot adjust automatically."
                 logger.error(error_msg)
                 print(f"ERROR: {error_msg}")
-                return None
+                return {
+                    'success': False,
+                    'retcode': 10016,
+                    'error': error_msg,
+                    'comment': 'Invalid stops - SL adjustment failed'
+                }
             elif order_type == mt5.ORDER_TYPE_SELL and sl <= price:
-                error_msg = f"Stop loss ({sl}) must be above entry price ({price}) for SELL order"
-                logger.info(f"place_order validation failed: {error_msg}")
+                error_msg = f"Stop loss ({sl}) is invalid for SELL order at price {price}. Cannot adjust automatically."
                 logger.error(error_msg)
                 print(f"ERROR: {error_msg}")
-                return None
+                return {
+                    'success': False,
+                    'retcode': 10016,
+                    'error': error_msg,
+                    'comment': 'Invalid stops - SL adjustment failed'
+                }
         
         if tp > 0:
             if order_type == mt5.ORDER_TYPE_BUY and tp <= price:
-                error_msg = f"Take profit ({tp}) must be above entry price ({price}) for BUY order"
-                logger.info(f"place_order validation failed: {error_msg}")
+                error_msg = f"Take profit ({tp}) is invalid for BUY order at price {price}. Cannot adjust automatically."
                 logger.error(error_msg)
                 print(f"ERROR: {error_msg}")
-                return None
+                return {
+                    'success': False,
+                    'retcode': 10016,
+                    'error': error_msg,
+                    'comment': 'Invalid stops - TP adjustment failed'
+                }
             elif order_type == mt5.ORDER_TYPE_SELL and tp >= price:
-                error_msg = f"Take profit ({tp}) must be below entry price ({price}) for SELL order"
-                logger.info(f"place_order validation failed: {error_msg}")
+                error_msg = f"Take profit ({tp}) is invalid for SELL order at price {price}. Cannot adjust automatically."
                 logger.error(error_msg)
                 print(f"ERROR: {error_msg}")
-                return None
+                return {
+                    'success': False,
+                    'retcode': 10016,
+                    'error': error_msg,
+                    'comment': 'Invalid stops - TP adjustment failed'
+                }
+        
+        logger.info(f"place_order: Final SL/TP values - price={price}, sl={sl}, tp={tp}")
         
         # Determine order filling type
         # filling_mode is a bitmask where:
@@ -809,7 +957,13 @@ class MT5Connector:
                 # Join with " - " for single line display in UI
                 error_message = " - ".join(error_details)
             else:
-                error_message = f"Order placement failed for {symbol} - check MT5 connection and logs"
+                # Check if this is a connection/server issue
+                if account_check is None:
+                    error_message = f"Order placement failed for {symbol} - MT5 connection lost (no response from server)"
+                elif error and isinstance(error, tuple) and error[0] == 10031:
+                    error_message = f"Order placement failed for {symbol} - Connection error (no response from server)"
+                else:
+                    error_message = f"Order placement failed for {symbol} - no response from server (check MT5 connection and AutoTrading settings)"
             
             # Return error dictionary instead of None
             return {
@@ -871,6 +1025,35 @@ class MT5Connector:
         else:
             # Order was not executed successfully
             logger.error(f"Order failed: retcode={retcode}, comment={result.comment}")
+            
+            # Get human-readable error message based on retcode
+            retcode_meanings = {
+                10004: "Requote - price changed, please retry",
+                10006: "Order rejected by broker",
+                10007: "Order cancelled",
+                10011: "General error",
+                10012: "Timeout",
+                10013: "Invalid request",
+                10014: "Invalid volume",
+                10015: "Invalid price",
+                10016: "Invalid stop loss or take profit",
+                10017: "Trading disabled",
+                10018: "Market closed",
+                10019: "Insufficient funds",
+                10020: "Price changed",
+                10031: "Connection error",
+            }
+            
+            # Build comprehensive error message
+            comment = result.comment if hasattr(result, 'comment') else ''
+            retcode_msg = retcode_meanings.get(retcode, f"Unknown error (code: {retcode})")
+            
+            # Combine MT5 comment with retcode meaning for clarity
+            if comment:
+                error_message = f"{comment} - {retcode_msg}"
+            else:
+                error_message = retcode_msg
+            
             # Return the result anyway so caller can see the retcode and comment
             return {
                 'order': result.order if hasattr(result, 'order') else 0,
@@ -878,7 +1061,8 @@ class MT5Connector:
                 'price': result.price if hasattr(result, 'price') else 0.0,
                 'bid': result.bid if hasattr(result, 'bid') else 0.0,
                 'ask': result.ask if hasattr(result, 'ask') else 0.0,
-                'comment': result.comment if hasattr(result, 'comment') else '',
+                'comment': comment,
+                'error': error_message,  # Add error field with comprehensive message
                 'request_id': result.request_id if hasattr(result, 'request_id') else 0,
                 'retcode': retcode,
                 'success': False,

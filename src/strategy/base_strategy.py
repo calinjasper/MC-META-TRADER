@@ -78,6 +78,9 @@ class BaseStrategy(ABC):
 
         # Trade direction
         self.trade_direction: str = "both"  # "both" | "long" | "short"
+        
+        # Lot size for this strategy (None = use default from config)
+        self.lot_size: Optional[float] = None
     
     def add_indicator(self, name: str, indicator: any) -> None:
         """Add an indicator to the strategy"""
@@ -363,5 +366,8 @@ class BaseStrategy(ABC):
 
             # Trade direction
             'trade_direction': getattr(self, 'trade_direction', 'both'),
+            
+            # Lot size
+            'lot_size': getattr(self, 'lot_size', None),
         }
 

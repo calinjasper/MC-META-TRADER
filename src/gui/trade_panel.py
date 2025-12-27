@@ -954,8 +954,8 @@ class TradePanel(QWidget):
             # Update risk calculator even if no SL (will show --)
             self.update_risk_calculator()
         
-        # Validate order
-        validation = self.risk_manager.validate_order(symbol, volume, entry_price, sl)
+        # Validate order (including TP distance)
+        validation = self.risk_manager.validate_order(symbol, volume, entry_price, sl, tp)
         if not validation['valid']:
             QMessageBox.warning(self, "Validation Error", validation['message'])
             return

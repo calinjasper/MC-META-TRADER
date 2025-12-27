@@ -351,6 +351,7 @@ class SuperTrendStrategy(BaseStrategy):
 
         # Restore common configuration (backward compatible)
         strategy.trade_monitoring_mode = data.get("trade_monitoring_mode", getattr(strategy, "trade_monitoring_mode", "LTP"))
+        strategy.lot_size = data.get("lot_size", getattr(strategy, "lot_size", None))
         strategy.sl_type = data.get("sl_type", getattr(strategy, "sl_type", None))
         strategy.sl_value = data.get("sl_value", getattr(strategy, "sl_value", 20.0))
         strategy.sl_enabled = data.get("sl_enabled", getattr(strategy, "sl_enabled", True))

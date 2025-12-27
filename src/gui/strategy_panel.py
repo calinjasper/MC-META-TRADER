@@ -396,19 +396,146 @@ class StrategyPanel(QWidget):
                     f"Strategy {strategy_name} manual execute triggered ({signal})",
                     strategy=strategy_name,
                 )
-                self.execute_signal_handler(strategy, signal)
-                QMessageBox.information(self, "Trade Executed", 
-                                      f"Strategy '{strategy_name}' executed {signal} signal.\n"
-                                      f"Check the orderbook for trade details.")
-                # Refresh strategies table to show updated positions
-                self.update_strategies()
+                success, error_msg = self.execute_signal_handler(strategy, signal)
+                if success:
+                    QMessageBox.information(self, "Trade Executed", 
+                                          f"Strategy '{strategy_name}' executed {signal} signal.\n"
+                                          f"Check the orderbook for trade details.")
+                    # Refresh strategies table to show updated positions
+                    self.update_strategies()
+                    if hasattr(self, 'update_positions'):
+                        self.update_positions()
+                else:
+                    # Show detailed error message if available
+                    error_details = error_msg if error_msg else "Unknown error occurred"
+                    QMessageBox.warning(self, "Trade Execution Failed", 
+                                      f"Failed to execute {signal} signal for strategy '{strategy_name}'.\n\n"
+                                      f"Reason: {error_details}")
             else:
-                # Condition not met
-                QMessageBox.information(self, "Condition Not Met", 
-                                      f"Strategy '{strategy_name}' condition is not currently met.\n"
-                                      f"No signal generated.")
+                # Condition not met - offer to place order directly
+                reply = QMessageBox.question(
+                    self, 
+                    "Condition Not Met", 
+                    f"Strategy '{strategy_name}' condition is not currently met.\n"
+                    f"No signal generated.\n\n"
+                    f"Would you like to place a direct market order anyway?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No
+                )
+                
+                if reply == QMessageBox.StandardButton.Yes:
+                    # Ask user which direction they want using a custom dialog
+                    from PyQt6.QtWidgets import QDialog, QVBoxLayout, QPushButton, QLabel
+                    
+                    dialog = QDialog(self)
+                    dialog.setWindowTitle("Select Order Direction")
+                    dialog.setModal(True)
+                    layout = QVBoxLayout(dialog)
+                    
+                    label = QLabel(f"Select order direction for {symbol}:")
+                    layout.addWidget(label)
+                    
+                    def place_buy():
+                        dialog.accept()
+                        self.place_direct_order(strategy, "BUY")
+                    
+                    def place_sell():
+                        dialog.accept()
+                        self.place_direct_order(strategy, "SELL")
+                    
+                    buy_btn = QPushButton("BUY")
+                    buy_btn.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; padding: 10px;")
+                    buy_btn.clicked.connect(place_buy)
+                    layout.addWidget(buy_btn)
+                    
+                    sell_btn = QPushButton("SELL")
+                    sell_btn.setStyleSheet("background-color: #f44336; color: white; font-weight: bold; padding: 10px;")
+                    sell_btn.clicked.connect(place_sell)
+                    layout.addWidget(sell_btn)
+                    
+                    cancel_btn = QPushButton("Cancel")
+                    cancel_btn.clicked.connect(dialog.reject)
+                    layout.addWidget(cancel_btn)
+                    
+                    dialog.exec()
         
         except Exception as e:
             logger.error(f"Error in manual_execute_strategy for {strategy_name}: {e}", exc_info=True)
             QMessageBox.critical(self, "Error", f"Error executing strategy: {str(e)}")
+    
+    def place_direct_order(self, strategy, order_type: str):
+        """Place a direct market order without checking conditions"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        if not self.execute_signal_handler:
+            QMessageBox.warning(self, "Error", "Execute signal handler not available")
+            return
+        
+        if not self.mt5 or not self.mt5.is_connected():
+            QMessageBox.warning(self, "Error", "MT5 is not connected")
+            return
+        
+        try:
+            symbol = strategy.symbol
+            
+            # Find the correct symbol case from data feed (case-insensitive)
+            actual_symbol = symbol
+            if self.data_feed:
+                for feed_symbol in self.data_feed.symbols:
+                    if feed_symbol.upper() == symbol.upper():
+                        actual_symbol = feed_symbol
+                        break
+            
+            # Ensure symbol is in data feed
+            if self.data_feed and actual_symbol not in self.data_feed.symbols:
+                if self.mt5.is_connected():
+                    self.data_feed.add_symbol(actual_symbol)
+                    # Try to find the correct case after adding
+                    for feed_symbol in self.data_feed.symbols:
+                        if feed_symbol.upper() == symbol.upper():
+                            actual_symbol = feed_symbol
+                            break
+            
+            # Get current tick
+            tick = None
+            if self.data_feed:
+                tick = self.data_feed.get_latest_tick(actual_symbol)
+            
+            if not tick and self.mt5.is_connected():
+                tick = self.mt5.get_tick(actual_symbol)
+            
+            if not tick or 'ask' not in tick or 'bid' not in tick:
+                QMessageBox.warning(self, "Error", f"Could not get current price for {actual_symbol}")
+                return
+            
+            logger.info(f"Placing direct {order_type} order for {actual_symbol} (bypassing conditions)")
+            
+            # Execute the order using the same handler as strategy signals
+            # This will handle SL/TP calculation and order placement
+            success, error_msg = self.execute_signal_handler(strategy, order_type)
+            
+            if success:
+                QMessageBox.information(
+                    self, 
+                    "Order Placed", 
+                    f"Direct {order_type} order placed successfully for {strategy.name}.\n"
+                    f"Symbol: {actual_symbol}\n"
+                    f"Check the orderbook for trade details."
+                )
+                # Refresh strategies table to show updated positions
+                self.update_strategies()
+                self.update_positions()
+            else:
+                error_details = error_msg if error_msg else "Unknown error occurred"
+                QMessageBox.warning(
+                    self, 
+                    "Order Failed", 
+                    f"Failed to place {order_type} order for strategy '{strategy.name}'.\n\n"
+                    f"Reason: {error_details}"
+                )
+        
+        except Exception as e:
+            logger.error(f"Error in place_direct_order for {strategy.name}: {e}", exc_info=True)
+            QMessageBox.critical(self, "Error", f"Error placing direct order: {str(e)}")
 
