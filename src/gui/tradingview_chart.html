@@ -42,6 +42,37 @@
         z-index: 1000;
         pointer-events: none;
       }
+
+      #crosshair-info {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        color: #ffffff;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+        font-size: 12px;
+        padding: 6px 10px;
+        background-color: rgba(0, 0, 0, 0.7);
+        border-radius: 4px;
+        z-index: 1000;
+        pointer-events: none;
+        display: none;
+      }
+
+      #crosshair-info .price {
+        font-weight: bold;
+        color: #4CAF50;
+      }
+
+      #crosshair-info .time {
+        color: #cccccc;
+        margin-top: 2px;
+      }
+
+      #crosshair-info .ohlc {
+        color: #cccccc;
+        font-size: 11px;
+        margin-top: 4px;
+      }
     </style>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js?v=3.8.0" 
             onerror="console.error('Failed to load TradingView library'); document.getElementById('loading').innerText='Error: Failed to load TradingView library from CDN';">
@@ -53,6 +84,11 @@
   <body>
     <div id="loading">Loading TradingView Chart...</div>
     <div id="symbol-name"></div>
+    <div id="crosshair-info">
+      <div class="price">Price: --</div>
+      <div class="time">Time: --</div>
+      <div class="ohlc">O: --  H: --  L: --  C: --</div>
+    </div>
     <div id="chart"></div>
     <script>
       // Check if libraries loaded
@@ -86,7 +122,7 @@
         loadingEl.style.display = 'none';
       }
 
-      const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+      let currentTheme = {
         layout: {
           backgroundColor: '#050505',
           textColor: '#ffffff',
@@ -96,19 +132,138 @@
           horzLines: { color: '#222' },
         },
         rightPriceScale: { borderColor: '#444' },
-        timeScale: { borderColor: '#444' },
-      });
+        timeScale: {
+          borderColor: '#444',
+          timeVisible: true,
+          secondsVisible: false,
+          rightOffset: 12,
+          barSpacing: 3,
+        },
+      };
+      
+      const chart = LightweightCharts.createChart(document.getElementById('chart'), currentTheme);
+      
+      function applyTheme(theme) {
+        try {
+          currentTheme = theme;
+          // Apply theme to chart
+          chart.applyOptions({
+            layout: theme.layout,
+            grid: theme.grid,
+            rightPriceScale: theme.priceScale,
+            timeScale: theme.timeScale,
+          });
+          
+          // Update main series colors if it exists and is candlestick
+          if (mainSeries && theme.candles) {
+            try {
+              const seriesType = mainSeries.seriesType();
+              if (seriesType === 'Candlestick') {
+                mainSeries.applyOptions({
+                  upColor: theme.candles.upColor,
+                  downColor: theme.candles.downColor,
+                  wickUpColor: theme.candles.wickUpColor,
+                  wickDownColor: theme.candles.wickDownColor,
+                });
+              }
+            } catch (e) {
+              // Series might not support applyOptions, ignore
+            }
+          }
+        } catch (error) {
+          console.error('Error applying theme:', error);
+        }
+      }
 
-      const candleSeries = chart.addCandlestickSeries({
-        upColor: '#26a69a',
-        downColor: '#ef5350',
-        borderVisible: true,
-        wickUpColor: '#26a69a',
-        wickDownColor: '#ef5350',
-      });
+      let mainSeries = null;
+      let currentChartType = 'Candles';
+      
+      function createMainSeries(chartType) {
+        // Remove existing series if any
+        if (mainSeries) {
+          chart.removeSeries(mainSeries);
+          mainSeries = null;
+        }
+        
+        // Create new series based on chart type
+        switch(chartType) {
+          case 'Line':
+            mainSeries = chart.addLineSeries({
+              color: '#2196F3',
+              lineWidth: 2,
+              priceLineVisible: false,
+            });
+            break;
+          case 'Area':
+            mainSeries = chart.addAreaSeries({
+              lineColor: '#2196F3',
+              topColor: 'rgba(33, 150, 243, 0.3)',
+              bottomColor: 'rgba(33, 150, 243, 0.05)',
+              lineWidth: 2,
+              priceLineVisible: false,
+            });
+            break;
+          case 'Bars':
+            mainSeries = chart.addHistogramSeries({
+              color: '#26a69a',
+              priceFormat: {
+                type: 'price',
+                precision: 5,
+                minMove: 0.00001,
+              },
+              priceLineVisible: false,
+            });
+            break;
+          case 'Hollow Candles':
+            mainSeries = chart.addCandlestickSeries({
+              upColor: 'transparent',
+              downColor: '#ef5350',
+              borderUpColor: '#26a69a',
+              borderDownColor: '#ef5350',
+              wickUpColor: '#26a69a',
+              wickDownColor: '#ef5350',
+              borderVisible: true,
+            });
+            break;
+          case 'Heikin Ashi':
+            // Heikin Ashi requires special calculation, use candlestick for now
+            mainSeries = chart.addCandlestickSeries({
+              upColor: '#26a69a',
+              downColor: '#ef5350',
+              borderVisible: true,
+              wickUpColor: '#26a69a',
+              wickDownColor: '#ef5350',
+            });
+            break;
+          case 'Candles':
+          default:
+            mainSeries = chart.addCandlestickSeries({
+              upColor: '#26a69a',
+              downColor: '#ef5350',
+              borderVisible: true,
+              wickUpColor: '#26a69a',
+              wickDownColor: '#ef5350',
+            });
+            break;
+        }
+        
+        currentChartType = chartType;
+        return mainSeries;
+      }
+      
+      // Initialize with candles
+      mainSeries = createMainSeries('Candles');
 
       const indicatorSeries = {};
       let currentMarkers = [];  // Track current markers (signals + trades)
+      
+      function changeChartType(chartType) {
+        createMainSeries(chartType);
+        // Markers need to be re-applied to new series
+        if (currentMarkers.length > 0 && mainSeries) {
+          mainSeries.setMarkers(currentMarkers);
+        }
+      }
 
       function resize() {
         chart.resize(document.body.clientWidth, document.body.clientHeight);
@@ -116,16 +271,103 @@
 
       window.addEventListener('resize', resize);
 
+      let currentCandles = [];  // Store candles for crosshair lookup
+      let shouldFitContent = true;  // Flag to track if content should be auto-fitted
+      let isInitialLoad = true;  // Track if this is the first load
+      
+      // Function to explicitly fit content (called from Python when needed)
+      function fitChartContent() {
+        try {
+          if (chart && mainSeries) {
+            chart.timeScale().fitContent();
+            shouldFitContent = false;  // Reset flag after fitting
+          }
+        } catch (error) {
+          console.error('Error fitting chart content:', error);
+        }
+      }
+      
       function updateCandles(data) {
         try {
           if (!Array.isArray(data) || !data.length) {
             return;
           }
-          candleSeries.setData(data);
-          chart.timeScale().fitContent();
+          
+          // Store original candles for crosshair
+          currentCandles = data;
+          
+          // Convert data format for different chart types
+          let seriesData = data;
+          
+          if (currentChartType === 'Bars') {
+            // For bars, we need to convert OHLC to histogram format
+            // Using close price as the bar value
+            seriesData = data.map(candle => ({
+              time: candle.time,
+              value: candle.close,
+              color: candle.close >= candle.open ? '#26a69a' : '#ef5350'
+            }));
+          } else if (currentChartType === 'Line' || currentChartType === 'Area') {
+            // For line/area, use close price
+            seriesData = data.map(candle => ({
+              time: candle.time,
+              value: candle.close
+            }));
+          } else if (currentChartType === 'Heikin Ashi') {
+            // Calculate Heikin Ashi values
+            seriesData = calculateHeikinAshi(data);
+          }
+          
+          if (mainSeries) {
+            mainSeries.setData(seriesData);
+            // Only fit content if explicitly requested (on initial load, symbol change, or timeframe change)
+            // This preserves user's zoom/scroll position during regular updates
+            if (shouldFitContent || isInitialLoad) {
+              chart.timeScale().fitContent();
+              shouldFitContent = false;
+              isInitialLoad = false;
+            }
+          }
         } catch (error) {
           console.error('Error updating candles:', error);
         }
+      }
+      
+      function calculateHeikinAshi(data) {
+        if (!data || data.length === 0) return [];
+        
+        const haData = [];
+        let prevHA = null;
+        
+        for (let i = 0; i < data.length; i++) {
+          const candle = data[i];
+          let haCandle;
+          
+          if (prevHA === null) {
+            // First candle: use regular OHLC
+            haCandle = {
+              time: candle.time,
+              open: (candle.open + candle.close) / 2,
+              high: candle.high,
+              low: candle.low,
+              close: (candle.open + candle.high + candle.low + candle.close) / 4
+            };
+          } else {
+            // Calculate Heikin Ashi
+            haCandle = {
+              time: candle.time,
+              open: (prevHA.open + prevHA.close) / 2,
+              close: (candle.open + candle.high + candle.low + candle.close) / 4,
+              high: Math.max(candle.high, haCandle.open, haCandle.close),
+              low: Math.min(candle.low, haCandle.open, haCandle.close)
+            };
+          }
+          
+          haData.push(haCandle);
+          prevHA = haCandle;
+        }
+        
+        return haData;
       }
 
       function updateIndicators(entries) {
@@ -139,11 +381,24 @@
           }
           let series = indicatorSeries[entry.name];
           if (!series) {
-            series = chart.addLineSeries({
-              color: entry.color || '#ffffff',
-              lineWidth: entry.width || 2,
-              priceLineVisible: false,
-            });
+            // Use histogram series for MACD histogram, line series for others
+            if (entry.type === 'histogram') {
+              series = chart.addHistogramSeries({
+                color: entry.color || '#9E9E9E',
+                priceLineVisible: false,
+                priceFormat: {
+                  type: 'price',
+                  precision: 5,
+                  minMove: 0.00001,
+                },
+              });
+            } else {
+              series = chart.addLineSeries({
+                color: entry.color || '#ffffff',
+                lineWidth: entry.width || 2,
+                priceLineVisible: false,
+              });
+            }
             indicatorSeries[entry.name] = series;
           }
           series.setData(entry.points);
@@ -165,10 +420,12 @@
         }
         
         try {
-          // Set markers on candlestick series
-          candleSeries.setMarkers(markersData);
-          currentMarkers = markersData;
-          console.log('Successfully set ' + markersData.length + ' markers');
+          // Set markers on main series
+          if (mainSeries) {
+            mainSeries.setMarkers(markersData);
+            currentMarkers = markersData;
+            console.log('Successfully set ' + markersData.length + ' markers');
+          }
         } catch (error) {
           console.error('Error updating markers:', error);
         }
@@ -176,11 +433,95 @@
 
 
       function updateSymbolName(symbolName, timeframe) {
+        // When symbol changes, we should fit content to show new data
+        shouldFitContent = true;
         var symbolDiv = document.getElementById('symbol-name');
         if (symbolDiv && symbolName) {
           symbolDiv.textContent = symbolName + (timeframe ? ' • ' + timeframe : '');
         }
       }
+
+      // Crosshair functionality
+      let crosshairEnabled = true;
+      let crosshairInfo = document.getElementById('crosshair-info');
+      
+      function setCrosshairEnabled(enabled) {
+        crosshairEnabled = enabled;
+        if (!enabled && crosshairInfo) {
+          crosshairInfo.style.display = 'none';
+        }
+      }
+      
+      function formatTime(timestamp) {
+        if (!timestamp) return '--';
+        const date = new Date(timestamp * 1000);
+        return date.toLocaleString('en-US', {
+          month: 'short',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        });
+      }
+      
+      function findCandleAtTime(time) {
+        if (!currentCandles || currentCandles.length === 0) return null;
+        
+        // Find the candle that contains this time
+        for (let i = currentCandles.length - 1; i >= 0; i--) {
+          const candle = currentCandles[i];
+          if (candle.time <= time) {
+            return candle;
+          }
+        }
+        return currentCandles[currentCandles.length - 1] || null;
+      }
+      
+      // Mouse move handler for crosshair
+      const chartContainer = document.getElementById('chart');
+      chartContainer.addEventListener('mousemove', function(e) {
+        if (!crosshairEnabled || !crosshairInfo) return;
+        
+        try {
+          const rect = chartContainer.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          
+          // Get coordinate from chart
+          const coordinate = chart.timeScale().coordinateToTime(x);
+          const priceCoordinate = chart.priceScale('right').coordinateToPrice(y);
+          
+          if (coordinate && priceCoordinate !== null) {
+            // Update crosshair info display
+            const timeStr = formatTime(coordinate);
+            const priceStr = priceCoordinate.toFixed(5);
+            
+            crosshairInfo.querySelector('.price').textContent = 'Price: ' + priceStr;
+            crosshairInfo.querySelector('.time').textContent = 'Time: ' + timeStr;
+            
+            // Find candle at this time and show OHLC
+            const candle = findCandleAtTime(coordinate);
+            if (candle) {
+              const ohlcStr = `O: ${candle.open.toFixed(5)}  H: ${candle.high.toFixed(5)}  L: ${candle.low.toFixed(5)}  C: ${candle.close.toFixed(5)}`;
+              crosshairInfo.querySelector('.ohlc').textContent = ohlcStr;
+            } else {
+              crosshairInfo.querySelector('.ohlc').textContent = 'O: --  H: --  L: --  C: --';
+            }
+            
+            crosshairInfo.style.display = 'block';
+          }
+        } catch (error) {
+          // Ignore errors during mouse movement
+        }
+      });
+      
+      chartContainer.addEventListener('mouseleave', function() {
+        if (crosshairInfo) {
+          crosshairInfo.style.display = 'none';
+        }
+      });
+      
 
       // Setup QWebChannel communication
       function setupQWebChannel() {
@@ -209,6 +550,7 @@
           bridge.indicatorsUpdated.connect(updateIndicators);
           bridge.markersUpdated.connect(updateMarkers);
           bridge.symbolChanged.connect(updateSymbolName);
+          bridge.fitContentRequested.connect(fitChartContent);
           bridge.emitReady();
         });
       }

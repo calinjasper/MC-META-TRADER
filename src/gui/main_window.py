@@ -630,6 +630,70 @@ class MainWindow(QMainWindow):
             else:
                 logger.warning(f"Strategy {strategy.name}: Symbol {symbol} not found in market_data. Available: {list(market_data.keys())}")
         
+        # Calculate SMC pivots globally for each symbol (for unified indicator resolution)
+        for symbol_key, data in market_data.items():
+            rates = data.get('rates', [])
+            if not rates or len(rates) < 20:
+                continue
+            
+            # Get the most common timeframe from strategies using this symbol
+            # Default to M15 if no strategy specifies
+            import MetaTrader5 as mt5
+            common_timeframe = mt5.TIMEFRAME_M15
+            for strategy in enabled_strategies:
+                if strategy.symbol.upper() == symbol_key.upper():
+                    common_timeframe = getattr(strategy, 'timeframe', mt5.TIMEFRAME_M15)
+                    break
+            
+            # Get rates on the common timeframe for SMC pivot calculation
+            timeframe_rates = self.mt5.get_rates(symbol_key, common_timeframe, 300) if self.mt5.is_connected() else rates
+            
+            if timeframe_rates and len(timeframe_rates) >= 20:
+                try:
+                    from ..strategy.smc_strategy import _fractal_pivot_high, _fractal_pivot_low, _extract_ohlc_arrays
+                    
+                    # Extract OHLC arrays
+                    _, highs, lows, closes = _extract_ohlc_arrays(timeframe_rates)
+                    
+                    # Calculate pivots (default: 2/2)
+                    pivot_left = 2
+                    pivot_right = 2
+                    last_pivot_high = None
+                    last_pivot_low = None
+                    
+                    # Find last confirmed pivots
+                    start = max(pivot_left, len(highs) - pivot_right - 10)
+                    end = len(highs) - pivot_right
+                    
+                    for i in range(start, end):
+                        if _fractal_pivot_high(highs, i, pivot_left, pivot_right):
+                            last_pivot_high = highs[i]
+                        if _fractal_pivot_low(lows, i, pivot_left, pivot_right):
+                            last_pivot_low = lows[i]
+                    
+                    # Store SMC pivots in market_data
+                    data['smc_pivots'] = {
+                        'pivot_high': float(last_pivot_high) if last_pivot_high is not None else None,
+                        'pivot_low': float(last_pivot_low) if last_pivot_low is not None else None
+                    }
+                except Exception as e:
+                    logger.debug(f"Error calculating SMC pivots for {symbol_key}: {e}")
+                    data['smc_pivots'] = {'pivot_high': None, 'pivot_low': None}
+            else:
+                data['smc_pivots'] = {'pivot_high': None, 'pivot_low': None}
+            
+            # Add OHLC data to market_data if available from market_data_panel
+            if hasattr(self, 'market_data_panel') and self.market_data_panel:
+                ohlc = None
+                symbol_upper = symbol_key.upper()
+                for ohlc_symbol in self.market_data_panel.ohlc_data.keys():
+                    if ohlc_symbol.upper() == symbol_upper:
+                        ohlc = self.market_data_panel.ohlc_data[ohlc_symbol]
+                        break
+                
+                if ohlc:
+                    data['ohlc'] = ohlc
+        
         # Update strategies
         signals = self.strategy_manager.update_strategies(market_data)
         
@@ -1897,17 +1961,36 @@ class MainWindow(QMainWindow):
         point = symbol_info.get('point', 0.0001)
         digits = symbol_info.get('digits', 5)
         
+        # Check if SL/TP are enabled
+        sl_enabled = getattr(strategy, 'sl_enabled', True)
+        tp_enabled = getattr(strategy, 'tp_enabled', True)
+        
+        # If both are disabled, return zeros
+        if not sl_enabled and not tp_enabled:
+            return 0.0, 0.0
+        
         # Check if strategy has SL/TP configuration
         if not hasattr(strategy, 'sl_type') or strategy.sl_type is None:
-            # Use default risk manager calculation
-            sl = self.risk_manager.calculate_stop_loss(symbol, entry_price, signal)
-            tp = self.risk_manager.calculate_take_profit(symbol, entry_price, signal, stop_loss=sl)
-            return sl, tp
+            # Use default risk manager calculation if enabled, otherwise return 0.0
+            if sl_enabled and tp_enabled:
+                sl = self.risk_manager.calculate_stop_loss(symbol, entry_price, signal)
+                tp = self.risk_manager.calculate_take_profit(symbol, entry_price, signal, stop_loss=sl)
+                return sl, tp
+            elif sl_enabled:
+                sl = self.risk_manager.calculate_stop_loss(symbol, entry_price, signal)
+                return sl, 0.0
+            elif tp_enabled:
+                sl = self.risk_manager.calculate_stop_loss(symbol, entry_price, signal)
+                tp = self.risk_manager.calculate_take_profit(symbol, entry_price, signal, stop_loss=sl)
+                return 0.0, tp
+            else:
+                return 0.0, 0.0
         
-        # Calculate SL based on type
+        # Get SL configuration (needed for TP calculation even if SL is disabled)
         sl_value = getattr(strategy, 'sl_value', 20.0)
         sl_type = strategy.sl_type
         
+        # Calculate SL distance (needed for TP calculation even if SL is disabled)
         if "Pips" in sl_type:
             # Convert pips to price points (1 pip = 10 points for 5-digit, 1 point for 4-digit)
             pip_size = point * (10 if digits == 5 else 1)
@@ -1919,33 +2002,39 @@ class MainWindow(QMainWindow):
             # Percentage-based
             sl_distance = entry_price * (sl_value / 100.0)
         
-        # Calculate SL price
-        if signal == 'BUY':
-            sl = entry_price - sl_distance
-        else:  # SELL
-            sl = entry_price + sl_distance
-        
-        # Calculate TP
-        use_ratio = getattr(strategy, 'use_ratio', True)
-        if use_ratio:
-            # Use 1:2 ratio (TP = 2x SL distance)
-            tp_distance = sl_distance * 2.0
+        # Calculate SL price (only if enabled)
+        if sl_enabled:
+            if signal == 'BUY':
+                sl = entry_price - sl_distance
+            else:  # SELL
+                sl = entry_price + sl_distance
         else:
-            # Use manual TP value
-            tp_value = getattr(strategy, 'tp_value', sl_value * 2.0)
-            if "Pips" in sl_type:
-                pip_size = point * (10 if digits == 5 else 1)
-                tp_distance = tp_value * pip_size
-            elif "Points" in sl_type:
-                tp_distance = tp_value * point
-            else:  # Percentage
-                tp_distance = entry_price * (tp_value / 100.0)
+            sl = 0.0
         
-        # Calculate TP price
-        if signal == 'BUY':
-            tp = entry_price + tp_distance
-        else:  # SELL
-            tp = entry_price - tp_distance
+        # Calculate TP (only if enabled)
+        if tp_enabled:
+            use_ratio = getattr(strategy, 'use_ratio', True)
+            if use_ratio:
+                # Use 1:2 ratio (TP = 2x SL distance)
+                tp_distance = sl_distance * 2.0
+            else:
+                # Use manual TP value
+                tp_value = getattr(strategy, 'tp_value', sl_value * 2.0)
+                if "Pips" in sl_type:
+                    pip_size = point * (10 if digits == 5 else 1)
+                    tp_distance = tp_value * pip_size
+                elif "Points" in sl_type:
+                    tp_distance = tp_value * point
+                else:  # Percentage
+                    tp_distance = entry_price * (tp_value / 100.0)
+            
+            # Calculate TP price
+            if signal == 'BUY':
+                tp = entry_price + tp_distance
+            else:  # SELL
+                tp = entry_price - tp_distance
+        else:
+            tp = 0.0
         
         # Validate and adjust SL/TP based on symbol's trade_stops_level (minimum distance requirement)
         trade_stops_level = symbol_info.get('trade_stops_level', 0)

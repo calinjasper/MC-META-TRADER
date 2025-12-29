@@ -45,37 +45,34 @@ class OHLCPriceCondition:
         self.connector = connector or "OR"
         self.previous_state = None  # For cross detection: True if was above, False if was below
     
-    def _resolve_operand(self, field: str, current_price: float, ohlc_data: Dict) -> Optional[float]:
-        if field == "price":
-            return current_price
-        if not ohlc_data:
-            return None
-        if field == "open":
-            return ohlc_data.get('open')
-        if field == "high":
-            return ohlc_data.get('high')
-        if field == "low":
-            return ohlc_data.get('low')
-        if field == "close":
-            return ohlc_data.get('close')
-        if field == "hl2":
-            h = ohlc_data.get('high')
-            l = ohlc_data.get('low')
-            return (h + l) / 2.0 if h is not None and l is not None else None
-        if field == "hlc3":
-            h = ohlc_data.get('high')
-            l = ohlc_data.get('low')
-            c = ohlc_data.get('close')
-            return (h + l + c) / 3.0 if None not in (h, l, c) else None
-        if field == "ohlc4":
-            o = ohlc_data.get('open')
-            h = ohlc_data.get('high')
-            l = ohlc_data.get('low')
-            c = ohlc_data.get('close')
-            return (o + h + l + c) / 4.0 if None not in (o, h, l, c) else None
+    def _resolve_operand(self, field: str, current_price: float, ohlc_data: Dict, market_data: Dict = None) -> Optional[float]:
+        """
+        Resolve operand using unified indicator resolver.
+        Falls back to legacy behavior if unified resolver fails.
+        """
+        # Build context for unified resolver
+        context = {
+            "price": current_price,
+            "ohlc": ohlc_data if ohlc_data else {},
+        }
+        
+        # Add market_data context if available
+        if market_data:
+            context["smc_pivots"] = market_data.get("smc_pivots", {})
+            context["vwap"] = market_data.get("vwap")
+            context["ema"] = market_data.get("ema")
+            context["indicators"] = market_data.get("indicators", {})
+        
+        # Try unified resolver first
+        from .unified_indicator_resolver import resolve_operand
+        result = resolve_operand(field, context)
+        if result is not None:
+            return result
+        
+        # Fallback to legacy value if field couldn't be resolved
         return self.value
     
-    def evaluate(self, current_price: float, ohlc_data: Dict, previous_price: Optional[float] = None) -> bool:
+    def evaluate(self, current_price: float, ohlc_data: Dict, previous_price: Optional[float] = None, market_data: Dict = None) -> bool:
         """
         Evaluate the condition
         
@@ -83,9 +80,10 @@ class OHLCPriceCondition:
             current_price: Current market price
             ohlc_data: Dictionary with 'open', 'high', 'low', 'close' keys
             previous_price: Previous price for cross detection
+            market_data: Full market data dict for unified indicator resolution
         """
-        left_val = self._resolve_operand(self.left_field, current_price, ohlc_data)
-        right_val = self._resolve_operand(self.right_field, current_price, ohlc_data)
+        left_val = self._resolve_operand(self.left_field, current_price, ohlc_data, market_data)
+        right_val = self._resolve_operand(self.right_field, current_price, ohlc_data, market_data)
         if left_val is None or right_val is None:
             return False
         
@@ -248,14 +246,14 @@ class OHLCPriceStrategy(BaseStrategy):
         
         return ohlc
 
-    def _evaluate_condition_chain(self, conditions: List[OHLCPriceCondition], current_price: float, ohlc_data: Dict) -> bool:
+    def _evaluate_condition_chain(self, conditions: List[OHLCPriceCondition], current_price: float, ohlc_data: Dict, market_data: Dict = None) -> bool:
         """Evaluate conditions honoring AND/OR connectors."""
         if not conditions:
             return False
         cumulative = None
         prev_connector = None
         for cond in conditions:
-            result = cond.evaluate(current_price, ohlc_data, self.previous_price)
+            result = cond.evaluate(current_price, ohlc_data, self.previous_price, market_data)
             if cumulative is None:
                 cumulative = result
             else:
@@ -311,7 +309,7 @@ class OHLCPriceStrategy(BaseStrategy):
         # Check buy conditions first (OR logic - any condition triggers)
         # NOTE: BUY takes priority over SELL if both conditions are met
         try:
-            if self._evaluate_condition_chain(self.buy_conditions, current_price, ohlc_data):
+            if self._evaluate_condition_chain(self.buy_conditions, current_price, ohlc_data, market_data):
                 logger.info(f"Strategy {self.name}: ✅ Buy conditions met")
                 self.previous_price = current_price
                 return 'BUY'
@@ -321,7 +319,7 @@ class OHLCPriceStrategy(BaseStrategy):
         # Check sell conditions second (OR logic - any condition triggers)
         # NOTE: SELL is only returned if no BUY condition was met
         try:
-            if self._evaluate_condition_chain(self.sell_conditions, current_price, ohlc_data):
+            if self._evaluate_condition_chain(self.sell_conditions, current_price, ohlc_data, market_data):
                 logger.info(f"Strategy {self.name}: ✅ Sell conditions met")
                 self.previous_price = current_price
                 return 'SELL'
@@ -364,8 +362,10 @@ class OHLCPriceStrategy(BaseStrategy):
         strategy.lot_size = data.get('lot_size', getattr(strategy, 'lot_size', None))
         strategy.sl_type = data.get('sl_type', getattr(strategy, 'sl_type', None))
         strategy.sl_value = data.get('sl_value', getattr(strategy, 'sl_value', 20.0))
+        strategy.sl_enabled = data.get('sl_enabled', getattr(strategy, 'sl_enabled', True))
         strategy.use_ratio = data.get('use_ratio', getattr(strategy, 'use_ratio', True))
         strategy.tp_value = data.get('tp_value', getattr(strategy, 'tp_value', 40.0))
+        strategy.tp_enabled = data.get('tp_enabled', getattr(strategy, 'tp_enabled', True))
 
         # Advanced Risk Management
         strategy.enable_trailing_sl = data.get('enable_trailing_sl', getattr(strategy, 'enable_trailing_sl', False))

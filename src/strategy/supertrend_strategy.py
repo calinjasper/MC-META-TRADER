@@ -354,8 +354,10 @@ class SuperTrendStrategy(BaseStrategy):
         strategy.lot_size = data.get("lot_size", getattr(strategy, "lot_size", None))
         strategy.sl_type = data.get("sl_type", getattr(strategy, "sl_type", None))
         strategy.sl_value = data.get("sl_value", getattr(strategy, "sl_value", 20.0))
+        strategy.sl_enabled = data.get("sl_enabled", getattr(strategy, "sl_enabled", True))
         strategy.use_ratio = data.get("use_ratio", getattr(strategy, "use_ratio", True))
         strategy.tp_value = data.get("tp_value", getattr(strategy, "tp_value", 40.0))
+        strategy.tp_enabled = data.get("tp_enabled", getattr(strategy, "tp_enabled", True))
 
         # Advanced Risk Management
         strategy.enable_trailing_sl = data.get("enable_trailing_sl", getattr(strategy, "enable_trailing_sl", False))

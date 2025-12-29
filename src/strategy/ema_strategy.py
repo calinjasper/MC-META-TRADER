@@ -48,17 +48,37 @@ class EMACondition:
         self.connector = connector or "OR"
         self.previous_state = None  # For cross detection
 
-    def _resolve_operand(self, field: str, current_price: float, ema_values: Dict) -> Optional[float]:
-        if field == "price":
-            return current_price
-        if field and field.startswith("ema_"):
-            return ema_values.get(field)
+    def _resolve_operand(self, field: str, current_price: float, ema_values: Dict, market_data: Dict = None) -> Optional[float]:
+        """
+        Resolve operand using unified indicator resolver.
+        Falls back to legacy behavior if unified resolver fails.
+        """
+        # Build context for unified resolver
+        context = {
+            "price": current_price,
+            "ema": ema_values if ema_values else {},
+        }
+        
+        # Add market_data context if available
+        if market_data:
+            context["ohlc"] = market_data.get("ohlc", {})
+            context["smc_pivots"] = market_data.get("smc_pivots", {})
+            context["vwap"] = market_data.get("vwap")
+            context["indicators"] = market_data.get("indicators", {})
+        
+        # Try unified resolver first
+        from .unified_indicator_resolver import resolve_operand
+        result = resolve_operand(field, context)
+        if result is not None:
+            return result
+        
+        # Fallback to legacy value if field couldn't be resolved
         return self.value
 
-    def evaluate(self, current_price: float, ema_values: Dict, previous_price: Optional[float] = None) -> bool:
+    def evaluate(self, current_price: float, ema_values: Dict, previous_price: Optional[float] = None, market_data: Dict = None) -> bool:
         """Evaluate condition against latest EMA snapshot."""
-        left_val = self._resolve_operand(self.left_field, current_price, ema_values)
-        right_val = self._resolve_operand(self.right_field, current_price, ema_values)
+        left_val = self._resolve_operand(self.left_field, current_price, ema_values, market_data)
+        right_val = self._resolve_operand(self.right_field, current_price, ema_values, market_data)
         if left_val is None or right_val is None:
             return False
 
@@ -247,13 +267,13 @@ class EMAStrategy(BaseStrategy):
         self._last_snapshot_at = now
         return snap
 
-    def _evaluate_condition_chain(self, conditions: List[EMACondition], current_price: float, ema_values: Dict) -> bool:
+    def _evaluate_condition_chain(self, conditions: List[EMACondition], current_price: float, ema_values: Dict, market_data: Dict = None) -> bool:
         if not conditions:
             return False
         cumulative = None
         prev_connector = None
         for cond in conditions:
-            result = cond.evaluate(current_price, ema_values, self.previous_price)
+            result = cond.evaluate(current_price, ema_values, self.previous_price, market_data)
             if cumulative is None:
                 cumulative = result
             else:
@@ -282,9 +302,18 @@ class EMAStrategy(BaseStrategy):
 
         ema_values = self._compute_ema_values(candles)
 
+        # Build market_data context for unified resolver
+        strategy_market_data = {
+            "ema": ema_values,
+            "ohlc": market_data.get("ohlc", {}) if isinstance(market_data, dict) else {},
+            "smc_pivots": market_data.get("smc_pivots", {}) if isinstance(market_data, dict) else {},
+            "vwap": market_data.get("vwap") if isinstance(market_data, dict) else None,
+            "indicators": market_data.get("indicators", {}) if isinstance(market_data, dict) else {}
+        }
+        
         # BUY conditions take priority over SELL, consistent with OHLC strategy
         try:
-            if self._evaluate_condition_chain(self.buy_conditions, current_price, ema_values):
+            if self._evaluate_condition_chain(self.buy_conditions, current_price, ema_values, strategy_market_data):
                 logger.info(f"EMAStrategy {self.name}: ✅ Buy conditions met")
                 self.previous_price = current_price
                 return "BUY"
@@ -292,7 +321,7 @@ class EMAStrategy(BaseStrategy):
             logger.error(f"EMAStrategy {self.name}: Error evaluating buy conditions: {e}", exc_info=True)
 
         try:
-            if self._evaluate_condition_chain(self.sell_conditions, current_price, ema_values):
+            if self._evaluate_condition_chain(self.sell_conditions, current_price, ema_values, strategy_market_data):
                 logger.info(f"EMAStrategy {self.name}: ✅ Sell conditions met")
                 self.previous_price = current_price
                 return "SELL"
@@ -331,8 +360,10 @@ class EMAStrategy(BaseStrategy):
         strategy.lot_size = data.get("lot_size", getattr(strategy, "lot_size", None))
         strategy.sl_type = data.get("sl_type", getattr(strategy, "sl_type", None))
         strategy.sl_value = data.get("sl_value", getattr(strategy, "sl_value", 20.0))
+        strategy.sl_enabled = data.get("sl_enabled", getattr(strategy, "sl_enabled", True))
         strategy.use_ratio = data.get("use_ratio", getattr(strategy, "use_ratio", True))
         strategy.tp_value = data.get("tp_value", getattr(strategy, "tp_value", 40.0))
+        strategy.tp_enabled = data.get("tp_enabled", getattr(strategy, "tp_enabled", True))
 
         # Advanced Risk Management
         strategy.enable_trailing_sl = data.get("enable_trailing_sl", getattr(strategy, "enable_trailing_sl", False))
