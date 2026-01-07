@@ -3866,6 +3866,8 @@ class CustomIndicatorPanel(QWidget):
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(2, 2, 2, 2)
+            actions_layout.setSpacing(5)
+            actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             
             remove_btn = QPushButton("Remove")
             remove_btn.setStyleSheet("background-color: #f44336; color: white; font-size: 10px;")

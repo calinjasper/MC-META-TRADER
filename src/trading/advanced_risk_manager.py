@@ -115,7 +115,8 @@ class ProfitManager:
     """
     
     def __init__(self, lock_trigger: float, lock_value: float, 
-                 trail_step: float, trail_amount: float, position_type: str):
+                 trail_step: float, trail_amount: float, position_type: str,
+                 symbol: str = None, volume: float = None):
         """
         Initialize profit lock manager
         
@@ -125,6 +126,8 @@ class ProfitManager:
             trail_step: Profit increase to trigger trail
             trail_amount: Amount to trail profit by
             position_type: 'BUY' or 'SELL'
+            symbol: Trading symbol (e.g., 'BTCUSDm') - required for TP calculation
+            volume: Lot size (e.g., 0.01) - required for TP calculation
         """
         if lock_trigger <= 0:
             raise ValueError(f"Lock trigger must be positive, got {lock_trigger}")
@@ -140,12 +143,14 @@ class ProfitManager:
         self.trail_step = trail_step
         self.trail_amount = trail_amount
         self.position_type = position_type.upper()
+        self.symbol = symbol
+        self.volume = volume
         
         self.lock_enabled = False
         self.current_locked_profit = 0
         self.last_trail_base = lock_trigger  # Will trail only after reaching trigger
         
-        logger.info(f"ProfitManager initialized: {position_type}, Lock Trigger: {lock_trigger}, Lock Value: {lock_value}, Trail Step: {trail_step}, Trail Amount: {trail_amount}")
+        logger.info(f"ProfitManager initialized: {position_type}, Lock Trigger: {lock_trigger}, Lock Value: {lock_value}, Trail Step: {trail_step}, Trail Amount: {trail_amount}, Symbol: {symbol}, Volume: {volume}")
     
     def update_profit(self, profit: float) -> float:
         """
@@ -174,12 +179,13 @@ class ProfitManager:
         
         return self.current_locked_profit
     
-    def calculate_take_profit_price(self, entry_price: float) -> Optional[float]:
+    def calculate_take_profit_price(self, entry_price: float, mt5_connector=None) -> Optional[float]:
         """
         Calculate the take-profit price based on locked profit
         
         Args:
             entry_price: Entry price of the position
+            mt5_connector: MT5Connector instance to get symbol info (required for conversion)
             
         Returns:
             Take-profit price to maintain locked profit, or None if lock not enabled
@@ -187,11 +193,57 @@ class ProfitManager:
         if not self.lock_enabled or self.current_locked_profit == 0:
             return None  # No TP adjustment needed
         
+        # If symbol and volume are available, convert profit to price points
+        if self.symbol and self.volume and mt5_connector:
+            try:
+                symbol_info = mt5_connector.get_symbol_info(self.symbol)
+                if symbol_info:
+                    # Get contract size and point value
+                    contract_size = symbol_info.get('trade_contract_size', symbol_info.get('contract_size', 100000))
+                    point = symbol_info.get('point', 0.00001)
+                    tick_size = symbol_info.get('trade_tick_size', symbol_info.get('tick_size', point))
+                    tick_value = symbol_info.get('trade_tick_value', symbol_info.get('tick_value', 0.0))
+                    
+                    # Convert locked profit (in account currency) to price difference
+                    # MT5 profit calculation varies by symbol type:
+                    # For forex: profit = (price_diff / point) * volume * (contract_size / 100000)
+                    # For crypto/CFD: profit = (price_diff / tick_size) * volume * contract_size * tick_value
+                    # General formula: profit = (price_diff / tick_size) * volume * contract_size * tick_value
+                    
+                    if contract_size > 0 and volume > 0 and tick_size > 0:
+                        # Calculate price difference in price units
+                        if tick_value > 0:
+                            # Use tick_value for accurate calculation
+                            # profit = (price_diff / tick_size) * volume * contract_size * tick_value
+                            # Solving: price_diff = (profit * tick_size) / (volume * contract_size * tick_value)
+                            price_diff = (self.current_locked_profit * tick_size) / (volume * contract_size * tick_value)
+                        else:
+                            # Fallback: assume profit per point calculation
+                            # For most symbols: profit = (price_diff / point) * volume * contract_size
+                            # Solving: price_diff = (profit * point) / (volume * contract_size)
+                            price_diff = (self.current_locked_profit * point) / (volume * contract_size)
+                        
+                        if self.position_type == 'BUY':
+                            tp_price = entry_price + price_diff
+                        else:  # SELL
+                            tp_price = entry_price - price_diff
+                        
+                        logger.info(f"ProfitManager: Converted locked profit ${self.current_locked_profit:.2f} to {price_diff:.5f} price units for {self.symbol} "
+                                   f"(entry={entry_price:.5f}, new_tp={tp_price:.5f}, contract_size={contract_size}, volume={volume}, point={point}, tick_value={tick_value})")
+                        return tp_price
+                    else:
+                        logger.warning(f"ProfitManager: Invalid contract_size ({contract_size}) or volume ({volume}) for {self.symbol}")
+                else:
+                    logger.warning(f"ProfitManager: Could not get symbol info for {self.symbol}")
+            except Exception as e:
+                logger.error(f"ProfitManager: Error calculating TP price: {e}", exc_info=True)
+        
+        # Fallback: treat locked_profit as price points (old incorrect behavior)
+        # This should not happen if symbol/volume are provided, but kept for backward compatibility
+        logger.warning(f"ProfitManager: Using fallback calculation (treating profit as price points). Symbol: {self.symbol}, Volume: {self.volume}")
         if self.position_type == 'BUY':
-            # For BUY: TP = entry + locked_profit
             tp_price = entry_price + self.current_locked_profit
         else:  # SELL
-            # For SELL: TP = entry - locked_profit
             tp_price = entry_price - self.current_locked_profit
         
         return tp_price

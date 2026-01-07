@@ -71,6 +71,82 @@ def _resolve_ema(field: str, ema_values: Optional[Dict]) -> Optional[float]:
     return None
 
 
+def _resolve_indicators(field: str, indicators: Optional[Dict]) -> Optional[float]:
+    """Resolve indicator values (Volume, RSI, Stochastic, etc.)"""
+    if not indicators:
+        return None
+    
+    # Direct indicator name lookup (case-insensitive)
+    field_lower = field.lower()
+    for key, value in indicators.items():
+        if key.lower() == field_lower:
+            # Get the latest value if it's a list/series
+            if isinstance(value, list) and len(value) > 0:
+                # Get last non-None value
+                for v in reversed(value):
+                    if v is not None:
+                        return float(v)
+                return None
+            elif value is not None:
+                return float(value)
+    
+    # Special handling for Volume_MA (volume moving average)
+    if field_lower == "volume_ma":
+        volume_ind = indicators.get("Volume") or indicators.get("volume")
+        if volume_ind and hasattr(volume_ind, 'get_volume_ma'):
+            ma = volume_ind.get_volume_ma()
+            return float(ma) if ma is not None else None
+        # Try to get from indicators dict directly
+        volume_ma = indicators.get("Volume_MA") or indicators.get("volume_ma")
+        if volume_ma is not None:
+            return float(volume_ma)
+    
+    # Special handling for Stochastic %K and %D
+    if field_lower in ["stochastic_k", "stochastic"]:
+        stoch_ind = indicators.get("Stochastic") or indicators.get("stochastic")
+        if stoch_ind and hasattr(stoch_ind, 'percent_k'):
+            k_values = stoch_ind.percent_k
+            if isinstance(k_values, list) and len(k_values) > 0:
+                # Get last non-None value
+                for v in reversed(k_values):
+                    if v is not None:
+                        return float(v)
+            elif k_values is not None:
+                return float(k_values)
+        # Try direct lookup
+        stoch_k = indicators.get("Stochastic_K") or indicators.get("stochastic_k")
+        if stoch_k is not None:
+            if isinstance(stoch_k, list) and len(stoch_k) > 0:
+                for v in reversed(stoch_k):
+                    if v is not None:
+                        return float(v)
+            else:
+                return float(stoch_k)
+    
+    if field_lower == "stochastic_d":
+        stoch_ind = indicators.get("Stochastic") or indicators.get("stochastic")
+        if stoch_ind and hasattr(stoch_ind, 'percent_d'):
+            d_values = stoch_ind.percent_d
+            if isinstance(d_values, list) and len(d_values) > 0:
+                # Get last non-None value
+                for v in reversed(d_values):
+                    if v is not None:
+                        return float(v)
+            elif d_values is not None:
+                return float(d_values)
+        # Try direct lookup
+        stoch_d = indicators.get("Stochastic_D") or indicators.get("stochastic_d")
+        if stoch_d is not None:
+            if isinstance(stoch_d, list) and len(stoch_d) > 0:
+                for v in reversed(stoch_d):
+                    if v is not None:
+                        return float(v)
+            else:
+                return float(stoch_d)
+    
+    return None
+
+
 @dataclass
 class MixedCondition:
     """
@@ -108,6 +184,12 @@ class MixedCondition:
         if ema_val is not None:
             return ema_val
 
+        # Indicator values (Volume, RSI, Stochastic, etc.)
+        indicators = context.get("indicators", {})
+        indicator_val = _resolve_indicators(field, indicators)
+        if indicator_val is not None:
+            return indicator_val
+
         # Fallback to explicit value (useful for constants)
         if self.value is not None:
             return self.value
@@ -123,6 +205,7 @@ class MixedCondition:
             ohlc: {open, high, low, close}
             vwap: {vwap, bands:{std:{upper,lower}}}
             ema: {ema_1, ema_2, ...}
+            indicators: {Volume, RSI, Stochastic, ...} - dict of indicator objects or values
         """
         try:
             left_val = self._resolve_operand(self.left_field, context)

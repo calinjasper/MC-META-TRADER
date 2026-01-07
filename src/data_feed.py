@@ -1,14 +1,10 @@
-"""
-Data Feed Manager
-Handles live price streaming and historical data retrieval with caching
-"""
-
 import logging
 from typing import Dict, List, Optional, Callable
 from datetime import datetime
 from collections import deque
 import threading
 import time
+import queue
 from PyQt6.QtCore import QObject, pyqtSignal
 import MetaTrader5 as mt5
 
@@ -41,16 +37,42 @@ class DataFeed(QObject):
         self._m1_bar_cache: Dict[str, Optional[datetime]] = {}
         # Track last M1 check time to avoid checking too frequently (once per second)
         self._last_m1_check_time: float = 0.0
+        
+        # Database write queue to prevent blocking the data feed loop
+        self.db_queue = queue.Queue()
+        self.db_worker_thread: Optional[threading.Thread] = None
     
     def add_symbol(self, symbol: str) -> bool:
         """Add a symbol to monitor (case-insensitive)"""
+        # #region agent log
+        import json
+        import time
+        log_path = r"c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log"
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_feed_add_symbol_entry","timestamp":int(time.time()*1000),"location":"data_feed.py:45","message":"add_symbol entry","data":{"symbol":symbol,"mt5_connected":self.mt5.is_connected()},"sessionId":"debug-session","runId":"run1","hypothesisId":"C"}) + "\n")
+        except: pass
+        # #endregion
+        
         if not self.mt5.is_connected():
             logger.error("MT5 not connected")
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_feed_add_symbol_no_mt5","timestamp":int(time.time()*1000),"location":"data_feed.py:47","message":"add_symbol: MT5 not connected","data":{"symbol":symbol},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+            except: pass
+            # #endregion
             return False
         
         symbol_info = self.mt5.get_symbol_info(symbol)
         if symbol_info is None:
             logger.error(f"Symbol {symbol} not available")
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_feed_add_symbol_not_available","timestamp":int(time.time()*1000),"location":"data_feed.py:52","message":"add_symbol: Symbol not available","data":{"symbol":symbol},"sessionId":"debug-session","runId":"run1","hypothesisId":"C"}) + "\n")
+            except: pass
+            # #endregion
             return False
         
         # Use the correct symbol name as returned by MT5 (correct case)
@@ -68,6 +90,13 @@ class DataFeed(QObject):
         self.rates_cache[correct_symbol] = {}
         self.callbacks[correct_symbol] = []
         logger.info(f"Added symbol: {correct_symbol}")
+        
+        # #region agent log
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_feed_add_symbol_success","timestamp":int(time.time()*1000),"location":"data_feed.py:70","message":"add_symbol success","data":{"symbol":symbol,"correct_symbol":correct_symbol,"symbols_count":len(self.symbols)},"sessionId":"debug-session","runId":"run1","hypothesisId":"C"}) + "\n")
+        except: pass
+        # #endregion
         
         return True
     
@@ -139,24 +168,107 @@ class DataFeed(QObject):
     
     def start(self) -> None:
         """Start live data feed"""
+        # #region agent log
+        import json
+        import time
+        log_path = r"c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log"
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_feed_start_entry","timestamp":int(time.time()*1000),"location":"data_feed.py:140","message":"DataFeed start entry","data":{"running":self.running,"mt5_connected":self.mt5.is_connected(),"symbols_count":len(self.symbols)},"sessionId":"debug-session","runId":"run1","hypothesisId":"C"}) + "\n")
+        except: pass
+        # #endregion
+        
         if self.running:
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_feed_already_running","timestamp":int(time.time()*1000),"location":"data_feed.py:142","message":"DataFeed already running","data":{},"sessionId":"debug-session","runId":"run1","hypothesisId":"C"}) + "\n")
+            except: pass
+            # #endregion
             return
         
         if not self.mt5.is_connected():
             logger.error("Cannot start data feed: MT5 not connected")
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_feed_no_mt5","timestamp":int(time.time()*1000),"location":"data_feed.py:145","message":"DataFeed cannot start: MT5 not connected","data":{},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+            except: pass
+            # #endregion
             return
         
         self.running = True
+        
+        # Start data update thread
         self.update_thread = threading.Thread(target=self._update_loop, daemon=True)
         self.update_thread.start()
+        
+        # Start DB worker thread if manager is present
+        if self.pb_manager:
+            self.db_worker_thread = threading.Thread(target=self._db_worker, daemon=True)
+            self.db_worker_thread.start()
+            
         logger.info("Data feed started")
+        
+        # #region agent log
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_feed_started","timestamp":int(time.time()*1000),"location":"data_feed.py:160","message":"DataFeed started successfully","data":{"running":self.running,"has_update_thread":self.update_thread is not None,"has_db_thread":self.db_worker_thread is not None},"sessionId":"debug-session","runId":"run1","hypothesisId":"C"}) + "\n")
+        except: pass
+        # #endregion
     
     def stop(self) -> None:
         """Stop live data feed"""
         self.running = False
+        
         if self.update_thread:
             self.update_thread.join(timeout=2.0)
+            
+        # Signal DB worker to stop (by pushing None)
+        if self.db_worker_thread:
+            self.db_queue.put(None)
+            self.db_worker_thread.join(timeout=2.0)
+            
         logger.info("Data feed stopped")
+    
+    def _db_worker(self) -> None:
+        """Worker thread for handling database writes asynchronously"""
+        while True:
+            try:
+                # Get task from queue (blocking)
+                task = self.db_queue.get()
+                
+                # Check for stop signal
+                if task is None:
+                    break
+                
+                # Process task
+                task_type = task.get('type')
+                
+                if task_type == 'tick':
+                    symbol = task.get('symbol')
+                    tick = task.get('data')
+                    try:
+                        self.pb_manager.store_tick(symbol, tick)
+                    except Exception as e:
+                        logger.debug(f"Error storing tick for {symbol}: {e}")
+                        
+                elif task_type == 'ohlc':
+                    symbol = task.get('symbol')
+                    timeframe = task.get('timeframe')
+                    data = task.get('data')
+                    try:
+                        self.pb_manager.store_ohlc(symbol, timeframe, data)
+                        # Log success occasionally or on debug
+                        # logger.debug(f"Stored {timeframe} bar for {symbol}")
+                    except Exception as e:
+                        logger.error(f"Error storing {timeframe} bar for {symbol}: {e}")
+                
+                # Mark task as done
+                self.db_queue.task_done()
+                
+            except Exception as e:
+                logger.error(f"Error in DB worker thread: {e}")
     
     def _update_loop(self) -> None:
         """Main update loop running in separate thread - real-time price updates"""
@@ -197,12 +309,13 @@ class DataFeed(QObject):
                                 # New tick or price change detected
                                 self.tick_cache[symbol].append(tick)
                                 
-                                # Store tick in PocketBase
+                                # Queue tick for storage (non-blocking)
                                 if self.pb_manager:
-                                    try:
-                                        self.pb_manager.store_tick(symbol, tick)
-                                    except Exception as e:
-                                        logger.debug(f"Error storing tick in PocketBase: {e}")
+                                    self.db_queue.put({
+                                        'type': 'tick',
+                                        'symbol': symbol,
+                                        'data': tick
+                                    })
                                 
                                 # Emit Qt signal for real-time update (always emit for latest data)
                                 self.tick_received.emit(symbol, tick)
@@ -258,6 +371,7 @@ class DataFeed(QObject):
         
         try:
             # Get the most recent closed M1 bar (position 0 is the most recent closed bar)
+            # Use get_rates directly to avoid caching logic here, we want fresh data
             rates = self.mt5.get_rates(symbol, mt5.TIMEFRAME_M1, 1, 0)
             
             if not rates or len(rates) == 0:
@@ -267,24 +381,22 @@ class DataFeed(QObject):
             bar = rates[0]
             bar_time = bar['time']
             
-            # Check if this is a datetime object or needs conversion
-            if not isinstance(bar_time, datetime):
-                # If it's a timestamp, convert it
-                if isinstance(bar_time, (int, float)):
-                    # Assume it's a Unix timestamp in seconds
-                    bar_time = datetime.fromtimestamp(bar_time)
-                else:
-                    logger.warning(f"Unexpected bar time format for {symbol}: {type(bar_time)}")
-                    return
+            # Check if self.mt5.get_rates returns dicts with datetime objects
+            # Based on MT5Connector.get_rates, it returns dicts with 'time' as datetime
             
             # Normalize bar time to minute precision (remove seconds/microseconds)
-            bar_time_normalized = bar_time.replace(second=0, microsecond=0)
+            if isinstance(bar_time, datetime):
+                bar_time_normalized = bar_time.replace(second=0, microsecond=0)
+            else:
+                # Should be datetime, but just in case
+                logger.warning(f"Unexpected bar time type: {type(bar_time)}")
+                return
             
             # Check if we've already stored this bar
             last_stored_time = self._m1_bar_cache.get(symbol)
             
             if last_stored_time is None or last_stored_time != bar_time_normalized:
-                # New bar detected - store it
+                # New bar detected - prepare data
                 candle_data = {
                     'time': bar_time,
                     'open': bar['open'],
@@ -295,14 +407,17 @@ class DataFeed(QObject):
                     'real_volume': bar.get('real_volume', 0)
                 }
                 
-                # Store in PocketBase
-                try:
-                    self.pb_manager.store_ohlc(symbol, 'M1', candle_data)
-                    # Update cache with new bar timestamp
-                    self._m1_bar_cache[symbol] = bar_time_normalized
-                    logger.debug(f"Stored M1 bar for {symbol} at {bar_time_normalized}")
-                except Exception as e:
-                    logger.error(f"Error storing M1 bar for {symbol} in PocketBase: {e}")
+                # Queue for storage (non-blocking)
+                self.db_queue.put({
+                    'type': 'ohlc',
+                    'symbol': symbol,
+                    'timeframe': 'M1',
+                    'data': candle_data
+                })
+                
+                # Update cache immediately so we don't queue duplicates
+                self._m1_bar_cache[symbol] = bar_time_normalized
+                logger.debug(f"Queued storage of M1 bar for {symbol} at {bar_time_normalized}")
             
         except Exception as e:
             logger.debug(f"Error checking M1 bar for {symbol}: {e}")

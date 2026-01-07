@@ -181,7 +181,9 @@ class TradeBookPanel(QWidget):
                 self.trade_book_table.setItem(row, 3, QTableWidgetItem(entry_price_str))
                 
                 # Entry Condition
-                entry_condition = trade.get('entry_condition', '--')
+                entry_condition = trade.get('entry_condition', 'no condition')
+                if entry_condition in ['--', '']:
+                    entry_condition = 'no condition'
                 self.trade_book_table.setItem(row, 4, QTableWidgetItem(entry_condition))
                 
                 # Exit Time
@@ -207,30 +209,34 @@ class TradeBookPanel(QWidget):
                 self.trade_book_table.setItem(row, 6, QTableWidgetItem(exit_price_str))
                 
                 # Exit Reason (from trade history exit_condition or exit_reason, with log fallback)
-                exit_reason = "--"
+                exit_reason = "Manual"
                 status = trade.get('status', 'Open')
                 
                 if status == 'Closed':
                     # Priority: exit_reason > exit_condition > log parsing
-                    exit_reason = trade.get('exit_reason') or trade.get('exit_condition', '--')
+                    exit_reason = trade.get('exit_reason') or trade.get('exit_condition', 'Manual')
                     
                     # If still not set and we have exit_time, try to get from log
-                    if (exit_reason == '--' or not exit_reason) and exit_time:
+                    if (exit_reason in ['--', ''] or not exit_reason) and exit_time:
                         log_exit_condition = self._get_exit_condition_from_log(ticket, exit_time)
                         if log_exit_condition:
                             exit_reason = log_exit_condition
                         else:
                             # Fallback to trade history exit_condition
                             exit_reason = trade.get('exit_condition', 'Manual')
-                    elif not exit_reason or exit_reason == '--':
+                    elif not exit_reason or exit_reason in ['--', '']:
                         # Final fallback
                         exit_reason = trade.get('exit_condition', 'Manual')
+                    
+                    # Normalize exit condition - ensure it's descriptive
+                    if exit_reason == "SL":
+                        exit_reason = "Normal SL"
                 elif status == 'Open':
                     exit_reason = "Open"
                 
                 exit_reason_item = QTableWidgetItem(exit_reason)
-                # Color code: SL = red, TP = green
-                if exit_reason == "SL":
+                # Color code: SL variants = red, TP = green
+                if "SL" in exit_reason:
                     exit_reason_item.setForeground(Qt.GlobalColor.red)
                 elif exit_reason == "TP":
                     exit_reason_item.setForeground(Qt.GlobalColor.green)
@@ -321,15 +327,23 @@ class TradeBookPanel(QWidget):
                     exit_time = datetime.fromtimestamp(exit_time)
                 exit_time_str = exit_time.strftime('%H:%M:%S') if isinstance(exit_time, datetime) else "--"
 
+                entry_condition = trade.get('entry_condition', 'no condition')
+                if entry_condition in ['--', '']:
+                    entry_condition = 'no condition'
+                
+                exit_reason = trade.get('exit_reason') or trade.get('exit_condition', 'Manual')
+                if exit_reason in ['--', '']:
+                    exit_reason = 'Manual'
+                
                 writer.writerow([
                     trade.get('strategy_name', '--'),
                     entry_date_str,
                     entry_time_str,
                     f"{trade.get('entry_price', 0.0):.5f}" if trade.get('entry_price', 0.0) else "--",
-                    trade.get('entry_condition', '--'),
+                    entry_condition,
                     exit_time_str,
                     f"{trade.get('exit_price', 0.0):.5f}" if trade.get('exit_price', 0.0) else "--",
-                    trade.get('exit_reason') or trade.get('exit_condition', '--') or "Manual",
+                    exit_reason,
                     trade.get('symbol', '--')
                 ])
         return len(trades)

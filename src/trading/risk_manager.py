@@ -13,10 +13,10 @@ logger = logging.getLogger(__name__)
 class RiskManager:
     """Manages trading risk and position sizing"""
     
-    def __init__(self, mt5_connector: MT5Connector):
+    def __init__(self, mt5_connector: MT5Connector, max_positions: Optional[int] = None):
         self.mt5 = mt5_connector
         self.max_risk_per_trade = 0.02  # 2% of account balance
-        self.max_positions = 10
+        self.max_positions = max_positions  # None = unlimited positions
         self.min_lot_size = 0.01
         self.max_lot_size = 1.0
     
@@ -125,6 +125,10 @@ class RiskManager:
         if not self.mt5.is_connected():
             return False
         
+        # If max_positions is None, unlimited positions allowed
+        if self.max_positions is None:
+            return True
+        
         positions = self.mt5.get_positions(symbol)
         return len(positions) < self.max_positions
     
@@ -144,9 +148,10 @@ class RiskManager:
             Dictionary with 'valid' (bool) and 'message' (str) keys
         """
         if not self.can_open_position():
+            max_pos_str = 'unlimited' if self.max_positions is None else str(self.max_positions)
             return {
                 'valid': False,
-                'message': f'Maximum positions ({self.max_positions}) reached'
+                'message': f'Maximum positions ({max_pos_str}) reached'
             }
         
         if volume < self.min_lot_size:

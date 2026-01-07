@@ -1,6 +1,9 @@
 """
 Smart Money Concepts (SMC) Strategy
 
+DEPRECATED: This strategy has been replaced by StructureStrategy in structure_strategy.py
+This file is kept for backward compatibility only. New code should use StructureStrategy.
+
 This is a lightweight, trading-engine-oriented implementation:
 - Tracks swing/internal pivots (simple fractal pivots)
 - Detects BOS / CHoCH based on pivot breaks and current bias
@@ -228,24 +231,40 @@ class SMCStrategy(BaseStrategy):
         if op == "Crosses Above":
             if prev_price is None:
                 return False
-            return prev_price < right <= left
+            # For cross detection, use previous candle close logic
+            was_below = prev_price < right
+            is_above = left >= right
+            return was_below and is_above
         if op == "Crosses Under":
             if prev_price is None:
                 return False
-            return prev_price > right >= left
+            # For cross detection, use previous candle close logic
+            was_above = prev_price > right
+            is_below = left <= right
+            return was_above and is_below
         if op == "Any_Cross":
             if prev_price is None:
                 return False
-            return (prev_price < right <= left) or (prev_price > right >= left)
+            was_below = prev_price < right
+            is_above = left >= right
+            was_above = prev_price > right
+            is_below = left <= right
+            return (was_below and is_above) or (was_above and is_below)
         return False
 
     def _evaluate_filter_chain(self, filters: List[Dict], current_price: float, ohlc: Dict, market_data: Dict = None) -> bool:
+        """Legacy method - use _evaluate_filter_chain_with_previous for cross detection"""
+        return self._evaluate_filter_chain_with_previous(filters, current_price, ohlc, market_data, self._prev_filter_price)
+    
+    def _evaluate_filter_chain_with_previous(self, filters: List[Dict], current_price: float, ohlc: Dict, market_data: Dict = None, previous_price: Optional[float] = None) -> bool:
         if not filters:
             return True
         cumulative = None
         prev_connector = None
+        # Use provided previous_price, fallback to self._prev_filter_price
+        prev_price = previous_price if previous_price is not None else self._prev_filter_price
         for cond in filters:
-            res = self._evaluate_filter_condition(cond, current_price, ohlc, self._prev_filter_price, market_data)
+            res = self._evaluate_filter_condition(cond, current_price, ohlc, prev_price, market_data)
             if cumulative is None:
                 cumulative = res
             else:
@@ -301,6 +320,18 @@ class SMCStrategy(BaseStrategy):
             "low": float(lows[-1]) if lows else None,
             "close": close,
         }
+        
+        # Get previous candle's close for cross detection (matches chart logic)
+        previous_candle_close = None
+        if len(closes) >= 2:
+            previous_candle_close = float(closes[-2])
+        elif len(closes) >= 1:
+            # If only one candle, use current candle's close as fallback
+            previous_candle_close = close
+        
+        # Use previous candle close for cross detection, fallback to stored previous price
+        previous_price_for_cross = previous_candle_close if previous_candle_close is not None else self._prev_filter_price
+        
         filters = self.buy_filters if direction == "UP" else self.sell_filters
         # Build market_data context for unified resolver
         strategy_market_data = {
@@ -311,7 +342,7 @@ class SMCStrategy(BaseStrategy):
             "ohlc": last_ohlc,
             "indicators": market_data.get("indicators", {}) if isinstance(market_data, dict) else {}
         }
-        if not self._evaluate_filter_chain(filters, close, last_ohlc, strategy_market_data):
+        if not self._evaluate_filter_chain_with_previous(filters, close, last_ohlc, strategy_market_data, previous_price_for_cross):
             self._prev_filter_price = close
             return None
 

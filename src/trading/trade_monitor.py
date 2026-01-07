@@ -129,20 +129,31 @@ class TradeMonitor:
         if tp_price > 0:
             if pos_type == 0:  # BUY position
                 if current_price >= tp_price:
-                    logger.info(f"Take profit triggered for position {ticket}: "
-                              f"BUY @ {entry_price}, TP @ {tp_price}, Current @ {current_price}")
+                    logger.info(f"✅ Take profit triggered for position {ticket}: "
+                              f"BUY @ {entry_price:.5f}, TP @ {tp_price:.5f}, Current @ {current_price:.5f}")
                     return 'TP'
                 else:
-                    logger.debug(f"Position {ticket} TP check: Current {current_price:.5f} < TP {tp_price:.5f} (gap: {tp_price - current_price:.5f})")
+                    gap = tp_price - current_price
+                    # Log at info level if very close to TP (within 0.1% or 10 points)
+                    if gap <= max(tp_price * 0.001, 10 * 0.01):  # 0.1% or 10 points (0.10 price units)
+                        logger.info(f"Position {ticket} TP check: Current {current_price:.5f} < TP {tp_price:.5f} (gap: {gap:.5f} - very close!)")
+                    else:
+                        logger.debug(f"Position {ticket} TP check: Current {current_price:.5f} < TP {tp_price:.5f} (gap: {gap:.5f})")
             else:  # SELL position
                 if current_price <= tp_price:
-                    logger.info(f"Take profit triggered for position {ticket}: "
-                              f"SELL @ {entry_price}, TP @ {tp_price}, Current @ {current_price}")
+                    logger.info(f"✅ Take profit triggered for position {ticket}: "
+                              f"SELL @ {entry_price:.5f}, TP @ {tp_price:.5f}, Current @ {current_price:.5f}")
                     return 'TP'
                 else:
-                    logger.debug(f"Position {ticket} TP check: Current {current_price:.5f} > TP {tp_price:.5f} (gap: {current_price - tp_price:.5f})")
+                    gap = current_price - tp_price
+                    # Log at info level if very close to TP (within 0.1% or 10 points)
+                    if gap <= max(tp_price * 0.001, 10 * 0.01):  # 0.1% or 10 points (0.10 price units)
+                        logger.info(f"Position {ticket} TP check: Current {current_price:.5f} > TP {tp_price:.5f} (gap: {gap:.5f} - very close!)")
+                    else:
+                        logger.debug(f"Position {ticket} TP check: Current {current_price:.5f} > TP {tp_price:.5f} (gap: {gap:.5f})")
         else:
-            logger.debug(f"Position {ticket} has no TP set (TP={tp_price}) - position will not auto-close on TP")
+            logger.warning(f"⚠️ Position {ticket} ({symbol}) has no TP set (TP={tp_price}) - position will not auto-close on TP. "
+                          f"Entry: {entry_price:.5f}, Current: {current_price:.5f}")
         
         return None
     
@@ -296,15 +307,21 @@ class TradeMonitor:
             
             if lock_trigger > 0 and lock_value > 0:
                 try:
+                    # Get symbol and volume from position
+                    symbol = position.get('symbol', '')
+                    volume = position.get('volume', 0.0)
+                    
                     profit_lock = ProfitManager(
                         lock_trigger=lock_trigger,
                         lock_value=lock_value,
                         trail_step=trail_step,
                         trail_amount=trail_amount,
-                        position_type=position_type_str
+                        position_type=position_type_str,
+                        symbol=symbol,
+                        volume=volume
                     )
                     self.active_profit_locks[ticket] = profit_lock
-                    logger.info(f"Registered profit lock for position {ticket}: {position_type_str} @ {entry_price}, Trigger: {lock_trigger}, Lock: {lock_value}")
+                    logger.info(f"Registered profit lock for position {ticket}: {position_type_str} @ {entry_price}, Trigger: {lock_trigger}, Lock: {lock_value}, Symbol: {symbol}, Volume: {volume}")
                 except Exception as e:
                     logger.error(f"Failed to initialize profit lock for position {ticket}: {e}", exc_info=True)
 
@@ -408,16 +425,16 @@ class TradeMonitor:
             # Update locked profit based on current profit
             locked_profit = profit_lock.update_profit(current_profit)
             
-            # Calculate new TP price
+            # Calculate new TP price (pass mt5_connector for symbol info)
             if locked_profit > 0:
-                new_tp = profit_lock.calculate_take_profit_price(entry_price)
+                new_tp = profit_lock.calculate_take_profit_price(entry_price, self.mt5)
                 
                 if new_tp and new_tp != current_tp:
                     # Only update if TP has changed significantly
                     min_change = max(new_tp * 0.0001, 0.1)  # 0.01% or 0.1 points
                     if abs(new_tp - current_tp) >= min_change:
                         updates['new_tp'] = new_tp
-                        logger.debug(f"Profit lock TP update for position {ticket}: {current_tp:.5f} → {new_tp:.5f} (Locked profit: {locked_profit:.2f})")
+                        logger.info(f"Profit lock TP update for position {ticket}: {current_tp:.5f} → {new_tp:.5f} (Locked profit: ${locked_profit:.2f})")
         
         return updates
 

@@ -224,11 +224,12 @@ class StrategyPersistence:
             indicators_config = strategy_dict.get('indicators_config', {})
             load_indicators_to_strategy(strategy, indicators_config)
             return strategy
-        elif strategy_dict.get('strategy_type') == 'smc':
-            # Create SMCStrategy instance
-            from .smc_strategy import SMCStrategy
+        elif strategy_dict.get('strategy_type') == 'smc' or strategy_dict.get('strategy_type') == 'structure':
+            # Create StructureStrategy instance (replaces SMCStrategy)
+            # Support both 'smc' (legacy) and 'structure' (new) for backward compatibility
+            from .structure_strategy import StructureStrategy
             mt5_connector = strategy_dict.get('_mt5_connector')  # Passed separately (optional)
-            strategy = SMCStrategy.from_dict(strategy_dict, mt5_connector=mt5_connector)
+            strategy = StructureStrategy.from_dict(strategy_dict, mt5_connector=mt5_connector)
             strategy.enabled = enabled
             # Load indicators
             indicators_config = strategy_dict.get('indicators_config', {})

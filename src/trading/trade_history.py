@@ -6,8 +6,11 @@ Tracks all trades (open and closed) for orderbook display
 import logging
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any, TYPE_CHECKING
 from datetime import datetime, timedelta
+
+if TYPE_CHECKING:
+    from ..data.pocketbase_manager import PocketBaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,7 @@ class TradeHistory:
         # Structure: {ticket: trade_dict}
         self.trades: Dict[int, Dict] = {}
         self.persistence_file = persistence_file
+        self.pb_manager: Optional[Any] = None  # Optional PocketBase manager for data storage
         
         # Load existing trades from file if it exists
         if self.persistence_file:

@@ -191,6 +191,10 @@ class TelegramBot:
         entry_time_str = entry_time.strftime("%Y-%m-%d %H:%M:%S") if isinstance(entry_time, datetime) else str(entry_time)
         
         entry_type = (entry_type or "").upper() if isinstance(entry_type, str) else ""
+        
+        # Format entry condition - show "no condition" instead of "--"
+        if entry_condition in ['--', '']:
+            entry_condition = 'no condition'
 
         message = (
             f"<b>📈 TRADE ENTRY</b>\n\n"
@@ -242,6 +246,17 @@ class TelegramBot:
         pnl_str = f"{pnl:+.2f}"
         entry_type = (entry_type or "").upper() if isinstance(entry_type, str) else ""
         exit_type = (exit_type or "").upper() if isinstance(exit_type, str) else ""
+        
+        # Format entry condition - show "no condition" instead of "--"
+        if entry_condition in ['--', '']:
+            entry_condition = 'no condition'
+        
+        # Format exit condition - ensure it's descriptive
+        if exit_condition == "SL":
+            exit_condition = "Normal SL"
+        elif exit_condition not in ["TP", "Normal SL", "Trailing SL", "Manual", "Opposite Strategy"]:
+            # If it's something else, keep it as is
+            pass
         
         message = (
             f"<b>📉 TRADE EXIT {pnl_emoji}</b>\n\n"

@@ -1,0 +1,748 @@
+2026-01-06 14:51:31,320 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:31,320 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:31,343 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:31,373 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.32217, Price=4455.51400, Price-VWAP=-7.80817
+2026-01-06 14:51:31,375 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:31,376 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=44097400.00
+2026-01-06 14:51:31,376 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:31,376 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.51400, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.696
+2026-01-06 14:51:31,377 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:31,378 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.51400, SMC Pivot High=4457.731, Previous Price=4455.696
+2026-01-06 14:51:31,378 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:31,379 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:32,209 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:32,211 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.32197
+2026-01-06 14:51:32,212 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:32,212 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.321968827117), 'Volume': 93.0}
+2026-01-06 14:51:32,353 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:32,354 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:32,383 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:32,406 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.32189, Price=4455.52900, Price-VWAP=-7.79289
+2026-01-06 14:51:32,407 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:32,407 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=44199999.00
+2026-01-06 14:51:32,408 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:32,408 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.52900, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.514
+2026-01-06 14:51:32,409 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:32,410 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.52900, SMC Pivot High=4457.731, Previous Price=4455.514
+2026-01-06 14:51:32,410 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:32,411 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:33,179 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:33,181 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.32169
+2026-01-06 14:51:33,181 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:33,182 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.321690677968), 'Volume': 93.0}
+2026-01-06 14:51:33,347 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:33,347 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:33,366 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:33,367 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.32161, Price=4455.60600, Price-VWAP=-7.71561
+2026-01-06 14:51:33,367 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:33,368 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=44302600.00
+2026-01-06 14:51:33,368 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:33,369 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.60600, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.529
+2026-01-06 14:51:33,369 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:33,370 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.60600, SMC Pivot High=4457.731, Previous Price=4455.529
+2026-01-06 14:51:33,371 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:33,373 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:34,177 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:34,179 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.32141
+2026-01-06 14:51:34,180 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:34,180 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.32141353776), 'Volume': 93.0}
+2026-01-06 14:51:34,305 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:34,306 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:34,355 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:34,357 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.32134, Price=4455.73500, Price-VWAP=-7.58634
+2026-01-06 14:51:34,357 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:34,358 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=44405203.00
+2026-01-06 14:51:34,359 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:34,360 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.73500, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.606
+2026-01-06 14:51:34,360 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:34,362 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.73500, SMC Pivot High=4457.731, Previous Price=4455.606
+2026-01-06 14:51:34,362 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:34,363 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:35,175 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:35,177 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.32114
+2026-01-06 14:51:35,177 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:35,178 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.321137504547), 'Volume': 93.0}
+2026-01-06 14:51:35,318 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:35,318 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:35,348 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:35,349 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.32106, Price=4455.73500, Price-VWAP=-7.58606
+2026-01-06 14:51:35,350 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:35,350 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=44507807.00
+2026-01-06 14:51:35,351 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:35,352 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.73500, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.735
+2026-01-06 14:51:35,352 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:35,353 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.73500, SMC Pivot High=4457.731, Previous Price=4455.735
+2026-01-06 14:51:35,354 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:35,355 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:36,169 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:36,170 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.32086
+2026-01-06 14:51:36,171 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:36,171 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.320862626039), 'Volume': 93.0}
+2026-01-06 14:51:36,322 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:36,324 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:36,342 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:36,343 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.32078, Price=4455.50800, Price-VWAP=-7.81278
+2026-01-06 14:51:36,344 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:36,344 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=44610423.00
+2026-01-06 14:51:36,345 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:36,378 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.50800, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.735
+2026-01-06 14:51:36,386 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:36,387 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.50800, SMC Pivot High=4457.731, Previous Price=4455.735
+2026-01-06 14:51:36,388 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:36,389 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:37,245 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:37,246 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.32059
+2026-01-06 14:51:37,247 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:37,247 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.320585990397), 'Volume': 93.0}
+2026-01-06 14:51:37,352 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:37,352 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:37,371 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:37,372 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.32051, Price=4455.59700, Price-VWAP=-7.72351
+2026-01-06 14:51:37,373 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:37,373 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=44713049.00
+2026-01-06 14:51:37,373 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:37,374 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.59700, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.508
+2026-01-06 14:51:37,374 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:37,376 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.59700, SMC Pivot High=4457.731, Previous Price=4455.508
+2026-01-06 14:51:37,377 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:37,379 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:38,186 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:38,188 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.32031
+2026-01-06 14:51:38,189 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:38,190 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.320309232091), 'Volume': 93.0}
+2026-01-06 14:51:38,290 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:38,290 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:38,315 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:38,317 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.32023, Price=4455.64900, Price-VWAP=-7.67123
+2026-01-06 14:51:38,317 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:38,318 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=44815676.00
+2026-01-06 14:51:38,318 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:38,319 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.64900, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.597
+2026-01-06 14:51:38,319 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:38,320 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.64900, SMC Pivot High=4457.731, Previous Price=4455.597
+2026-01-06 14:51:38,321 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:38,322 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:39,168 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:39,170 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.32003
+2026-01-06 14:51:39,171 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:39,171 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.320033592139), 'Volume': 93.0}
+2026-01-06 14:51:39,363 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:39,364 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:39,400 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:39,401 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31995, Price=4455.64700, Price-VWAP=-7.67295
+2026-01-06 14:51:39,402 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:39,403 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=44918304.00
+2026-01-06 14:51:39,403 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:39,404 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.64700, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.649
+2026-01-06 14:51:39,405 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:39,406 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.64700, SMC Pivot High=4457.731, Previous Price=4455.649
+2026-01-06 14:51:39,407 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:39,408 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:40,188 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:40,189 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31976
+2026-01-06 14:51:40,190 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:40,190 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.319759016471), 'Volume': 93.0}
+2026-01-06 14:51:40,363 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:40,363 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:40,411 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:40,413 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31968, Price=4455.75500, Price-VWAP=-7.56468
+2026-01-06 14:51:40,414 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:40,415 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=45020937.00
+2026-01-06 14:51:40,416 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:40,417 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.75500, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.647
+2026-01-06 14:51:40,417 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:40,420 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.75500, SMC Pivot High=4457.731, Previous Price=4455.647
+2026-01-06 14:51:40,421 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:40,422 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:41,180 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:41,182 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31949
+2026-01-06 14:51:41,182 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:41,183 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.319485003503), 'Volume': 93.0}
+2026-01-06 14:51:41,277 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:41,278 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:41,294 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:41,295 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31941, Price=4455.85600, Price-VWAP=-7.46341
+2026-01-06 14:51:41,295 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:41,296 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=45123574.00
+2026-01-06 14:51:41,296 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:41,296 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.85600, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.755
+2026-01-06 14:51:41,297 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:41,298 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.85600, SMC Pivot High=4457.731, Previous Price=4455.755
+2026-01-06 14:51:41,299 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:41,300 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:42,181 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:42,182 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31921
+2026-01-06 14:51:42,183 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:42,184 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.319211734481), 'Volume': 93.0}
+2026-01-06 14:51:42,350 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:42,351 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:42,379 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:42,380 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31913, Price=4455.95400, Price-VWAP=-7.36513
+2026-01-06 14:51:42,401 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:42,404 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=45226215.00
+2026-01-06 14:51:42,404 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:42,405 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.95400, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.856
+2026-01-06 14:51:42,405 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:42,406 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.95400, SMC Pivot High=4457.731, Previous Price=4455.856
+2026-01-06 14:51:42,407 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:42,408 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:43,169 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:43,171 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31894
+2026-01-06 14:51:43,172 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:43,172 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.318939284639), 'Volume': 93.0}
+2026-01-06 14:51:43,351 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:43,352 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:43,370 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:43,371 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31886, Price=4455.95400, Price-VWAP=-7.36486
+2026-01-06 14:51:43,372 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:43,373 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=45328857.00
+2026-01-06 14:51:43,374 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:43,374 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.95400, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.954
+2026-01-06 14:51:43,375 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:43,375 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.95400, SMC Pivot High=4457.731, Previous Price=4455.954
+2026-01-06 14:51:43,376 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:43,377 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:44,177 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:44,178 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31867
+2026-01-06 14:51:44,179 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:44,180 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.31866780033), 'Volume': 93.0}
+2026-01-06 14:51:44,307 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:44,308 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:44,347 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:44,358 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31859, Price=4455.90600, Price-VWAP=-7.41259
+2026-01-06 14:51:44,359 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:44,359 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=45431502.00
+2026-01-06 14:51:44,360 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:44,360 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.90600, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.954
+2026-01-06 14:51:44,360 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:44,361 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.90600, SMC Pivot High=4457.731, Previous Price=4455.954
+2026-01-06 14:51:44,362 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:44,363 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:45,180 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:45,181 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31840
+2026-01-06 14:51:45,182 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:45,182 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.3183970906375), 'Volume': 93.0}
+2026-01-06 14:51:45,378 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:45,381 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:45,409 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:45,410 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31832, Price=4455.86100, Price-VWAP=-7.45732
+2026-01-06 14:51:45,411 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:45,411 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=45534152.00
+2026-01-06 14:51:45,412 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:45,412 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.86100, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.906
+2026-01-06 14:51:45,412 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:45,413 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.86100, SMC Pivot High=4457.731, Previous Price=4455.906
+2026-01-06 14:51:45,414 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:45,414 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:46,179 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:46,181 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31813
+2026-01-06 14:51:46,181 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:46,182 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.318126600785), 'Volume': 93.0}
+2026-01-06 14:51:46,443 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:46,443 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:46,461 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:46,463 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31805, Price=4455.86100, Price-VWAP=-7.45705
+2026-01-06 14:51:46,463 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:46,464 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=45636803.00
+2026-01-06 14:51:46,465 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:46,467 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.86100, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.861
+2026-01-06 14:51:46,468 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:46,470 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.86100, SMC Pivot High=4457.731, Previous Price=4455.861
+2026-01-06 14:51:46,470 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:46,471 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:47,172 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:47,174 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31786
+2026-01-06 14:51:47,175 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:47,175 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.317857082488), 'Volume': 93.0}
+2026-01-06 14:51:47,312 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:47,312 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:47,338 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:47,339 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31778, Price=4455.82700, Price-VWAP=-7.49078
+2026-01-06 14:51:47,339 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:47,340 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=45739455.00
+2026-01-06 14:51:47,340 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:47,341 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.82700, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.861
+2026-01-06 14:51:47,341 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:47,342 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.82700, SMC Pivot High=4457.731, Previous Price=4455.861
+2026-01-06 14:51:47,343 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:47,343 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:48,193 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:48,195 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31759
+2026-01-06 14:51:48,196 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:48,196 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.317588592126), 'Volume': 93.0}
+2026-01-06 14:51:48,356 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:48,357 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:48,375 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:48,376 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31751, Price=4455.82900, Price-VWAP=-7.48851
+2026-01-06 14:51:48,376 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:48,377 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=45842109.00
+2026-01-06 14:51:48,378 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:48,378 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.82900, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.827
+2026-01-06 14:51:48,379 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:48,380 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.82900, SMC Pivot High=4457.731, Previous Price=4455.827
+2026-01-06 14:51:48,381 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:48,382 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:49,193 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:49,194 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31732
+2026-01-06 14:51:49,195 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:49,195 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.317321198568), 'Volume': 93.0}
+2026-01-06 14:51:49,340 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:49,341 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:49,359 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:49,360 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31724, Price=4455.97700, Price-VWAP=-7.34024
+2026-01-06 14:51:49,361 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:49,361 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=45944763.00
+2026-01-06 14:51:49,362 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:49,362 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.97700, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.829
+2026-01-06 14:51:49,363 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:49,364 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.97700, SMC Pivot High=4457.731, Previous Price=4455.829
+2026-01-06 14:51:49,364 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:49,365 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:50,179 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:50,181 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31705
+2026-01-06 14:51:50,181 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:50,182 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.317054997929), 'Volume': 93.0}
+2026-01-06 14:51:50,359 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:50,360 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:50,375 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:50,385 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31698, Price=4455.99400, Price-VWAP=-7.32298
+2026-01-06 14:51:50,386 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:50,387 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=46047418.00
+2026-01-06 14:51:50,391 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:50,393 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.99400, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.977
+2026-01-06 14:51:50,394 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:50,414 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.99400, SMC Pivot High=4457.731, Previous Price=4455.977
+2026-01-06 14:51:50,415 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:50,416 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:51,172 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:51,173 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31679
+2026-01-06 14:51:51,174 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:51,174 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.316789831333), 'Volume': 93.0}
+2026-01-06 14:51:51,346 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:51,346 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:51,365 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:51,367 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31671, Price=4455.91500, Price-VWAP=-7.40171
+2026-01-06 14:51:51,367 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:51,368 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=46150082.00
+2026-01-06 14:51:51,368 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:51,368 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.91500, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.994
+2026-01-06 14:51:51,369 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:51,370 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.91500, SMC Pivot High=4457.731, Previous Price=4455.994
+2026-01-06 14:51:51,370 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:51,371 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:52,178 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:52,179 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31652
+2026-01-06 14:51:52,180 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:52,180 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.316523500141), 'Volume': 93.0}
+2026-01-06 14:51:52,369 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:52,369 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:52,394 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:52,396 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31644, Price=4455.32500, Price-VWAP=-7.99144
+2026-01-06 14:51:52,397 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:52,397 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=46252755.00
+2026-01-06 14:51:52,398 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:52,398 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.32500, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.915
+2026-01-06 14:51:52,399 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:52,400 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.32500, SMC Pivot High=4457.731, Previous Price=4455.915
+2026-01-06 14:51:52,401 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:52,402 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:53,203 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:53,204 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31626
+2026-01-06 14:51:53,205 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:53,207 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.316256179097), 'Volume': 93.0}
+2026-01-06 14:51:53,348 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:53,348 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:53,382 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:53,386 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31617, Price=4455.31700, Price-VWAP=-7.99917
+2026-01-06 14:51:53,387 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:53,387 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=46355429.00
+2026-01-06 14:51:53,388 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:53,388 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.31700, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.325
+2026-01-06 14:51:53,389 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:53,390 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.31700, SMC Pivot High=4457.731, Previous Price=4455.325
+2026-01-06 14:51:53,390 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:53,400 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:54,187 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:54,189 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31599
+2026-01-06 14:51:54,189 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:54,190 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.315989840681), 'Volume': 93.0}
+2026-01-06 14:51:54,291 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:54,291 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:54,318 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:54,319 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31591, Price=4455.48100, Price-VWAP=-7.83491
+2026-01-06 14:51:54,320 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:54,320 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=46458105.00
+2026-01-06 14:51:54,321 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:54,321 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.48100, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.317
+2026-01-06 14:51:54,322 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:54,323 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.48100, SMC Pivot High=4457.731, Previous Price=4455.317
+2026-01-06 14:51:54,324 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:54,325 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:55,191 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:55,194 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31572
+2026-01-06 14:51:55,195 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:55,195 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.315724621852), 'Volume': 93.0}
+2026-01-06 14:51:55,403 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:55,404 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:55,447 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:55,448 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31564, Price=4455.56300, Price-VWAP=-7.75264
+2026-01-06 14:51:55,449 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:55,450 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=46560789.00
+2026-01-06 14:51:55,450 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:55,456 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.56300, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.481
+2026-01-06 14:51:55,456 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:55,457 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.56300, SMC Pivot High=4457.731, Previous Price=4455.481
+2026-01-06 14:51:55,458 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:55,459 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:56,174 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:56,176 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31546
+2026-01-06 14:51:56,176 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:56,177 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.315458773712), 'Volume': 93.0}
+2026-01-06 14:51:56,400 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:56,401 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:56,435 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:56,437 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31537, Price=4455.33000, Price-VWAP=-7.98537
+2026-01-06 14:51:56,437 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:56,438 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=46663485.00
+2026-01-06 14:51:56,438 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:56,439 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.33000, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.563
+2026-01-06 14:51:56,439 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:56,449 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.33000, SMC Pivot High=4457.731, Previous Price=4455.563
+2026-01-06 14:51:56,450 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:56,451 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:57,174 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:57,175 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31519
+2026-01-06 14:51:57,176 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:57,177 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.315191936248), 'Volume': 93.0}
+2026-01-06 14:51:57,260 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:57,260 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:57,285 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:57,286 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31511, Price=4455.47100, Price-VWAP=-7.84411
+2026-01-06 14:51:57,286 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:57,287 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=46766183.00
+2026-01-06 14:51:57,288 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:57,288 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.47100, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.33
+2026-01-06 14:51:57,289 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:57,290 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.47100, SMC Pivot High=4457.731, Previous Price=4455.33
+2026-01-06 14:51:57,290 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:57,291 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:58,176 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:58,178 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31493
+2026-01-06 14:51:58,179 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:58,179 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.314926192203), 'Volume': 93.0}
+2026-01-06 14:51:58,273 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:58,274 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:58,297 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:58,299 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31484, Price=4455.61100, Price-VWAP=-7.70384
+2026-01-06 14:51:58,299 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:58,300 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=46868886.00
+2026-01-06 14:51:58,300 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:58,301 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.61100, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.471
+2026-01-06 14:51:58,302 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:58,303 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.61100, SMC Pivot High=4457.731, Previous Price=4455.471
+2026-01-06 14:51:58,303 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:58,304 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:51:59,177 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:51:59,179 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31466
+2026-01-06 14:51:59,180 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:51:59,180 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.314660995179), 'Volume': 93.0}
+2026-01-06 14:51:59,279 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:51:59,280 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:51:59,296 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:51:59,298 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31457, Price=4455.59400, Price-VWAP=-7.72057
+2026-01-06 14:51:59,298 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:51:59,298 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=46971594.00
+2026-01-06 14:51:59,299 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:51:59,300 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.59400, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.611
+2026-01-06 14:51:59,300 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:59,301 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.59400, SMC Pivot High=4457.731, Previous Price=4455.611
+2026-01-06 14:51:59,302 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:51:59,303 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:00,167 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:00,169 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31440
+2026-01-06 14:52:00,170 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:00,170 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.314396020115), 'Volume': 93.0}
+2026-01-06 14:52:00,263 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:00,264 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:00,282 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:00,282 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31431, Price=4455.55400, Price-VWAP=-7.76031
+2026-01-06 14:52:00,283 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:00,283 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=47074308.00
+2026-01-06 14:52:00,284 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: neutral
+2026-01-06 14:52:00,284 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.55400, SMC Pivot High=4457.731, SMC Pivot Low=4452.226, Previous Price=4455.594
+2026-01-06 14:52:00,284 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:00,285 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.55400, SMC Pivot High=4457.731, Previous Price=4455.594
+2026-01-06 14:52:00,286 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:00,287 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:01,174 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:01,176 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31413
+2026-01-06 14:52:01,177 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:01,178 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.3141310351675), 'Volume': 93.0}
+2026-01-06 14:52:01,263 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:01,264 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:01,292 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:01,293 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31404, Price=4455.84800, Price-VWAP=-7.46604
+2026-01-06 14:52:01,294 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:01,294 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=47176934.00
+2026-01-06 14:52:01,295 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:01,295 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.84800, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4455.554
+2026-01-06 14:52:01,296 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:01,296 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.84800, SMC Pivot High=4457.731, Previous Price=4455.554
+2026-01-06 14:52:01,297 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:01,298 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:02,183 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:02,184 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31386
+2026-01-06 14:52:02,185 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:02,186 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.313861392704), 'Volume': 93.0}
+2026-01-06 14:52:02,274 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:02,275 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:02,297 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:02,298 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31377, Price=4455.90300, Price-VWAP=-7.41077
+2026-01-06 14:52:02,298 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:02,299 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=47279561.00
+2026-01-06 14:52:02,299 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:02,299 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.90300, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4455.848
+2026-01-06 14:52:02,300 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:02,301 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.90300, SMC Pivot High=4457.731, Previous Price=4455.848
+2026-01-06 14:52:02,301 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:02,302 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:03,187 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:03,189 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31359
+2026-01-06 14:52:03,190 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:03,190 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.313592764279), 'Volume': 93.0}
+2026-01-06 14:52:03,272 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:03,272 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:03,297 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:03,299 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31350, Price=4456.02700, Price-VWAP=-7.28650
+2026-01-06 14:52:03,299 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:03,300 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=47382192.00
+2026-01-06 14:52:03,301 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:03,301 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4456.02700, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4455.903
+2026-01-06 14:52:03,302 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:03,303 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4456.02700, SMC Pivot High=4457.731, Previous Price=4455.903
+2026-01-06 14:52:03,304 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:03,304 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:04,182 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:04,190 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31332
+2026-01-06 14:52:04,193 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:04,194 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.31332468132), 'Volume': 93.0}
+2026-01-06 14:52:04,279 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:04,280 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:04,296 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:04,297 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31323, Price=4456.01600, Price-VWAP=-7.29723
+2026-01-06 14:52:04,297 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:04,298 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=47484826.00
+2026-01-06 14:52:04,298 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:04,299 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4456.01600, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4456.027
+2026-01-06 14:52:04,299 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:04,300 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4456.01600, SMC Pivot High=4457.731, Previous Price=4456.027
+2026-01-06 14:52:04,300 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:04,301 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:05,191 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:05,193 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31306
+2026-01-06 14:52:05,194 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:05,194 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.313057287432), 'Volume': 93.0}
+2026-01-06 14:52:05,275 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:05,275 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:05,300 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:05,302 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31296, Price=4455.80200, Price-VWAP=-7.51096
+2026-01-06 14:52:05,302 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:05,303 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=47587466.00
+2026-01-06 14:52:05,303 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:05,304 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.80200, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4456.016
+2026-01-06 14:52:05,304 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:05,306 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.80200, SMC Pivot High=4457.731, Previous Price=4456.016
+2026-01-06 14:52:05,306 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:05,307 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:06,175 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:06,176 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31279
+2026-01-06 14:52:06,177 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:06,178 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.312790067341), 'Volume': 93.0}
+2026-01-06 14:52:06,354 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:06,355 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:06,369 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:06,370 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31270, Price=4455.83400, Price-VWAP=-7.47870
+2026-01-06 14:52:06,371 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:06,371 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=47690110.00
+2026-01-06 14:52:06,372 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:06,373 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.83400, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4455.802
+2026-01-06 14:52:06,373 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:06,374 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.83400, SMC Pivot High=4457.731, Previous Price=4455.802
+2026-01-06 14:52:06,375 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:06,375 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:07,181 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:07,183 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31252
+2026-01-06 14:52:07,184 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:07,185 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.312523380941), 'Volume': 93.0}
+2026-01-06 14:52:07,275 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:07,275 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:07,301 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:07,303 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31243, Price=4455.57100, Price-VWAP=-7.74143
+2026-01-06 14:52:07,304 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:07,304 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=47792762.00
+2026-01-06 14:52:07,304 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:07,305 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.57100, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4455.834
+2026-01-06 14:52:07,306 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:07,306 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.57100, SMC Pivot High=4457.731, Previous Price=4455.834
+2026-01-06 14:52:07,307 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:07,308 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:08,180 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:08,181 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31226
+2026-01-06 14:52:08,182 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:08,183 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.31225649826), 'Volume': 93.0}
+2026-01-06 14:52:08,275 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:08,276 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:08,303 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:08,304 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31216, Price=4455.61000, Price-VWAP=-7.70216
+2026-01-06 14:52:08,305 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:08,305 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=47895415.00
+2026-01-06 14:52:08,306 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:08,306 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.61000, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4455.571
+2026-01-06 14:52:08,307 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:08,308 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.61000, SMC Pivot High=4457.731, Previous Price=4455.571
+2026-01-06 14:52:08,308 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:08,309 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:09,176 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:09,177 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31199
+2026-01-06 14:52:09,178 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:09,178 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.3119906076545), 'Volume': 93.0}
+2026-01-06 14:52:09,332 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:09,332 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:09,350 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:09,352 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31190, Price=4455.59000, Price-VWAP=-7.72190
+2026-01-06 14:52:09,353 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:09,357 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=47998072.00
+2026-01-06 14:52:09,358 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:09,358 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.59000, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4455.61
+2026-01-06 14:52:09,359 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:09,360 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.59000, SMC Pivot High=4457.731, Previous Price=4455.61
+2026-01-06 14:52:09,360 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:09,361 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:10,173 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:10,174 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31173
+2026-01-06 14:52:10,175 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:10,175 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.311725209522), 'Volume': 93.0}
+2026-01-06 14:52:10,276 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:10,276 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:10,292 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:10,293 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31163, Price=4455.54300, Price-VWAP=-7.76863
+2026-01-06 14:52:10,294 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:10,294 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=48100730.00
+2026-01-06 14:52:10,295 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:10,295 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.54300, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4455.59
+2026-01-06 14:52:10,296 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:10,297 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.54300, SMC Pivot High=4457.731, Previous Price=4455.59
+2026-01-06 14:52:10,297 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:10,299 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:11,168 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:11,169 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31146
+2026-01-06 14:52:11,170 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:11,170 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.3114607665875), 'Volume': 93.0}
+2026-01-06 14:52:11,261 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:11,261 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:11,277 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:11,278 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31137, Price=4455.48500, Price-VWAP=-7.82637
+2026-01-06 14:52:11,279 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:11,279 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=48203391.00
+2026-01-06 14:52:11,280 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:11,280 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.48500, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4455.543
+2026-01-06 14:52:11,281 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:11,282 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.48500, SMC Pivot High=4457.731, Previous Price=4455.543
+2026-01-06 14:52:11,282 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:11,283 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:12,179 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:12,180 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31120
+2026-01-06 14:52:12,181 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:12,181 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.311196938539), 'Volume': 93.0}
+2026-01-06 14:52:12,274 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:12,274 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:12,290 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:12,291 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31110, Price=4455.61300, Price-VWAP=-7.69810
+2026-01-06 14:52:12,292 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:12,292 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=48306055.00
+2026-01-06 14:52:12,293 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:12,293 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.61300, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4455.485
+2026-01-06 14:52:12,293 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:12,294 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.61300, SMC Pivot High=4457.731, Previous Price=4455.485
+2026-01-06 14:52:12,295 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:12,296 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:13,175 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:13,176 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31093
+2026-01-06 14:52:13,177 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:13,178 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.310933792366), 'Volume': 93.0}
+2026-01-06 14:52:13,277 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:13,278 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:13,297 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:13,298 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31084, Price=4455.70900, Price-VWAP=-7.60184
+2026-01-06 14:52:13,298 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:13,299 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=48408723.00
+2026-01-06 14:52:13,299 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:13,300 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.70900, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4455.613
+2026-01-06 14:52:13,301 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:13,301 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.70900, SMC Pivot High=4457.731, Previous Price=4455.613
+2026-01-06 14:52:13,302 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:13,303 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:14,169 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:14,170 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31067
+2026-01-06 14:52:14,171 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:14,172 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.310671120474), 'Volume': 93.0}
+2026-01-06 14:52:14,266 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:14,266 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:14,282 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:14,283 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31058, Price=4455.51600, Price-VWAP=-7.79458
+2026-01-06 14:52:14,284 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:14,284 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=48511393.00
+2026-01-06 14:52:14,284 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:14,285 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.51600, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4455.709
+2026-01-06 14:52:14,285 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:14,286 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.51600, SMC Pivot High=4457.731, Previous Price=4455.709
+2026-01-06 14:52:14,287 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:14,288 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:15,171 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:15,172 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31041
+2026-01-06 14:52:15,173 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:15,173 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.310409217967), 'Volume': 93.0}
+2026-01-06 14:52:15,293 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:15,293 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:15,316 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:15,318 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31031, Price=4455.52300, Price-VWAP=-7.78731
+2026-01-06 14:52:15,318 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:15,319 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=48614064.00
+2026-01-06 14:52:15,320 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:15,320 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.52300, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4455.516
+2026-01-06 14:52:15,321 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:15,323 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.52300, SMC Pivot High=4457.731, Previous Price=4455.516
+2026-01-06 14:52:15,324 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:15,325 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:16,180 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:16,181 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.31015
+2026-01-06 14:52:16,181 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:16,182 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.310148264575), 'Volume': 93.0}
+2026-01-06 14:52:16,281 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:16,281 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:16,300 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:16,302 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.31005, Price=4455.43000, Price-VWAP=-7.88005
+2026-01-06 14:52:16,302 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:16,303 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=48716736.00
+2026-01-06 14:52:16,303 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:16,304 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.43000, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4455.523
+2026-01-06 14:52:16,305 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:16,306 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.43000, SMC Pivot High=4457.731, Previous Price=4455.523
+2026-01-06 14:52:16,306 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:16,307 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None
+2026-01-06 14:52:17,180 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Calculating indicators for XAUUSDm with 300 rates (timeframe: M1)
+2026-01-06 14:52:17,181 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: VWAP = 4463.30989
+2026-01-06 14:52:17,182 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M: Volume = 93.00000
+2026-01-06 14:52:17,183 - src.gui.main_window - DEBUG - Strategy VWAP_GOLD_1M indicators: {'VWAP': np.float64(4463.309888198295), 'Volume': 93.0}
+2026-01-06 14:52:17,277 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: Calling update() with market_data for XAUUSDm
+2026-01-06 14:52:17,278 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: generate_signal() called for symbol XAUUSDM
+2026-01-06 14:52:17,305 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Retrieved 100 candles for XAUUSDM
+2026-01-06 14:52:17,306 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Data: VWAP=4463.30979, Price=4455.30100, Price-VWAP=-8.00879
+2026-01-06 14:52:17,307 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M VWAP Bands: STD1.0: Upper=4467.75998, Lower=4459.09873, STD1.5: Upper=4469.92529, Lower=4456.93342, STD2.0: Upper=4472.09060, Lower=4454.76811
+2026-01-06 14:52:17,307 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Session: Start=None, Cumulative Volume=48819416.00
+2026-01-06 14:52:17,308 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M Volume Momentum: declining
+2026-01-06 14:52:17,309 - src.strategy.vwap_strategy - INFO - Strategy VWAP_GOLD_1M: Evaluating BUY conditions - Price=4455.30100, SMC Pivot High=4457.731, SMC Pivot Low=4452.701, Previous Price=4455.43
+2026-01-06 14:52:17,310 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP upper band field 'vwap_upper_1.0' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:17,311 - src.strategy.vwap_strategy - DEBUG - Strategy VWAP_GOLD_1M: Buy conditions NOT met - Price=4455.30100, SMC Pivot High=4457.731, Previous Price=4455.43
+2026-01-06 14:52:17,311 - src.strategy.unified_indicator_resolver - DEBUG - Attempting to resolve VWAP lower band field 'vwap_lower_1.5' from vwap_data with keys: ['vwap', 'bands', 'session_info']
+2026-01-06 14:52:17,313 - src.strategy.strategy_manager - DEBUG - Strategy VWAP_GOLD_1M: update() returned signal=None

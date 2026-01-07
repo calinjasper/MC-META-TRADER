@@ -72,6 +72,16 @@ logging.info(f"Logging initialized. Log file: {log_file}")
 
 def main():
     """Main application entry point"""
+    # #region agent log
+    import json
+    import time
+    log_path = r"c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log"
+    try:
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_main_entry","timestamp":int(time.time()*1000),"location":"main.py:73","message":"Main function entry","data":{"argv":sys.argv},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+    except: pass
+    # #endregion
+    
     app = QApplication(sys.argv)
     app.setApplicationName("MT5 Trading Platform")
     
@@ -81,18 +91,57 @@ def main():
     # Initialize PocketBase Manager (optional - won't fail if server not running)
     pb_manager = None
     try:
+        # #region agent log
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_pb_init_start","timestamp":int(time.time()*1000),"location":"main.py:84","message":"PocketBase initialization start","data":{},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+        except: pass
+        # #endregion
+        
         pb_manager = PocketBaseManager('http://192.168.173.112:8090')
         if pb_manager.health_check():
             logging.info("PocketBase connection successful")
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_pb_success","timestamp":int(time.time()*1000),"location":"main.py:87","message":"PocketBase connection successful","data":{},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+            except: pass
+            # #endregion
         else:
             logging.warning("PocketBase server not reachable - data storage disabled")
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_pb_unreachable","timestamp":int(time.time()*1000),"location":"main.py:89","message":"PocketBase server unreachable","data":{},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+            except: pass
+            # #endregion
             pb_manager = None
     except Exception as e:
         logging.warning(f"PocketBase initialization failed: {e} - continuing without database storage")
+        # #region agent log
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_pb_error","timestamp":int(time.time()*1000),"location":"main.py:91","message":"PocketBase initialization exception","data":{"error":str(e)},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+        except: pass
+        # #endregion
         pb_manager = None
     
     # Create and show main window
+    # #region agent log
+    try:
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_window_create","timestamp":int(time.time()*1000),"location":"main.py:95","message":"Creating MainWindow","data":{},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+    except: pass
+    # #endregion
+    
     window = MainWindow()
+    
+    # #region agent log
+    try:
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_window_created","timestamp":int(time.time()*1000),"location":"main.py:97","message":"MainWindow created","data":{"has_data_feed":hasattr(window,'data_feed'),"has_order_manager":hasattr(window,'order_manager'),"has_chart_widget":hasattr(window,'chart_widget')},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+    except: pass
+    # #endregion
     
     # Pass PocketBase manager to components that need it
     if pb_manager:
@@ -101,20 +150,51 @@ def main():
             if hasattr(window, 'data_feed'):
                 window.data_feed.pb_manager = pb_manager
                 logging.info("PocketBase manager attached to DataFeed")
+                # #region agent log
+                try:
+                    with open(log_path, 'a', encoding='utf-8') as f:
+                        f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_pb_attached_feed","timestamp":int(time.time()*1000),"location":"main.py:102","message":"PocketBase attached to DataFeed","data":{},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+                except: pass
+                # #endregion
             
             # Pass to trade history
             if hasattr(window, 'order_manager') and hasattr(window.order_manager, 'trade_history'):
                 window.order_manager.trade_history.pb_manager = pb_manager
                 logging.info("PocketBase manager attached to TradeHistory")
+                # #region agent log
+                try:
+                    with open(log_path, 'a', encoding='utf-8') as f:
+                        f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_pb_attached_history","timestamp":int(time.time()*1000),"location":"main.py:107","message":"PocketBase attached to TradeHistory","data":{},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+                except: pass
+                # #endregion
             
             # Pass to chart widget
             if hasattr(window, 'chart_widget'):
                 window.chart_widget.pb_manager = pb_manager
                 logging.info("PocketBase manager attached to ChartWidget")
+                # #region agent log
+                try:
+                    with open(log_path, 'a', encoding='utf-8') as f:
+                        f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_pb_attached_chart","timestamp":int(time.time()*1000),"location":"main.py:112","message":"PocketBase attached to ChartWidget","data":{},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+                except: pass
+                # #endregion
         except Exception as e:
             logging.error(f"Error attaching PocketBase manager: {e}")
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_pb_attach_error","timestamp":int(time.time()*1000),"location":"main.py:115","message":"Error attaching PocketBase","data":{"error":str(e)},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+            except: pass
+            # #endregion
     
     window.show()
+    
+    # #region agent log
+    try:
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_app_exec","timestamp":int(time.time()*1000),"location":"main.py:120","message":"Starting app.exec","data":{},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+    except: pass
+    # #endregion
     
     # Run application
     sys.exit(app.exec())

@@ -11,7 +11,7 @@ from PyQt6.QtCore import Qt
 
 from ..indicators.ema import EMA
 from ..strategy.supertrend_strategy import compute_supertrend
-from ..strategy.smc_strategy import _fractal_pivot_high, _fractal_pivot_low
+from ..strategy.structure_strategy import _fractal_pivot_high, _fractal_pivot_low
 
 logger = logging.getLogger(__name__)
 

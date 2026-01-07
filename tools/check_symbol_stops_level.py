@@ -138,3 +138,10 @@ if __name__ == "__main__":
     symbol = sys.argv[1] if len(sys.argv) > 1 else "XAUUSDM"
     check_symbol_stops_level(symbol)
 
+
+
+
+
+
+
+

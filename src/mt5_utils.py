@@ -89,3 +89,79 @@ def find_mt5_path() -> Optional[str]:
     
     return None
 
+
+def find_mt5_data_folder() -> Optional[str]:
+    """
+    Auto-detect MetaTrader 5 data folder (MQL5/Files directory)
+    
+    Returns:
+        Path to MT5 MQL5/Files directory or None if not found
+    """
+    # First try to get from MT5 installation path
+    mt5_path = find_mt5_path()
+    if mt5_path:
+        # MT5 path is like "C:\Program Files\MetaTrader 5\terminal64.exe"
+        # Data folder is "C:\Program Files\MetaTrader 5\MQL5\Files"
+        install_dir = os.path.dirname(mt5_path)
+        data_folder = os.path.join(install_dir, "MQL5", "Files")
+        if os.path.exists(data_folder):
+            return data_folder
+    
+    # Try common data folder locations
+    common_data_paths = [
+        r"C:\Program Files\MetaTrader 5\MQL5\Files",
+        r"C:\Program Files (x86)\MetaTrader 5\MQL5\Files",
+    ]
+    
+    for path in common_data_paths:
+        if os.path.exists(path):
+            return path
+    
+    # Try to find from registry
+    try:
+        # Check 64-bit registry
+        key = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\MetaQuotes\MetaTrader 5"
+        )
+        try:
+            install_path = winreg.QueryValueEx(key, "Path")[0]
+            data_folder = os.path.join(install_path, "MQL5", "Files")
+            if os.path.exists(data_folder):
+                return data_folder
+        finally:
+            winreg.CloseKey(key)
+    except (FileNotFoundError, OSError):
+        pass
+    
+    try:
+        # Check 32-bit registry (WOW64)
+        key = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\WOW6432Node\MetaQuotes\MetaTrader 5"
+        )
+        try:
+            install_path = winreg.QueryValueEx(key, "Path")[0]
+            data_folder = os.path.join(install_path, "MQL5", "Files")
+            if os.path.exists(data_folder):
+                return data_folder
+        finally:
+            winreg.CloseKey(key)
+    except (FileNotFoundError, OSError):
+        pass
+    
+    # Search in Program Files
+    program_files_paths = [
+        Path(r"C:\Program Files"),
+        Path(r"C:\Program Files (x86)"),
+    ]
+    
+    for pf_path in program_files_paths:
+        if pf_path.exists():
+            mt5_dirs = list(pf_path.glob("MetaTrader 5*"))
+            for mt5_dir in mt5_dirs:
+                data_folder = mt5_dir / "MQL5" / "Files"
+                if data_folder.exists():
+                    return str(data_folder)
+    
+    return None

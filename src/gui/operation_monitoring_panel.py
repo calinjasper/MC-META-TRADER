@@ -5,9 +5,9 @@ Displays Open P&L, Open Positions, and Trade Book for all active strategies
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QTableWidgetItem, QPushButton, QLabel, QHeaderView,
-                             QMessageBox)
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QColor, QFont
+                             QMessageBox, QStyle)
+from PyQt6.QtCore import Qt, QTimer, QSize
+from PyQt6.QtGui import QColor, QFont, QIcon
 from typing import Optional, Dict, List
 from datetime import datetime
 import logging
@@ -79,9 +79,19 @@ class OperationMonitoringPanel(QWidget):
         layout.addWidget(pnl_group)
         
         # Open Positions Section
+        positions_header_layout = QHBoxLayout()
         positions_label = QLabel("Open Positions")
         positions_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-        layout.addWidget(positions_label)
+        positions_header_layout.addWidget(positions_label)
+        
+        positions_header_layout.addStretch()
+        
+        refresh_positions_btn = QPushButton("Refresh")
+        refresh_positions_btn.clicked.connect(self.update_positions)
+        refresh_positions_btn.setMaximumWidth(100)
+        positions_header_layout.addWidget(refresh_positions_btn)
+        
+        layout.addLayout(positions_header_layout)
         
         self.positions_table = QTableWidget()
         self.positions_table.setColumnCount(9)
@@ -192,15 +202,28 @@ class OperationMonitoringPanel(QWidget):
     
     def update_positions(self):
         """Update positions table"""
+        # Import PositionDetailDialog at the top to avoid repeated imports in loop
+        try:
+            from .trade_panel import PositionDetailDialog
+            has_detail_dialog = True
+        except Exception as import_error:
+            logger.error(f"Failed to import PositionDetailDialog: {import_error}", exc_info=True)
+            has_detail_dialog = False
+            PositionDetailDialog = None
+        
         if not self.mt5.is_connected():
             self.positions_table.setRowCount(0)
             return
         
-        positions = self.order_manager.get_positions()
-        
-        self.positions_table.setRowCount(len(positions))
+        try:
+            positions = self.order_manager.get_positions()
+            self.positions_table.setRowCount(len(positions))
+        except Exception as e:
+            logger.error(f"Error updating positions: {e}", exc_info=True)
+            return
         
         for row, pos in enumerate(positions):
+            
             # Ticket
             self.positions_table.setItem(row, 0, QTableWidgetItem(str(pos['ticket'])))
             
@@ -239,13 +262,86 @@ class OperationMonitoringPanel(QWidget):
             action_widget = QWidget()
             action_layout = QHBoxLayout(action_widget)
             action_layout.setContentsMargins(2, 2, 2, 2)
+            action_layout.setSpacing(5)
+            action_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            
+            # Get standard icons
+            style = self.style()
+            
+            # Detail button
+            if has_detail_dialog:
+                detail_btn = QPushButton("Detail")
+                detail_icon = style.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)
+                if not detail_icon.isNull():
+                    detail_btn.setIcon(detail_icon)
+                    detail_btn.setIconSize(QSize(16, 16))
+                detail_btn.setMinimumWidth(80)
+                detail_btn.setMaximumWidth(90)
+                detail_btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #9C27B0;
+                        color: white;
+                        border: none;
+                        padding: 4px 8px;
+                        border-radius: 3px;
+                        text-align: left;
+                    }
+                    QPushButton:hover {
+                        background-color: #7B1FA2;
+                    }
+                    QPushButton::icon {
+                        margin-right: 4px;
+                    }
+                """)
+                detail_btn.clicked.connect(lambda checked, p=pos: self.show_position_detail(p))
+                action_layout.addWidget(detail_btn)
+            else:
+                # Detail button disabled if import failed
+                detail_btn = QPushButton("Detail (Error)")
+                detail_btn.setEnabled(False)
+                action_layout.addWidget(detail_btn)
             
             close_btn = QPushButton("Close")
+            close_icon = style.standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton)
+            if not close_icon.isNull():
+                close_btn.setIcon(close_icon)
+                close_btn.setIconSize(QSize(16, 16))  # Set explicit icon size
+            close_btn.setMinimumWidth(80)
+            close_btn.setMaximumWidth(90)
+            close_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #F44336;
+                    color: white;
+                    border: none;
+                    padding: 4px 8px;
+                    border-radius: 3px;
+                    text-align: left;
+                }
+                QPushButton:hover {
+                    background-color: #D32F2F;
+                }
+                QPushButton::icon {
+                    margin-right: 4px;
+                }
+            """)
             close_btn.clicked.connect(lambda checked, t=pos['ticket']: self.close_position(t))
             action_layout.addWidget(close_btn)
             action_layout.addStretch()
             
             self.positions_table.setCellWidget(row, 8, action_widget)
+    
+    def show_position_detail(self, position: Dict):
+        """Show position detail dialog"""
+        from .trade_panel import PositionDetailDialog
+        position_tracker = self.order_manager.position_tracker if self.order_manager else None
+        dialog = PositionDetailDialog(
+            position, 
+            self.mt5, 
+            self,
+            strategy_manager=self.strategy_manager,
+            position_tracker=position_tracker
+        )
+        dialog.exec()
     
     def close_position(self, ticket: int):
         """Close a position"""

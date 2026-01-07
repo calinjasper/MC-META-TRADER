@@ -195,7 +195,8 @@ class SystemLogsPanel(QWidget):
             w = csv.writer(f)
             w.writerow(headers)
             for e in entries:
-                w.writerow([e.timestamp, e.log_type, e.user, e.strategy, e.portfolio, e.message])
+                row_data = [e.timestamp, e.log_type, e.user, e.strategy, e.portfolio, e.message]
+                w.writerow(row_data)
         return len(entries)
 
     def _set_item(self, row: int, col: int, text: str, entry: SystemLogEntry):

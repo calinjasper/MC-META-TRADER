@@ -5,7 +5,7 @@ Trading strategy based on price comparisons with one or more EMAs.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import logging
 from datetime import datetime
 
@@ -24,10 +24,10 @@ class EMACondition:
         self,
         price_reference: str,
         operator: str,
-        ema_field: str = None,
-        value: float = None,
-        left_field: str = None,
-        right_field: str = None,
+        ema_field: Optional[str] = None,
+        value: Optional[float] = None,
+        left_field: Optional[str] = None,
+        right_field: Optional[str] = None,
         connector: str = "OR",
     ):
         """
@@ -48,7 +48,7 @@ class EMACondition:
         self.connector = connector or "OR"
         self.previous_state = None  # For cross detection
 
-    def _resolve_operand(self, field: str, current_price: float, ema_values: Dict, market_data: Dict = None) -> Optional[float]:
+    def _resolve_operand(self, field: str, current_price: float, ema_values: Dict, market_data: Optional[Dict] = None) -> Optional[float]:
         """
         Resolve operand using unified indicator resolver.
         Falls back to legacy behavior if unified resolver fails.
@@ -65,53 +65,247 @@ class EMACondition:
             context["smc_pivots"] = market_data.get("smc_pivots", {})
             context["vwap"] = market_data.get("vwap")
             context["indicators"] = market_data.get("indicators", {})
+            context["ema_periods"] = market_data.get("ema_periods")  # Add ema_periods for period-based mapping
+        
+        # #region agent log
+        import json
+        try:
+            with open(r'c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log', 'a') as f:
+                f.write(json.dumps({
+                    "sessionId": "debug-session",
+                    "runId": "run1",
+                    "hypothesisId": "A",
+                    "location": "ema_strategy.py:_resolve_operand",
+                    "message": "Resolving operand field",
+                    "data": {
+                        "field": field,
+                        "has_ema_periods_in_context": "ema_periods" in context,
+                        "ema_periods": context.get("ema_periods"),
+                        "ema_keys": list(ema_values.keys()) if ema_values else [],
+                        "market_data_keys": list(market_data.keys()) if market_data else []
+                    },
+                    "timestamp": __import__("time").time() * 1000
+                }) + "\n")
+        except: pass
+        # #endregion
         
         # Try unified resolver first
         from .unified_indicator_resolver import resolve_operand
         result = resolve_operand(field, context)
+        
+        # #region agent log
+        try:
+            with open(r'c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log', 'a') as f:
+                f.write(json.dumps({
+                    "sessionId": "debug-session",
+                    "runId": "run1",
+                    "hypothesisId": "B",
+                    "location": "ema_strategy.py:_resolve_operand",
+                    "message": "Unified resolver result",
+                    "data": {
+                        "field": field,
+                        "result": result,
+                        "result_is_none": result is None
+                    },
+                    "timestamp": __import__("time").time() * 1000
+                }) + "\n")
+        except: pass
+        # #endregion
+        
         if result is not None:
             return result
+        
+        # Fallback to legacy behavior for backward compatibility
+        if field == "price" or field == "current_price":
+            return current_price
+        
+        # Handle period-based EMA field names (e.g., "ema_20") by mapping to position-based names (e.g., "ema_1")
+        if field and field.startswith("ema_"):
+            # Check if it's a period-based name (e.g., "ema_20")
+            try:
+                period_str = field.replace("ema_", "")
+                period = int(period_str)
+                # #region agent log
+                try:
+                    with open(r'c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log', 'a') as f:
+                        f.write(json.dumps({
+                            "sessionId": "debug-session",
+                            "runId": "run1",
+                            "hypothesisId": "C",
+                            "location": "ema_strategy.py:_resolve_operand",
+                            "message": "Attempting period-based mapping",
+                            "data": {
+                                "field": field,
+                                "extracted_period": period,
+                                "has_market_data": market_data is not None,
+                                "has_ema_periods": market_data.get("ema_periods") if market_data else None
+                            },
+                            "timestamp": __import__("time").time() * 1000
+                        }) + "\n")
+                except: pass
+                # #endregion
+                # This is a period-based name, need to find which ema_X has this period
+                # Check if we have ema_periods mapping in market_data
+                if market_data and "ema_periods" in market_data:
+                    ema_periods = market_data["ema_periods"]
+                    # Find which ema_X has this period
+                    for ema_key, ema_period in ema_periods.items():
+                        if ema_period == period:
+                            # Found the matching ema_X, return its value
+                            mapped_value = ema_values.get(ema_key)
+                            # #region agent log
+                            try:
+                                with open(r'c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log', 'a') as f:
+                                    f.write(json.dumps({
+                                        "sessionId": "debug-session",
+                                        "runId": "run1",
+                                        "hypothesisId": "C",
+                                        "location": "ema_strategy.py:_resolve_operand",
+                                        "message": "Period-based mapping success",
+                                        "data": {
+                                            "field": field,
+                                            "period": period,
+                                            "mapped_to": ema_key,
+                                            "mapped_value": mapped_value
+                                        },
+                                        "timestamp": __import__("time").time() * 1000
+                                    }) + "\n")
+                            except: pass
+                            # #endregion
+                            return mapped_value
+            except ValueError:
+                # Not a period-based name, treat as position-based (e.g., "ema_1")
+                pass
+            
+            # Try direct lookup (position-based name like "ema_1")
+            direct_value = ema_values.get(field)
+            # #region agent log
+            try:
+                with open(r'c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log', 'a') as f:
+                    f.write(json.dumps({
+                        "sessionId": "debug-session",
+                        "runId": "run1",
+                        "hypothesisId": "D",
+                        "location": "ema_strategy.py:_resolve_operand",
+                        "message": "Direct lookup fallback",
+                        "data": {
+                            "field": field,
+                            "direct_value": direct_value
+                        },
+                        "timestamp": __import__("time").time() * 1000
+                    }) + "\n")
+            except: pass
+            # #endregion
+            return direct_value
         
         # Fallback to legacy value if field couldn't be resolved
         return self.value
 
-    def evaluate(self, current_price: float, ema_values: Dict, previous_price: Optional[float] = None, market_data: Dict = None) -> bool:
-        """Evaluate condition against latest EMA snapshot."""
-        left_val = self._resolve_operand(self.left_field, current_price, ema_values, market_data)
-        right_val = self._resolve_operand(self.right_field, current_price, ema_values, market_data)
+    def evaluate(self, current_price: float, ema_values: Dict, previous_price: Optional[float] = None, market_data: Optional[Dict] = None, previous_ema_values: Optional[Dict] = None) -> bool:
+        """
+        Evaluate condition against latest EMA snapshot.
+        Matches MT5 indicator logic exactly.
+        
+        For cross detection, compares:
+        - Previous bar's close with previous bar's EMA
+        - Current bar's close with current bar's EMA
+        """
+        # Use current EMA values for regular comparisons
+        left_field = self.left_field or "price"
+        right_field = self.right_field or (self.ema_field or "price")
+        left_val = self._resolve_operand(left_field, current_price, ema_values, market_data)
+        right_val = self._resolve_operand(right_field, current_price, ema_values, market_data)
+        
+        # #region agent log
+        import json
+        try:
+            with open(r'c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log', 'a') as f:
+                f.write(json.dumps({
+                    "sessionId": "debug-session",
+                    "runId": "run1",
+                    "hypothesisId": "G",
+                    "location": "ema_strategy.py:evaluate",
+                    "message": "Operand resolution results",
+                    "data": {
+                        "left_field": self.left_field,
+                        "right_field": self.right_field,
+                        "operator": self.operator,
+                        "left_val": left_val,
+                        "right_val": right_val,
+                        "both_resolved": left_val is not None and right_val is not None
+                    },
+                    "timestamp": __import__("time").time() * 1000
+                }) + "\n")
+        except: pass
+        # #endregion
+        
         if left_val is None or right_val is None:
             return False
 
-        if self.operator == "Crosses Above":
+        # For cross detection, use previous EMA if available (matches MT5 exactly)
+        if self.operator in ["Crosses Above", "Crosses Under", "Any_Cross"]:
             if previous_price is not None:
-                was_below = previous_price < right_val
-                is_above = left_val >= right_val
-                if was_below and is_above:
-                    self.previous_state = True
-                    return True
-            self.previous_state = left_val >= right_val
-            return False
+                # Use previous EMA value for the right operand if available
+                if previous_ema_values:
+                    prev_right_val = self._resolve_operand(right_field, previous_price, previous_ema_values, market_data)
+                    if prev_right_val is not None:
+                        right_val_for_cross = prev_right_val
+                    else:
+                        right_val_for_cross = right_val
+                else:
+                    # Fallback to current EMA if previous not available
+                    right_val_for_cross = right_val
+                
+                if self.operator == "Crosses Above":
+                    # MT5 logic: previous close < previous EMA AND current close >= current EMA
+                    was_below = previous_price < right_val_for_cross
+                    is_above = left_val >= right_val
+                    
+                    # Enhanced Debug Logging
+                    if self.ema_field == "ema_1" or self.right_field == "ema_20": # Only log for likely candidate
+                         logger.info(f"EMA Cross Check: Price={left_val:.2f}, EMA={right_val:.2f}, PrevPrice={previous_price:.2f}, PrevEMA={right_val_for_cross:.2f} | WasBelow={was_below}, IsAbove={is_above}")
 
-        if self.operator == "Crosses Under":
-            if previous_price is not None:
-                was_above = previous_price > right_val
-                is_below = left_val <= right_val
-                if was_above and is_below:
-                    self.previous_state = False
-                    return True
-            self.previous_state = left_val > right_val
-            return False
-
-        if self.operator == "Any_Cross":
-            if previous_price is not None:
-                crossed_up = previous_price < right_val <= left_val
-                crossed_down = previous_price > right_val >= left_val
-                if crossed_up or crossed_down:
+                    if was_below and is_above:
+                        self.previous_state = True
+                        return True
                     self.previous_state = left_val >= right_val
-                    return True
-            self.previous_state = left_val >= right_val
-            return False
+                    return False
+                
+                if self.operator == "Crosses Under":
+                    # MT5 logic: previous close > previous EMA AND current close <= current EMA
+                    was_above = previous_price > right_val_for_cross
+                    is_below = left_val <= right_val
+                    
+                    if self.ema_field == "ema_1" or self.right_field == "ema_20":
+                        logger.info(f"EMA Cross Check (Under): Price={left_val:.2f}, EMA={right_val:.2f}, PrevPrice={previous_price:.2f}, PrevEMA={right_val_for_cross:.2f} | WasAbove={was_above}, IsBelow={is_below}")
 
+                    if was_above and is_below:
+                        self.previous_state = False
+                        return True
+                    self.previous_state = left_val > right_val
+                    return False
+                
+                if self.operator == "Any_Cross":
+                    # MT5 logic: either crosses above or crosses under
+                    crossed_up = previous_price < right_val_for_cross and left_val >= right_val
+                    crossed_down = previous_price > right_val_for_cross and left_val <= right_val
+                    if crossed_up or crossed_down:
+                        self.previous_state = left_val >= right_val
+                        return True
+                    self.previous_state = left_val >= right_val
+                    return False
+            else:
+
+                # No previous price available, can't detect cross
+                if self.operator == "Crosses Above":
+                    self.previous_state = left_val >= right_val
+                elif self.operator == "Crosses Under":
+                    self.previous_state = left_val > right_val
+                elif self.operator == "Any_Cross":
+                    self.previous_state = left_val >= right_val
+                return False
+
+        # Regular comparison operators (matches MT5 exactly)
         if self.operator == ">":
             return left_val > right_val
         if self.operator == "<":
@@ -142,10 +336,10 @@ class EMACondition:
         return cls(
             price_reference=data.get("price_reference", "Current Price"),
             operator=data.get("operator", ">"),
-            ema_field=data.get("ema_field"),
-            value=data.get("value"),
-            left_field=data.get("left_field"),
-            right_field=data.get("right_field"),
+            ema_field=data.get("ema_field") if data.get("ema_field") is not None else None,
+            value=data.get("value") if data.get("value") is not None else None,
+            left_field=data.get("left_field") if data.get("left_field") is not None else None,
+            right_field=data.get("right_field") if data.get("right_field") is not None else None,
             connector=data.get("connector", data.get("logical_connector", "OR")),
         )
 
@@ -157,11 +351,11 @@ class EMAStrategy(BaseStrategy):
         self,
         name: str,
         symbol: str,
-        timeframe: int = None,
+        timeframe: Optional[int] = None,
         ema_periods: Optional[Dict[str, int]] = None,
     ):
         super().__init__(name, symbol)
-        self.timeframe = timeframe or mt5.TIMEFRAME_M1
+        self.timeframe = timeframe if timeframe is not None else mt5.TIMEFRAME_M1
 
         self.ema_periods: Dict[str, int] = ema_periods or {
             "ema_1": 20,
@@ -246,6 +440,25 @@ class EMAStrategy(BaseStrategy):
             ema_values[field] = series[-1] if series else None
 
         return ema_values
+    
+    def _compute_ema_values_with_previous(self, candles: List[Dict]) -> Tuple[Dict[str, Optional[float]], Dict[str, Optional[float]]]:
+        """
+        Compute current and previous EMA values for accurate cross detection.
+        Returns: (current_ema_values, previous_ema_values)
+        """
+        current_ema_values: Dict[str, Optional[float]] = {}
+        previous_ema_values: Dict[str, Optional[float]] = {}
+
+        for field, ind in self._ema_indicators.items():
+            series = ind.calculate(candles)
+            if series:
+                current_ema_values[field] = series[-1] if len(series) > 0 else None
+                previous_ema_values[field] = series[-2] if len(series) > 1 else None
+            else:
+                current_ema_values[field] = None
+                previous_ema_values[field] = None
+
+        return current_ema_values, previous_ema_values
 
     def get_ema_snapshot(self) -> Optional[Dict]:
         """
@@ -267,13 +480,15 @@ class EMAStrategy(BaseStrategy):
         self._last_snapshot_at = now
         return snap
 
-    def _evaluate_condition_chain(self, conditions: List[EMACondition], current_price: float, ema_values: Dict, market_data: Dict = None) -> bool:
+    def _evaluate_condition_chain(self, conditions: List[EMACondition], current_price: float, ema_values: Dict, market_data: Optional[Dict] = None, previous_price: Optional[float] = None, previous_ema_values: Optional[Dict] = None) -> bool:
         if not conditions:
             return False
         cumulative = None
         prev_connector = None
+        # Use provided previous_price, fallback to self.previous_price
+        prev_price = previous_price if previous_price is not None else self.previous_price
         for cond in conditions:
-            result = cond.evaluate(current_price, ema_values, self.previous_price, market_data)
+            result = cond.evaluate(current_price, ema_values, prev_price, market_data, previous_ema_values)
             if cumulative is None:
                 cumulative = result
             else:
@@ -290,30 +505,69 @@ class EMAStrategy(BaseStrategy):
         if not tick:
             return None
 
-        current_price = (tick.get("bid", 0) + tick.get("ask", 0)) / 2.0
-        if current_price == 0:
-            current_price = tick.get("bid", tick.get("ask", 0))
-        if current_price == 0:
-            return None
-
         candles = self._get_candles(count=300)
         if not candles:
             return None
 
-        ema_values = self._compute_ema_values(candles)
+        # For cross detection, use candle closes to match chart logic
+        # Get current candle's close (even if candle is still forming)
+        current_candle_close = candles[-1].get('close') if candles else None
+        
+        # Get previous candle's close for cross detection (matches chart logic)
+        previous_candle_close = None
+        if len(candles) >= 2:
+            previous_candle_close = candles[-2].get('close')
+        elif len(candles) >= 1:
+            # If only one candle, use current candle's close as fallback
+            previous_candle_close = candles[-1].get('close')
+        
+        # Use candle closes for cross detection, fallback to tick price
+        current_price = current_candle_close if current_candle_close is not None else (tick.get("bid", 0) + tick.get("ask", 0)) / 2.0
+        if current_price == 0:
+            current_price = tick.get("bid", tick.get("ask", 0))
+        if current_price == 0:
+            return None
+        
+        # Use previous candle close for cross detection, fallback to stored previous_price
+        previous_price_for_cross = previous_candle_close if previous_candle_close is not None else self.previous_price
+
+        # Compute both current and previous EMA values for accurate cross detection (matches MT5)
+        ema_values, previous_ema_values = self._compute_ema_values_with_previous(candles)
 
         # Build market_data context for unified resolver
         strategy_market_data = {
             "ema": ema_values,
+            "ema_periods": self.ema_periods,  # Pass period mapping for period-based field name resolution
             "ohlc": market_data.get("ohlc", {}) if isinstance(market_data, dict) else {},
             "smc_pivots": market_data.get("smc_pivots", {}) if isinstance(market_data, dict) else {},
             "vwap": market_data.get("vwap") if isinstance(market_data, dict) else None,
             "indicators": market_data.get("indicators", {}) if isinstance(market_data, dict) else {}
         }
         
+        # #region agent log
+        import json
+        try:
+            with open(r'c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log', 'a') as f:
+                f.write(json.dumps({
+                    "sessionId": "debug-session",
+                    "runId": "run1",
+                    "hypothesisId": "F",
+                    "location": "ema_strategy.py:generate_signal",
+                    "message": "Building strategy_market_data context",
+                    "data": {
+                        "ema_periods": self.ema_periods,
+                        "ema_values_keys": list(ema_values.keys()) if ema_values else [],
+                        "has_buy_conditions": len(self.buy_conditions) > 0,
+                        "has_sell_conditions": len(self.sell_conditions) > 0
+                    },
+                    "timestamp": __import__("time").time() * 1000
+                }) + "\n")
+        except: pass
+        # #endregion
+        
         # BUY conditions take priority over SELL, consistent with OHLC strategy
         try:
-            if self._evaluate_condition_chain(self.buy_conditions, current_price, ema_values, strategy_market_data):
+            if self._evaluate_condition_chain(self.buy_conditions, current_price, ema_values, strategy_market_data, previous_price_for_cross, previous_ema_values):
                 logger.info(f"EMAStrategy {self.name}: ✅ Buy conditions met")
                 self.previous_price = current_price
                 return "BUY"
@@ -321,7 +575,7 @@ class EMAStrategy(BaseStrategy):
             logger.error(f"EMAStrategy {self.name}: Error evaluating buy conditions: {e}", exc_info=True)
 
         try:
-            if self._evaluate_condition_chain(self.sell_conditions, current_price, ema_values, strategy_market_data):
+            if self._evaluate_condition_chain(self.sell_conditions, current_price, ema_values, strategy_market_data, previous_price_for_cross, previous_ema_values):
                 logger.info(f"EMAStrategy {self.name}: ✅ Sell conditions met")
                 self.previous_price = current_price
                 return "SELL"
@@ -346,10 +600,11 @@ class EMAStrategy(BaseStrategy):
 
     @classmethod
     def from_dict(cls, data: Dict, mt5_connector=None) -> "EMAStrategy":
+        timeframe = data.get("timeframe")
         strategy = cls(
             name=data["name"],
             symbol=data["symbol"],
-            timeframe=data.get("timeframe"),
+            timeframe=timeframe if timeframe is not None else None,
             ema_periods=data.get("ema_periods"),
         )
         strategy.enabled = data.get("enabled", False)

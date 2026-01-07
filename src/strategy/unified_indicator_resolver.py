@@ -91,35 +91,142 @@ def resolve_operand(field: str, context: Dict) -> Optional[float]:
     
     # VWAP fields
     vwap_data = context.get("vwap")
-    if vwap_data:
+    # Check if vwap_data exists and is a dict (check isinstance first to avoid errors)
+    if vwap_data is not None and isinstance(vwap_data, dict):
         if field == "vwap":
             val = vwap_data.get("vwap")
             return float(val) if val is not None else None
-        if field.startswith("upper_band_"):
+        # Support both "upper_band_X" and "vwap_upper_X" formats
+        if field.startswith("upper_band_") or field.startswith("vwap_upper_"):
+            logger.debug(f"Attempting to resolve VWAP upper band field '{field}' from vwap_data with keys: {list(vwap_data.keys())}")
             try:
-                std = float(field.replace("upper_band_", ""))
+                # Extract std dev from either format
+                std_str = field.replace("upper_band_", "").replace("vwap_upper_", "")
+                std = float(std_str)
                 bands = vwap_data.get("bands", {})
+                if not bands:
+                    logger.debug(f"VWAP bands dict is empty for field '{field}'. vwap_data keys: {list(vwap_data.keys())}")
+                    return None
+                # Try to get band data - handle both float and string keys
                 band_data = bands.get(std, {})
-                val = band_data.get("upper")
-                return float(val) if val is not None else None
-            except (ValueError, TypeError):
+                if not band_data:
+                    # Try with string key as fallback
+                    band_data = bands.get(str(std), {})
+                val = band_data.get("upper") if band_data else None
+                if val is not None:
+                    return float(val)
+                logger.debug(f"Could not find upper band for std={std} in bands. Available std keys: {list(bands.keys())}")
                 return None
-        if field.startswith("lower_band_"):
+            except (ValueError, TypeError) as e:
+                logger.debug(f"Error parsing VWAP upper band field '{field}': {e}")
+                return None
+        # Support both "lower_band_X" and "vwap_lower_X" formats
+        if field.startswith("lower_band_") or field.startswith("vwap_lower_"):
+            logger.debug(f"Attempting to resolve VWAP lower band field '{field}' from vwap_data with keys: {list(vwap_data.keys())}")
             try:
-                std = float(field.replace("lower_band_", ""))
+                # Extract std dev from either format
+                std_str = field.replace("lower_band_", "").replace("vwap_lower_", "")
+                std = float(std_str)
                 bands = vwap_data.get("bands", {})
+                if not bands:
+                    logger.debug(f"VWAP bands dict is empty for field '{field}'. vwap_data keys: {list(vwap_data.keys())}")
+                    return None
+                # Try to get band data - handle both float and string keys
                 band_data = bands.get(std, {})
-                val = band_data.get("lower")
-                return float(val) if val is not None else None
-            except (ValueError, TypeError):
+                if not band_data:
+                    # Try with string key as fallback
+                    band_data = bands.get(str(std), {})
+                val = band_data.get("lower") if band_data else None
+                if val is not None:
+                    return float(val)
+                logger.debug(f"Could not find lower band for std={std} in bands. Available std keys: {list(bands.keys())}")
+                return None
+            except (ValueError, TypeError) as e:
+                logger.debug(f"Error parsing VWAP lower band field '{field}': {e}")
                 return None
     
     # EMA fields
     ema_data = context.get("ema")
     if ema_data:
         if field.startswith("ema_"):
+            # First try direct lookup (position-based like "ema_1")
             val = ema_data.get(field)
-            return float(val) if val is not None else None
+            if val is not None:
+                # #region agent log
+                import json
+                try:
+                    with open(r'c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log', 'a') as f:
+                        f.write(json.dumps({
+                            "sessionId": "debug-session",
+                            "runId": "run1",
+                            "hypothesisId": "E",
+                            "location": "unified_indicator_resolver.py:resolve_operand",
+                            "message": "Direct EMA lookup success",
+                            "data": {
+                                "field": field,
+                                "value": float(val)
+                            },
+                            "timestamp": __import__("time").time() * 1000
+                        }) + "\n")
+                except: pass
+                # #endregion
+                return float(val)
+            
+            # If not found, try period-based lookup (e.g., "ema_20" -> find which ema_X has period 20)
+            ema_periods = context.get("ema_periods")
+            # #region agent log
+            try:
+                with open(r'c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log', 'a') as f:
+                    f.write(json.dumps({
+                        "sessionId": "debug-session",
+                        "runId": "run1",
+                        "hypothesisId": "E",
+                        "location": "unified_indicator_resolver.py:resolve_operand",
+                        "message": "Attempting period-based EMA lookup",
+                        "data": {
+                            "field": field,
+                            "has_ema_periods": ema_periods is not None,
+                            "ema_periods": ema_periods,
+                            "ema_data_keys": list(ema_data.keys())
+                        },
+                        "timestamp": __import__("time").time() * 1000
+                    }) + "\n")
+            except: pass
+            # #endregion
+            if ema_periods:
+                try:
+                    period_str = field.replace("ema_", "")
+                    period = int(period_str)
+                    # Find which ema_X has this period
+                    for ema_key, ema_period in ema_periods.items():
+                        if ema_period == period:
+                            # Found the matching ema_X, return its value
+                            val = ema_data.get(ema_key)
+                            if val is not None:
+                                # #region agent log
+                                try:
+                                    with open(r'c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log', 'a') as f:
+                                        f.write(json.dumps({
+                                            "sessionId": "debug-session",
+                                            "runId": "run1",
+                                            "hypothesisId": "E",
+                                            "location": "unified_indicator_resolver.py:resolve_operand",
+                                            "message": "Period-based EMA mapping success",
+                                            "data": {
+                                                "field": field,
+                                                "period": period,
+                                                "mapped_to": ema_key,
+                                                "value": float(val)
+                                            },
+                                            "timestamp": __import__("time").time() * 1000
+                                        }) + "\n")
+                                except: pass
+                                # #endregion
+                                return float(val)
+                except ValueError:
+                    # Not a valid period number, return None
+                    pass
+            return None
     
     # General indicators from market_data['indicators']
     indicators = context.get("indicators", {})

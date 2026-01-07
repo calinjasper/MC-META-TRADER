@@ -69,8 +69,9 @@ class SettingsDialog(QDialog):
         trading_layout.addRow("Default Lot Size:", self.default_lot_input)
         
         self.max_positions_input = QSpinBox()
-        self.max_positions_input.setMinimum(1)
+        self.max_positions_input.setMinimum(0)  # 0 = unlimited
         self.max_positions_input.setMaximum(100)
+        self.max_positions_input.setSpecialValueText("Unlimited")
         trading_layout.addRow("Max Positions:", self.max_positions_input)
         
         tabs.addTab(trading_tab, "Trading")
@@ -137,7 +138,9 @@ class SettingsDialog(QDialog):
         trading_config = self.config.get('trading', {})
         self.default_symbol_input.setText(trading_config.get('default_symbol', 'EURUSD'))
         self.default_lot_input.setText(str(trading_config.get('default_lot_size', 0.01)))
-        self.max_positions_input.setValue(trading_config.get('max_positions', 10))
+        # Convert None (unlimited) to 0 for UI, otherwise use the value
+        max_pos = trading_config.get('max_positions', None)
+        self.max_positions_input.setValue(0 if max_pos is None else max_pos)
         
         # Telegram settings
         telegram_config = self.config.get('telegram', {})
@@ -179,7 +182,9 @@ class SettingsDialog(QDialog):
             QMessageBox.warning(self, "Validation Error", "Invalid lot size")
             return
         
-        self.config.set('trading.max_positions', self.max_positions_input.value())
+        # Convert 0 (unlimited) to None for config
+        max_pos_value = self.max_positions_input.value()
+        self.config.set('trading.max_positions', None if max_pos_value == 0 else max_pos_value)
         
         # Save Telegram settings
         self.config.set('telegram.enabled', self.telegram_enabled_check.isChecked())

@@ -56,22 +56,35 @@ class MT5Connector:
         Returns:
             True if connection successful, False otherwise
         """
+        # #region agent log
+        import json
+        import time
+        log_path = r"c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log"
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_mt5_init_entry","timestamp":int(time.time()*1000),"location":"mt5_connector.py:44","message":"MT5 initialize entry","data":{"has_path":bool(path),"has_login":bool(login),"has_password":bool(password),"has_server":bool(server)},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+        except: pass
+        # #endregion
+        
         try:
             # Initialize MT5
             if path:
                 if not mt5.initialize(path=path):
-                    logger.error(f"MT5 initialization failed: {mt5.last_error()}")
+                    error = mt5.last_error()
+                    logger.error(f"MT5 initialization failed: {error}")
                     return False
             else:
                 if not mt5.initialize():
-                    logger.error(f"MT5 initialization failed: {mt5.last_error()}")
+                    error = mt5.last_error()
+                    logger.error(f"MT5 initialization failed: {error}")
                     return False
             
             # Login if credentials provided
             if login and password and server:
                 authorized = mt5.login(login, password=password, server=server, timeout=timeout)
                 if not authorized:
-                    logger.error(f"MT5 login failed: {mt5.last_error()}")
+                    error = mt5.last_error()
+                    logger.error(f"MT5 login failed: {error}")
                     mt5.shutdown()
                     return False
                 logger.info(f"Connected to MT5 account {login}")
@@ -84,11 +97,23 @@ class MT5Connector:
                 logger.info(f"Account balance: {self.account_info.balance}")
             
             self.connected = True
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_mt5_init_success","timestamp":int(time.time()*1000),"location":"mt5_connector.py:89","message":"MT5 initialize success","data":{"connected":self.connected},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+            except: pass
+            # #endregion
             return True
             
         except Exception as e:
             logger.error(f"Error initializing MT5: {e}")
             self.connected = False
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_mt5_init_error","timestamp":int(time.time()*1000),"location":"mt5_connector.py:93","message":"MT5 initialize exception","data":{"error":str(e),"connected":self.connected},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+            except: pass
+            # #endregion
             return False
     
     def shutdown(self) -> None:
@@ -103,6 +128,7 @@ class MT5Connector:
     
     def is_connected(self) -> bool:
         """Check if connected to MT5"""
+        # Note: Not logging here - called too frequently (every tick/update)
         return self.connected and mt5.terminal_info() is not None
 
     def get_last_error(self) -> Optional[str]:
@@ -933,8 +959,8 @@ class MT5Connector:
                     'comment': 'MT5 connection broken'
                 }
             else:
-                logger.error(f"Account balance: {account_check.balance}, margin: {account_check.margin}, free_margin: {account_check.free_margin}")
-                print(f"INFO: Account balance: {account_check.balance}, free_margin: {account_check.free_margin}")
+                logger.error(f"Account balance: {account_check.balance}, margin: {account_check.margin}, free_margin: {account_check.margin_free}")
+                print(f"INFO: Account balance: {account_check.balance}, free_margin: {account_check.margin_free}")
             
             # Build detailed error message
             error_details = []
@@ -949,7 +975,7 @@ class MT5Connector:
                 error_details.append(f"Symbol {symbol} trading disabled")
             if not symbol_info.visible:
                 error_details.append(f"Symbol {symbol} not visible in Market Watch")
-            if account_check.free_margin < 0:
+            if account_check.margin_free < 0:
                 error_details.append("Insufficient margin")
             
             # Build error message - ensure symbol is preserved correctly

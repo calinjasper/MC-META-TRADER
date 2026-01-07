@@ -7,9 +7,9 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
                              QComboBox, QDoubleSpinBox, QPushButton, QLabel,
                              QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView,
                              QMessageBox, QDialog, QLineEdit, QSpinBox, QFrame,
-                             QScrollArea, QSplitter, QButtonGroup, QRadioButton)
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QFont, QColor, QPalette
+                             QScrollArea, QSplitter, QButtonGroup, QRadioButton, QStyle)
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QSize
+from PyQt6.QtGui import QFont, QColor, QPalette, QIcon
 import MetaTrader5 as mt5
 from typing import Optional, Dict
 
@@ -18,6 +18,7 @@ from ..trading.order_manager import OrderManager
 from ..trading.risk_manager import RiskManager
 from .quick_trade_widget import QuickTradeWidget
 from ..config import Config
+from ..strategy.ema_strategy import EMAStrategy
 
 
 class RiskCalculatorWidget(QWidget):
@@ -112,7 +113,7 @@ class RiskCalculatorWidget(QWidget):
         # Calculate potential profit/loss
         symbol_info = self.mt5.get_symbol_info(symbol)
         if not symbol_info:
-        self.risk_amount_label.setText(f"{result['risk_amount']:.2f} {currency}")
+            self.risk_amount_label.setText(f"{result['risk_amount']:.2f} {currency}")
             self.potential_profit_label.setText("--")
             self.potential_loss_label.setText(f"{result['risk_amount']:.2f} {currency}")
             return
@@ -246,17 +247,495 @@ class PartialCloseDialog(QDialog):
         return self.volume_spin.value()
 
 
+class PositionDetailDialog(QDialog):
+    """Dialog for displaying position details"""
+    
+    def __init__(self, position: Dict, mt5_connector: MT5Connector = None, parent=None, 
+                 strategy_manager=None, position_tracker=None):
+        super().__init__(parent)
+        self.position = position
+        self.mt5 = mt5_connector
+        self.strategy_manager = strategy_manager
+        self.position_tracker = position_tracker
+        self.setWindowTitle(f"Position Details - Ticket {position.get('ticket', '')}")
+        self.setModal(True)
+        self.setMinimumWidth(600)
+        
+        # Refresh position data from MT5 to get latest SL/TP values
+        self._refresh_position_data()
+        
+        self.setup_ui()
+    
+    def _refresh_position_data(self):
+        """Refresh position data from MT5 to get latest SL/TP values"""
+        if not self.mt5 or not self.mt5.is_connected():
+            return
+        
+        ticket = self.position.get('ticket')
+        if not ticket:
+            return
+        
+        try:
+            # Get fresh position data from MT5
+            positions = self.mt5.get_positions()
+            for pos in positions:
+                if pos.get('ticket') == ticket:
+                    # Update position with latest data, especially SL/TP
+                    self.position['sl'] = pos.get('sl', 0.0)
+                    self.position['tp'] = pos.get('tp', 0.0)
+                    self.position['price_current'] = pos.get('price_current', self.position.get('price_current', 0.0))
+                    self.position['profit'] = pos.get('profit', self.position.get('profit', 0.0))
+                    break
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to refresh position data for ticket {ticket}: {e}")
+    
+    def _get_entry_details(self):
+        """Get entry details from position_tracker"""
+        entry_details = {
+            'entry_condition': None,
+            'entry_price': None,
+            'entry_time': None
+        }
+        
+        if not self.position_tracker:
+            return entry_details
+        
+        # Extract strategy name and direction from position
+        comment = self.position.get('comment', '')
+        strategy_name = None
+        if comment and 'Strategy:' in comment:
+            strategy_name = comment.replace('Strategy:', '').strip()
+        
+        if not strategy_name:
+            return entry_details
+        
+        symbol = self.position.get('symbol', '')
+        pos_type = "BUY" if self.position.get('type', 0) == 0 else "SELL"
+        ticket = self.position.get('ticket')
+        
+        # Try to find position in tracker
+        try:
+            pos_data = self.position_tracker.find_position_by_strategy_and_direction(
+                symbol, strategy_name, pos_type
+            )
+            if pos_data:
+                entry_details['entry_condition'] = pos_data.get('entry_condition')
+                entry_details['entry_price'] = pos_data.get('entry_price')
+                entry_details['entry_time'] = pos_data.get('entry_time')
+        except Exception:
+            pass
+        
+        return entry_details
+    
+    def _get_strategy_object(self):
+        """Get strategy object from strategy_manager"""
+        if not self.strategy_manager:
+            return None
+        
+        comment = self.position.get('comment', '')
+        strategy_name = None
+        if comment and 'Strategy:' in comment:
+            strategy_name = comment.replace('Strategy:', '').strip()
+        
+        if not strategy_name:
+            return None
+        
+        try:
+            return self.strategy_manager.get_strategy(strategy_name)
+        except Exception:
+            return None
+    
+    def setup_ui(self):
+        """Setup dialog UI"""
+        from datetime import datetime
+        import MetaTrader5 as mt5
+        
+        # Get entry details and strategy object
+        entry_details = self._get_entry_details()
+        strategy = self._get_strategy_object()
+        
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        
+        # Create scroll area for long content
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; }")
+        
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setSpacing(15)
+        
+        # Position Information Group (Enhanced with Entry Details)
+        position_group = QGroupBox("Position Information")
+        position_layout = QFormLayout()
+        
+        # Ticket
+        ticket = self.position.get('ticket', 'N/A')
+        position_layout.addRow("Ticket:", QLabel(str(ticket)))
+        
+        # Symbol
+        symbol = self.position.get('symbol', 'N/A')
+        position_layout.addRow("Symbol:", QLabel(symbol))
+        
+        # Type
+        pos_type = "BUY" if self.position.get('type', 0) == 0 else "SELL"
+        type_label = QLabel(pos_type)
+        if self.position.get('type', 0) == 0:  # BUY
+            type_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
+        else:  # SELL
+            type_label.setStyleSheet("color: #F44336; font-weight: bold;")
+        position_layout.addRow("Type:", type_label)
+        
+        # Volume
+        volume = self.position.get('volume', 0.0)
+        position_layout.addRow("Volume:", QLabel(f"{volume:.2f} lots"))
+        
+        # Entry Time (from position or tracker)
+        entry_time = entry_details.get('entry_time') or self.position.get('time', None)
+        if entry_time:
+            if isinstance(entry_time, datetime):
+                time_str = entry_time.strftime("%Y-%m-%d %H:%M:%S UTC")
+            else:
+                time_str = str(entry_time)
+        else:
+            time_str = "N/A"
+        position_layout.addRow("Entry Time:", QLabel(time_str))
+        
+        # Entry Condition (from tracker)
+        entry_condition = entry_details.get('entry_condition')
+        if entry_condition and entry_condition not in ['--', '', 'no condition']:
+            entry_condition_label = QLabel(entry_condition)
+            entry_condition_label.setWordWrap(True)
+            entry_condition_label.setStyleSheet("color: #2196F3; font-style: italic;")
+            position_layout.addRow("Entry Condition:", entry_condition_label)
+        else:
+            position_layout.addRow("Entry Condition:", QLabel("N/A"))
+        
+        position_group.setLayout(position_layout)
+        content_layout.addWidget(position_group)
+        
+        # Price Information Group
+        price_group = QGroupBox("Price Information")
+        price_layout = QFormLayout()
+        
+        # Entry Price (Price Open)
+        price_open = self.position.get('price_open', 0.0)
+        price_layout.addRow("Entry Price:", QLabel(f"{price_open:.5f}"))
+        
+        # Current Price
+        price_current = self.position.get('price_current', 0.0)
+        price_layout.addRow("Current Price:", QLabel(f"{price_current:.5f}"))
+        
+        # Price Difference (showing absolute change)
+        if price_open > 0 and price_current > 0:
+            price_diff = price_current - price_open
+            price_diff_pct = ((price_current - price_open) / price_open) * 100
+            # For P&L perspective: BUY profits when price goes up, SELL profits when price goes down
+            if pos_type == "BUY":
+                is_profitable = price_diff >= 0
+            else:  # SELL
+                is_profitable = price_diff <= 0
+            price_diff_label = QLabel(f"{price_diff:+.5f} ({price_diff_pct:+.2f}%)")
+            if is_profitable:
+                price_diff_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
+            else:
+                price_diff_label.setStyleSheet("color: #F44336; font-weight: bold;")
+            price_layout.addRow("Price Change:", price_diff_label)
+        
+        price_group.setLayout(price_layout)
+        content_layout.addWidget(price_group)
+        
+        # Stop Loss & Take Profit Group
+        sl_tp_group = QGroupBox("Stop Loss & Take Profit")
+        sl_tp_layout = QFormLayout()
+        
+        # Stop Loss
+        sl = self.position.get('sl', 0.0)
+        sl_text = f"{sl:.5f}" if sl > 0 else "Not Set"
+        sl_label = QLabel(sl_text)
+        if sl > 0:
+            sl_label.setStyleSheet("color: #FF9800; font-weight: bold;")
+        sl_tp_layout.addRow("Stop Loss:", sl_label)
+        
+        # Take Profit
+        tp = self.position.get('tp', 0.0)
+        tp_text = f"{tp:.5f}" if tp > 0 else "Not Set"
+        tp_label = QLabel(tp_text)
+        if tp > 0:
+            tp_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
+        sl_tp_layout.addRow("Take Profit:", tp_label)
+        
+        # Calculate distance to SL/TP if set
+        if sl > 0 and price_open > 0:
+            if pos_type == "BUY":
+                sl_distance = price_open - sl
+                sl_distance_pct = (sl_distance / price_open) * 100
+            else:  # SELL
+                sl_distance = sl - price_open
+                sl_distance_pct = (sl_distance / price_open) * 100
+            sl_distance_label = QLabel(f"{sl_distance:.5f} ({sl_distance_pct:.2f}%)")
+            sl_distance_label.setStyleSheet("color: #FF9800;")
+            sl_tp_layout.addRow("Distance to SL:", sl_distance_label)
+        
+        if tp > 0 and price_open > 0:
+            if pos_type == "BUY":
+                tp_distance = tp - price_open
+                tp_distance_pct = (tp_distance / price_open) * 100
+            else:  # SELL
+                tp_distance = price_open - tp
+                tp_distance_pct = (tp_distance / price_open) * 100
+            tp_distance_label = QLabel(f"{tp_distance:.5f} ({tp_distance_pct:.2f}%)")
+            tp_distance_label.setStyleSheet("color: #4CAF50;")
+            sl_tp_layout.addRow("Distance to TP:", tp_distance_label)
+        
+        sl_tp_group.setLayout(sl_tp_layout)
+        content_layout.addWidget(sl_tp_group)
+        
+        # Financial Information Group
+        financial_group = QGroupBox("Financial Information")
+        financial_layout = QFormLayout()
+        
+        # Profit
+        profit = self.position.get('profit', 0.0)
+        profit_label = QLabel(f"{profit:.2f}")
+        if profit >= 0:
+            profit_label.setStyleSheet("color: #4CAF50; font-weight: bold; font-size: 14px;")
+        else:
+            profit_label.setStyleSheet("color: #F44336; font-weight: bold; font-size: 14px;")
+        financial_layout.addRow("Profit:", profit_label)
+        
+        # Swap
+        swap = self.position.get('swap', 0.0)
+        swap_label = QLabel(f"{swap:.2f}")
+        if swap >= 0:
+            swap_label.setStyleSheet("color: #888;")
+        else:
+            swap_label.setStyleSheet("color: #F44336;")
+        financial_layout.addRow("Swap:", swap_label)
+        
+        financial_group.setLayout(financial_layout)
+        content_layout.addWidget(financial_group)
+        
+        # Strategy Configuration Group (Comprehensive)
+        strategy_group = QGroupBox("Strategy Configuration")
+        strategy_layout = QFormLayout()
+        
+        # Comment / Strategy Name
+        comment = self.position.get('comment', '')
+        strategy_name = "--"
+        if comment:
+            if 'Strategy:' in comment:
+                strategy_name = comment.replace('Strategy:', '').strip()
+            else:
+                strategy_name = comment
+        
+        strategy_name_label = QLabel(strategy_name)
+        strategy_name_label.setWordWrap(True)
+        strategy_layout.addRow("Strategy Name:", strategy_name_label)
+        
+        # Strategy Type
+        if strategy:
+            strategy_type = type(strategy).__name__
+            if strategy_type == "EMAStrategy":
+                strategy_type_display = "EMA Strategy"
+            elif strategy_type == "OHLCPriceStrategy":
+                strategy_type_display = "OHLC Price Strategy"
+            elif strategy_type == "VWAPStrategy":
+                strategy_type_display = "VWAP Strategy"
+            elif strategy_type == "StructureStrategy":
+                strategy_type_display = "Structure Strategy"
+            elif strategy_type == "SuperTrendStrategy":
+                strategy_type_display = "SuperTrend Strategy"
+            else:
+                strategy_type_display = strategy_type
+            strategy_layout.addRow("Strategy Type:", QLabel(strategy_type_display))
+        else:
+            strategy_layout.addRow("Strategy Type:", QLabel("Manual Trade" if strategy_name == "--" else "Strategy not found"))
+        
+        # EMA Strategy Specific Details
+        if strategy and isinstance(strategy, EMAStrategy):
+            # EMA Periods
+            ema_periods = getattr(strategy, 'ema_periods', {})
+            if ema_periods:
+                periods_text = ", ".join([f"{k}: {v}" for k, v in ema_periods.items()])
+                periods_label = QLabel(periods_text)
+                periods_label.setWordWrap(True)
+                strategy_layout.addRow("EMA Periods:", periods_label)
+            
+            # Timeframe
+            timeframe = getattr(strategy, 'timeframe', None)
+            if timeframe:
+                timeframe_map = {
+                    mt5.TIMEFRAME_M1: "M1",
+                    mt5.TIMEFRAME_M5: "M5",
+                    mt5.TIMEFRAME_M15: "M15",
+                    mt5.TIMEFRAME_M30: "M30",
+                    mt5.TIMEFRAME_H1: "H1",
+                    mt5.TIMEFRAME_H4: "H4",
+                    mt5.TIMEFRAME_D1: "D1",
+                }
+                timeframe_str = timeframe_map.get(timeframe, str(timeframe))
+                strategy_layout.addRow("Timeframe:", QLabel(timeframe_str))
+            
+            # Buy Conditions
+            buy_conditions = getattr(strategy, 'buy_conditions', [])
+            if buy_conditions:
+                conditions_text = []
+                for i, cond in enumerate(buy_conditions, 1):
+                    left = getattr(cond, 'left_field', 'price')
+                    op = getattr(cond, 'operator', '>')
+                    right = getattr(cond, 'right_field', 'ema_1')
+                    connector = getattr(cond, 'connector', 'OR')
+                    conditions_text.append(f"{i}. {left} {op} {right} ({connector})")
+                buy_cond_label = QLabel("\n".join(conditions_text))
+                buy_cond_label.setWordWrap(True)
+                buy_cond_label.setStyleSheet("color: #4CAF50;")
+                strategy_layout.addRow("Buy Conditions:", buy_cond_label)
+            
+            # Sell Conditions
+            sell_conditions = getattr(strategy, 'sell_conditions', [])
+            if sell_conditions:
+                conditions_text = []
+                for i, cond in enumerate(sell_conditions, 1):
+                    left = getattr(cond, 'left_field', 'price')
+                    op = getattr(cond, 'operator', '>')
+                    right = getattr(cond, 'right_field', 'ema_1')
+                    connector = getattr(cond, 'connector', 'OR')
+                    conditions_text.append(f"{i}. {left} {op} {right} ({connector})")
+                sell_cond_label = QLabel("\n".join(conditions_text))
+                sell_cond_label.setWordWrap(True)
+                sell_cond_label.setStyleSheet("color: #F44336;")
+                strategy_layout.addRow("Sell Conditions:", sell_cond_label)
+        
+        # Risk Management Settings
+        if strategy:
+            risk_group = QGroupBox("Risk Management Settings")
+            risk_layout = QFormLayout()
+            
+            # SL Configuration
+            sl_type = getattr(strategy, 'sl_type', None)
+            sl_value = getattr(strategy, 'sl_value', 0.0)
+            sl_enabled = getattr(strategy, 'sl_enabled', True)
+            sl_text = f"{sl_type}: {sl_value}" if sl_type else f"{sl_value} pips"
+            if not sl_enabled:
+                sl_text += " (Disabled)"
+            risk_layout.addRow("Stop Loss:", QLabel(sl_text))
+            
+            # TP Configuration
+            tp_value = getattr(strategy, 'tp_value', 0.0)
+            tp_enabled = getattr(strategy, 'tp_enabled', True)
+            use_ratio = getattr(strategy, 'use_ratio', True)
+            tp_text = f"{tp_value} pips"
+            if use_ratio:
+                tp_text += " (1:2 ratio)"
+            if not tp_enabled:
+                tp_text += " (Disabled)"
+            risk_layout.addRow("Take Profit:", QLabel(tp_text))
+            
+            # Lot Size
+            lot_size = getattr(strategy, 'lot_size', None)
+            lot_text = f"{lot_size:.2f}" if lot_size else "Default from config"
+            risk_layout.addRow("Lot Size:", QLabel(lot_text))
+            
+            # Trailing SL
+            enable_trailing_sl = getattr(strategy, 'enable_trailing_sl', False)
+            if enable_trailing_sl:
+                trailing_sl_gap = getattr(strategy, 'trailing_sl_gap', 0.0)
+                risk_layout.addRow("Trailing SL:", QLabel(f"Enabled (Gap: {trailing_sl_gap:.5f})"))
+            else:
+                risk_layout.addRow("Trailing SL:", QLabel("Disabled"))
+            
+            # Profit Lock
+            enable_profit_lock = getattr(strategy, 'enable_profit_lock', False)
+            if enable_profit_lock:
+                profit_lock_trigger = getattr(strategy, 'profit_lock_trigger', 0.0)
+                profit_lock_value = getattr(strategy, 'profit_lock_value', 0.0)
+                profit_trail_step = getattr(strategy, 'profit_trail_step', 0.0)
+                profit_trail_amount = getattr(strategy, 'profit_trail_amount', 0.0)
+                profit_lock_text = f"Enabled (Trigger: {profit_lock_trigger:.2f}, Lock: {profit_lock_value:.2f}"
+                if profit_trail_step > 0:
+                    profit_lock_text += f", Trail Step: {profit_trail_step:.2f}, Trail Amount: {profit_trail_amount:.2f}"
+                profit_lock_text += ")"
+                risk_layout.addRow("Profit Lock:", QLabel(profit_lock_text))
+            else:
+                risk_layout.addRow("Profit Lock:", QLabel("Disabled"))
+            
+            # Wait & Trade (W&T)
+            enable_wt = getattr(strategy, 'enable_wt', False)
+            if enable_wt:
+                wt_value = getattr(strategy, 'wt_value', 0.0)
+                wt_is_percentage = getattr(strategy, 'wt_is_percentage', False)
+                wt_text = f"Enabled ({wt_value:.5f} {'%' if wt_is_percentage else 'points'})"
+                risk_layout.addRow("Wait & Trade:", QLabel(wt_text))
+            else:
+                risk_layout.addRow("Wait & Trade:", QLabel("Disabled"))
+            
+            risk_group.setLayout(risk_layout)
+            content_layout.addWidget(risk_group)
+        
+        # Other Strategy Settings
+        if strategy:
+            other_group = QGroupBox("Other Settings")
+            other_layout = QFormLayout()
+            
+            # Trade Direction
+            trade_direction = getattr(strategy, 'trade_direction', 'both')
+            other_layout.addRow("Trade Direction:", QLabel(trade_direction.capitalize()))
+            
+            # Trade Monitoring Mode
+            trade_monitoring_mode = getattr(strategy, 'trade_monitoring_mode', 'LTP')
+            other_layout.addRow("Monitoring Mode:", QLabel(trade_monitoring_mode))
+            
+            # Position Preservation
+            preserve_position = getattr(strategy, 'preserve_position', False)
+            other_layout.addRow("Position Preservation:", QLabel("Enabled" if preserve_position else "Disabled"))
+            
+            other_group.setLayout(other_layout)
+            content_layout.addWidget(other_group)
+        
+        # Full Comment
+        if comment:
+            comment_label = QLabel(comment)
+            comment_label.setWordWrap(True)
+            comment_label.setStyleSheet("color: #888; font-style: italic;")
+            strategy_layout.addRow("Comment:", comment_label)
+        
+        strategy_group.setLayout(strategy_layout)
+        content_layout.addWidget(strategy_group)
+        
+        # Add stretch to push content to top
+        content_layout.addStretch()
+        
+        scroll.setWidget(content_widget)
+        layout.addWidget(scroll)
+        
+        # Close Button
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.accept)
+        close_btn.setDefault(True)
+        button_layout.addWidget(close_btn)
+        
+        layout.addLayout(button_layout)
+
+
 class TradePanel(QWidget):
     """Trade execution panel - STOXXO QTP Style"""
     
     def __init__(self, mt5: MT5Connector, order_manager: OrderManager,
-                 risk_manager: RiskManager, config: Config = None, data_feed=None):
+                 risk_manager: RiskManager, config: Config = None, data_feed=None, strategy_manager=None):
         super().__init__()
         self.mt5 = mt5
         self.order_manager = order_manager
         self.risk_manager = risk_manager
         self.config = config or Config()
         self.data_feed = data_feed
+        self.strategy_manager = strategy_manager
         self.setup_ui()
         self.setup_timers()
         self.update_positions()
@@ -1006,7 +1485,7 @@ class TradePanel(QWidget):
                     time.sleep(0.5)  # Small delay to allow MT5 to process
                     
                     # Update positions and verify the position exists
-                self.update_positions()
+                    self.update_positions()
                     
                     # Verify position was actually opened
                     positions = self.order_manager.get_positions()
@@ -1028,7 +1507,7 @@ class TradePanel(QWidget):
                             if not found_after:
                                 logger.warning(f"Position {order_ticket} still not found after delay. Available positions: {[p.get('ticket') for p in positions_after]}")
                         threading.Thread(target=delayed_check, daemon=True).start()
-            else:
+                    else:
                         import logging
                         logger = logging.getLogger(__name__)
                         logger.info(f"Position {order_ticket} found successfully. Total positions: {len(positions)}")
@@ -1238,55 +1717,56 @@ class TradePanel(QWidget):
             action_widget = QWidget()
             action_layout = QHBoxLayout(action_widget)
             action_layout.setContentsMargins(2, 2, 2, 2)
+            action_layout.setSpacing(5)
+            action_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             
-            modify_btn = QPushButton("Modify")
-            modify_btn.setMaximumWidth(60)
-            modify_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #2196F3;
-                    color: white;
-                    border: none;
-                    padding: 3px;
-                    border-radius: 3px;
-                }
-                QPushButton:hover {
-                    background-color: #1976D2;
-                }
-            """)
+            # Get standard icons
+            style = self.style()
+            
+            # Helper function to create styled icon button
+            def create_styled_icon_button(text, icon_pixmap, bg_color, hover_color, min_width=80, max_width=90):
+                btn = QPushButton(text)
+                icon = style.standardIcon(icon_pixmap)
+                if not icon.isNull():
+                    btn.setIcon(icon)
+                    btn.setIconSize(QSize(16, 16))  # Set explicit icon size
+                btn.setMinimumWidth(min_width)
+                btn.setMaximumWidth(max_width)
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {bg_color};
+                        color: white;
+                        border: none;
+                        padding: 4px 8px;
+                        border-radius: 3px;
+                        text-align: left;
+                    }}
+                    QPushButton:hover {{
+                        background-color: {hover_color};
+                    }}
+                    QPushButton::icon {{
+                        margin-right: 4px;
+                    }}
+                """)
+                return btn
+            
+            detail_btn = create_styled_icon_button("Detail", QStyle.StandardPixmap.SP_FileDialogDetailedView,
+                                                   "#9C27B0", "#7B1FA2", 85, 95)
+            detail_btn.clicked.connect(lambda checked, p=pos: self.show_position_detail(p))
+            action_layout.addWidget(detail_btn)
+            
+            modify_btn = create_styled_icon_button("Modify", QStyle.StandardPixmap.SP_FileDialogInfoView, 
+                                                   "#2196F3", "#1976D2", 85, 95)
             modify_btn.clicked.connect(lambda checked, p=pos: self.modify_position(p))
             action_layout.addWidget(modify_btn)
             
-            partial_btn = QPushButton("Partial")
-            partial_btn.setMaximumWidth(60)
-            partial_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #FF9800;
-                    color: white;
-                    border: none;
-                    padding: 3px;
-                    border-radius: 3px;
-                }
-                QPushButton:hover {
-                    background-color: #F57C00;
-                }
-            """)
+            partial_btn = create_styled_icon_button("Partial", QStyle.StandardPixmap.SP_FileDialogListView,
+                                                    "#FF9800", "#F57C00", 85, 95)
             partial_btn.clicked.connect(lambda checked, p=pos: self.partial_close_position(p))
             action_layout.addWidget(partial_btn)
             
-            close_btn = QPushButton("Close")
-            close_btn.setMaximumWidth(60)
-            close_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #F44336;
-                    color: white;
-                    border: none;
-                    padding: 3px;
-                    border-radius: 3px;
-                }
-                QPushButton:hover {
-                    background-color: #D32F2F;
-                }
-            """)
+            close_btn = create_styled_icon_button("Close", QStyle.StandardPixmap.SP_DialogCloseButton,
+                                                  "#F44336", "#D32F2F", 80, 90)
             close_btn.clicked.connect(lambda checked, t=pos['ticket']: self.close_position(t))
             action_layout.addWidget(close_btn)
             
@@ -1324,6 +1804,18 @@ class TradePanel(QWidget):
                 self.update_positions()
             else:
                 QMessageBox.critical(self, "Error", "Failed to modify position")
+    
+    def show_position_detail(self, position: Dict):
+        """Show position detail dialog"""
+        position_tracker = self.order_manager.position_tracker if self.order_manager else None
+        dialog = PositionDetailDialog(
+            position, 
+            self.mt5, 
+            self,
+            strategy_manager=self.strategy_manager,
+            position_tracker=position_tracker
+        )
+        dialog.exec()
     
     def partial_close_position(self, position: Dict):
         """Partially close a position"""

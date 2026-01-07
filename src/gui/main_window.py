@@ -8,6 +8,8 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Tuple
+import pytz
+UTC = pytz.UTC
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QTabWidget, QStatusBar, QMenuBar, QMessageBox, QLabel, QPushButton)
 from PyQt6.QtCore import Qt, QTimer
@@ -19,7 +21,8 @@ from .chart_widget import ChartWidget
 from .strategy_panel import StrategyPanel
 from .settings_dialog import SettingsDialog
 from .trading_bot_panel import TradingBotPanel
-from .strategy_tab import StrategyTab
+from .theme_manager import ThemeManager
+from .theme_toggle_button import ThemeToggleButton
 from ..mt5_connector import MT5Connector
 from ..data_feed import DataFeed
 from ..indicators.real_time_feed import RealTimeIndicatorFeed
@@ -51,6 +54,10 @@ class MainWindow(QMainWindow):
         self.data_feed = DataFeed(self.mt5, update_interval=update_interval)
         self.indicator_feed = RealTimeIndicatorFeed(self.mt5)
         
+        # Initialize MT5 indicator exporter
+        from ..indicators.mt5_indicator_exporter import MT5IndicatorExporter
+        self.mt5_indicator_exporter = MT5IndicatorExporter(self.mt5, self.data_feed)
+        
         # Create data directory for trade history persistence
         project_root = Path(__file__).parent.parent.parent
         data_dir = project_root / "data"
@@ -59,7 +66,9 @@ class MainWindow(QMainWindow):
         
         self.order_manager = OrderManager(self.mt5, persistence_file=persistence_file)
         self.strategy_manager = StrategyManager(position_tracker=self.order_manager.position_tracker)
-        self.risk_manager = RiskManager(self.mt5)
+        # Get max_positions from config (None = unlimited)
+        max_positions = self.config.get('trading.max_positions', None)
+        self.risk_manager = RiskManager(self.mt5, max_positions=max_positions)
         self.trade_monitor = TradeMonitor(self.mt5)
         self.reentry_manager = ReEntryManager()
         
@@ -82,69 +91,21 @@ class MainWindow(QMainWindow):
         self.signal_router = SignalRouter(self.order_manager, self.risk_manager)
         # Signal server removed - no longer needed without Signals tab
         
+        # Initialize theme manager
+        self.theme_manager = ThemeManager(self.config)
+        
         self.setup_ui()
         self.setup_timers()
         self.setup_connections()
         
-        # #region agent log
-        import json
-        import os
-        log_path = r"c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log"
-        try:
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({
-                    "id": "init_1",
-                    "timestamp": int(__import__('time').time() * 1000),
-                    "location": "main_window.py:74",
-                    "message": "About to load strategies (POST-FIX: should only see this once)",
-                    "data": {"call_number": 1, "post_fix": True},
-                    "sessionId": "debug-session",
-                    "runId": "post-fix",
-                    "hypothesisId": "A"
-                }) + "\n")
-        except: pass
-        # #endregion
-        
         # Load saved strategies from disk (before connecting to MT5)
         self.load_saved_strategies()
-        
-        # #region agent log
-        try:
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({
-                    "id": "init_2",
-                    "timestamp": int(__import__('time').time() * 1000),
-                    "location": "main_window.py:83",
-                    "message": "About to update strategy panel (POST-FIX: should only see this once)",
-                    "data": {"call_number": 1, "post_fix": True},
-                    "sessionId": "debug-session",
-                    "runId": "post-fix",
-                    "hypothesisId": "A"
-                }) + "\n")
-        except: pass
-        # #endregion
         
         # Update strategy panel after loading
         if hasattr(self, 'strategy_panel'):
             self.strategy_panel.update_strategies()
         
         # Signal server setup removed - no longer needed without Signals tab
-        
-        # #region agent log
-        try:
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({
-                    "id": "init_3",
-                    "timestamp": int(__import__('time').time() * 1000),
-                    "location": "main_window.py:88",
-                    "message": "About to connect to MT5 (POST-FIX: should only see this once)",
-                    "data": {"call_number": 1, "post_fix": True},
-                    "sessionId": "debug-session",
-                    "runId": "post-fix",
-                    "hypothesisId": "A"
-                }) + "\n")
-        except: pass
-        # #endregion
         
         # Try to connect to MT5 on startup
         self.connect_to_mt5()
@@ -189,6 +150,9 @@ class MainWindow(QMainWindow):
         
         self.status_bar.showMessage("Ready")
         
+        # Apply theme after UI setup
+        self.theme_manager.apply_theme()
+        
         # Update telegram status after initialization
         self.update_telegram_status()
     
@@ -232,6 +196,20 @@ class MainWindow(QMainWindow):
         about_action = QAction("About", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
+        
+        # Add theme toggle button to the right side of menu bar using corner widget
+        # Create a widget to hold the theme toggle button
+        menu_bar_widget = QWidget()
+        menu_bar_layout = QHBoxLayout(menu_bar_widget)
+        menu_bar_layout.setContentsMargins(0, 0, 5, 0)
+        menu_bar_layout.setSpacing(0)
+        menu_bar_layout.addStretch()  # Push button to the right
+        
+        # Add theme toggle button
+        self.theme_toggle_button = ThemeToggleButton(self.theme_manager, self)
+        menu_bar_layout.addWidget(self.theme_toggle_button)
+        
+        menubar.setCornerWidget(menu_bar_widget, Qt.Corner.TopRightCorner)
     
     def create_tabs(self):
         """Create application tabs"""
@@ -247,7 +225,7 @@ class MainWindow(QMainWindow):
         self.chart_widget = ChartWidget(self.data_feed, self.mt5, self.strategy_manager, self.market_data_panel, self.order_manager)
         self.tab_widget.addTab(self.chart_widget, "Charts")
         
-        # Strategy tab (legacy)
+        # Strategy tab (comprehensive - combines features from both Strategy and Strategy Builder)
         self.trading_bot_panel = TradingBotPanel(
             self.data_feed,
             self.strategy_manager,
@@ -255,15 +233,6 @@ class MainWindow(QMainWindow):
             self.market_data_panel
         )
         self.tab_widget.addTab(self.trading_bot_panel, "Strategy")
-        
-        # Strategy Builder tab (comprehensive)
-        self.strategy_tab = StrategyTab(
-            self.data_feed,
-            self.strategy_manager,
-            self.mt5
-        )
-        self.strategy_tab.strategy_saved.connect(self._on_strategy_saved)
-        self.tab_widget.addTab(self.strategy_tab, "Strategy Builder")
         
         # Strategy Manager tab (Execution)
         self.strategy_panel = StrategyPanel(
@@ -286,12 +255,6 @@ class MainWindow(QMainWindow):
         )
         self.tab_widget.addTab(self.operation_monitoring_panel, "Operation & Monitoring")
     
-    def _on_strategy_saved(self, strategy_name: str):
-        """Handle strategy saved signal"""
-        # Refresh strategy panel to show new strategy
-        if hasattr(self, 'strategy_panel'):
-            self.strategy_panel.update_strategies()
-        logger.info(f"Strategy '{strategy_name}' saved and added to manager")
 
     def setup_timers(self):
         """Setup update timers"""
@@ -324,6 +287,15 @@ class MainWindow(QMainWindow):
         # We'll update on tick received (indicates symbol was added)
         self.data_feed.tick_received.connect(self._on_tick_for_symbol_update)
         
+        # Connect MT5 indicator exporter to automatically export for all symbols in data feed
+        if hasattr(self, 'mt5_indicator_exporter') and self.mt5_indicator_exporter:
+            # Add all existing symbols in data feed to exporter
+            import MetaTrader5 as mt5
+            for symbol in self.data_feed.symbols:
+                self.mt5_indicator_exporter.add_symbol(symbol, mt5.TIMEFRAME_M1)
+            # Also add symbols when they're added to data feed
+            # The exporter is already connected to tick_received signal, which will trigger exports
+        
         # Connect strategy panel signals
         if hasattr(self.strategy_panel, 'strategy_enabled'):
             self.strategy_panel.strategy_enabled.connect(self.on_strategy_enabled)
@@ -334,21 +306,14 @@ class MainWindow(QMainWindow):
         """Connect to MetaTrader 5"""
         # #region agent log
         import json
+        import time
         log_path = r"c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log"
         try:
             with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({
-                    "id": "connect_mt5_1",
-                    "timestamp": int(__import__('time').time() * 1000),
-                    "location": "main_window.py:259",
-                    "message": "connect_to_mt5 called",
-                    "data": {"mt5_already_connected": self.mt5.is_connected()},
-                    "sessionId": "debug-session",
-                    "runId": "post-fix",
-                    "hypothesisId": "A"
-                }) + "\n")
+                f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_connect_entry","timestamp":int(time.time()*1000),"location":"main_window.py:303","message":"connect_to_mt5 entry","data":{},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
         except: pass
         # #endregion
+        
         mt5_config = self.config.get('mt5', {})
         
         path = mt5_config.get('path', '')
@@ -356,6 +321,13 @@ class MainWindow(QMainWindow):
         password = mt5_config.get('password', '')
         server = mt5_config.get('server', '')
         timeout = mt5_config.get('timeout', 10000)
+        
+        # #region agent log
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_connect_config","timestamp":int(time.time()*1000),"location":"main_window.py:310","message":"MT5 config loaded","data":{"has_path":bool(path),"has_login":bool(login),"has_password":bool(password),"has_server":bool(server)},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+        except: pass
+        # #endregion
         
         # Auto-detect path if not set
         if not path:
@@ -366,6 +338,12 @@ class MainWindow(QMainWindow):
                 self.config.save()
         
         if not login or not password or not server:
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_connect_missing_config","timestamp":int(time.time()*1000),"location":"main_window.py:321","message":"Missing MT5 config","data":{},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+            except: pass
+            # #endregion
             QMessageBox.warning(
                 self,
                 "Configuration Required",
@@ -376,22 +354,23 @@ class MainWindow(QMainWindow):
         
         self.status_bar.showMessage("Connecting to MT5...")
         
-        if self.mt5.initialize(path, login, password, server, timeout):
-            # #region agent log
-            try:
-                with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({
-                        "id": "connect_mt5_2",
-                        "timestamp": int(__import__('time').time() * 1000),
-                        "location": "main_window.py:288",
-                        "message": "MT5 connection successful",
-                        "data": {"connection_result": True},
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "A"
-                    }) + "\n")
-            except: pass
-            # #endregion
+        # #region agent log
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_connect_before_init","timestamp":int(time.time()*1000),"location":"main_window.py:332","message":"Before mt5.initialize","data":{"is_connected_before":self.mt5.is_connected()},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+        except: pass
+        # #endregion
+        
+        init_result = self.mt5.initialize(path, login, password, server, timeout)
+        
+        # #region agent log
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_connect_after_init","timestamp":int(time.time()*1000),"location":"main_window.py:335","message":"After mt5.initialize","data":{"init_result":init_result,"is_connected_after":self.mt5.is_connected()},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+        except: pass
+        # #endregion
+        
+        if init_result:
             self.status_bar.showMessage("Connected to MT5", 5000)
             
             # Load available symbols in market data panel
@@ -400,19 +379,26 @@ class MainWindow(QMainWindow):
             # Update chart widget symbol list
             self.chart_widget.update_symbol_list()
             
-            # Update strategy builder symbol list
             
             # Symbols are available in data feed for other panels
             
             # Load saved symbols from config
             saved_symbols = self.config.get('data_feed.symbols', [])
+            import MetaTrader5 as mt5
             for symbol in saved_symbols:
                 self.data_feed.add_symbol(symbol)
+                # Add to MT5 indicator exporter
+                if hasattr(self, 'mt5_indicator_exporter') and self.mt5_indicator_exporter:
+                    self.mt5_indicator_exporter.add_symbol(symbol, mt5.TIMEFRAME_M1)
             
             # Add symbols from loaded strategies
             for strategy in self.strategy_manager.get_all_strategies():
                 if strategy.symbol not in self.data_feed.symbols:
                     self.data_feed.add_symbol(strategy.symbol)
+                    # Add to MT5 indicator exporter with strategy's timeframe
+                    if hasattr(self, 'mt5_indicator_exporter') and self.mt5_indicator_exporter:
+                        strategy_timeframe = strategy.timeframe if hasattr(strategy, 'timeframe') else mt5.TIMEFRAME_M1
+                        self.mt5_indicator_exporter.add_symbol(strategy.symbol, strategy_timeframe)
             
             # Fetch OHLC for all symbols in data feed
             if hasattr(self, 'market_data_panel') and self.data_feed.symbols:
@@ -420,6 +406,13 @@ class MainWindow(QMainWindow):
                 self.market_data_panel.fetch_ohlc_for_symbols(symbols_list)
             
             # Start data feed
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_feed_before_start","timestamp":int(time.time()*1000),"location":"main_window.py:368","message":"Before data_feed.start","data":{"symbols_count":len(self.data_feed.symbols),"feed_running":self.data_feed.running},"sessionId":"debug-session","runId":"run1","hypothesisId":"C"}) + "\n")
+            except: pass
+            # #endregion
+            
             if not self.data_feed.symbols:
                 # If no saved symbols, try default
                 default_symbol = self.config.get('trading.default_symbol', 'EURUSD')
@@ -432,12 +425,25 @@ class MainWindow(QMainWindow):
             
             self.data_feed.start()
             
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_feed_after_start","timestamp":int(time.time()*1000),"location":"main_window.py:378","message":"After data_feed.start","data":{"symbols_count":len(self.data_feed.symbols),"feed_running":self.data_feed.running},"sessionId":"debug-session","runId":"run1","hypothesisId":"C"}) + "\n")
+            except: pass
+            # #endregion
+            
             # Save symbols to config
             self.save_symbols_to_config()
             
             # Update UI
             self.market_data_panel.update_account_info()
         else:
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_connect_failed","timestamp":int(time.time()*1000),"location":"main_window.py:386","message":"MT5 connection failed","data":{"is_connected":self.mt5.is_connected()},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+            except: pass
+            # #endregion
             self.status_bar.showMessage("Failed to connect to MT5", 5000)
             QMessageBox.critical(
                 self,
@@ -481,6 +487,9 @@ class MainWindow(QMainWindow):
         if dialog.exec():
             # Reload config
             self.config.load()
+            # Update risk_manager max_positions from config
+            max_positions = self.config.get('trading.max_positions', None)
+            self.risk_manager.max_positions = max_positions
             # Reinitialize Telegram bot if settings changed
             self._initialize_telegram_bot()
             self.update_telegram_status()
@@ -502,15 +511,44 @@ class MainWindow(QMainWindow):
     
     def update_strategies(self):
         """Update all strategies"""
+        # #region agent log
+        import json
+        import time
+        log_path = r"c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log"
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_update_strat_entry","timestamp":int(time.time()*1000),"location":"main_window.py:448","message":"update_strategies entry","data":{"mt5_connected":self.mt5.is_connected(),"feed_running":self.data_feed.running},"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}) + "\n")
+        except: pass
+        # #endregion
+        
         # Reduced logging frequency - only log important events to file (INFO level)
         
         if not self.mt5.is_connected():
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_update_strat_no_mt5","timestamp":int(time.time()*1000),"location":"main_window.py:452","message":"update_strategies: MT5 not connected","data":{},"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}) + "\n")
+            except: pass
+            # #endregion
             return
         
         if not self.data_feed.running:
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_update_strat_feed_stopped","timestamp":int(time.time()*1000),"location":"main_window.py:455","message":"update_strategies: Data feed not running","data":{},"sessionId":"debug-session","runId":"run1","hypothesisId":"C"}) + "\n")
+            except: pass
+            # #endregion
             return
         
         enabled_strategies = self.strategy_manager.get_enabled_strategies()
+        
+        # #region agent log
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_update_strat_enabled","timestamp":int(time.time()*1000),"location":"main_window.py:458","message":"update_strategies: Enabled strategies","data":{"count":len(enabled_strategies)},"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}) + "\n")
+        except: pass
+        # #endregion
         
         if not enabled_strategies:
             return
@@ -531,6 +569,12 @@ class MainWindow(QMainWindow):
                 if self.mt5.is_connected():
                     logger.debug(f"update_strategies: Adding symbol {symbol} to data feed")
                     self.data_feed.add_symbol(symbol)
+                    # Add to MT5 indicator exporter
+                    if hasattr(self, 'mt5_indicator_exporter') and self.mt5_indicator_exporter:
+                        import MetaTrader5 as mt5
+                        # Use strategy's timeframe if available, otherwise default to M1
+                        strategy_timeframe = getattr(strategy, 'timeframe', mt5.TIMEFRAME_M1) if enabled_strategies else mt5.TIMEFRAME_M1
+                        self.mt5_indicator_exporter.add_symbol(symbol, strategy_timeframe)
                     # Try to find the correct case after adding
                     for feed_symbol in self.data_feed.symbols:
                         if feed_symbol.upper() == symbol.upper():
@@ -650,7 +694,7 @@ class MainWindow(QMainWindow):
             
             if timeframe_rates and len(timeframe_rates) >= 20:
                 try:
-                    from ..strategy.smc_strategy import _fractal_pivot_high, _fractal_pivot_low, _extract_ohlc_arrays
+                    from ..strategy.structure_strategy import _fractal_pivot_high, _fractal_pivot_low, _extract_ohlc_arrays
                     
                     # Extract OHLC arrays
                     _, highs, lows, closes = _extract_ohlc_arrays(timeframe_rates)
@@ -733,7 +777,21 @@ class MainWindow(QMainWindow):
                         strategy_name=strategy_name
                     )
                 
+                # #region agent log
+                try:
+                    with open(log_path, 'a', encoding='utf-8') as f:
+                        f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_update_strat_signal","timestamp":int(time.time()*1000),"location":"main_window.py:687","message":"Strategy signal generated","data":{"strategy":strategy.name,"signal":signal},"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}) + "\n")
+                except: pass
+                # #endregion
+                
                 success, error_msg = self.execute_strategy_signal(strategy, signal)
+                
+                # #region agent log
+                try:
+                    with open(log_path, 'a', encoding='utf-8') as f:
+                        f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_update_strat_exec_result","timestamp":int(time.time()*1000),"location":"main_window.py:690","message":"Strategy signal execution result","data":{"strategy":strategy.name,"signal":signal,"success":success,"error":error_msg},"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}) + "\n")
+                except: pass
+                # #endregion
                 # Note: Error handling for automatic execution is done in execute_strategy_signal itself
                 # (status bar messages, QMessageBox for trading disabled, etc.)
             else:
@@ -749,7 +807,9 @@ class MainWindow(QMainWindow):
         """Get entry condition text from strategy"""
         # Check for entry_conditions_text (used by CustomStrategy)
         if hasattr(strategy, 'entry_conditions_text') and strategy.entry_conditions_text:
-            return strategy.entry_conditions_text[0] if len(strategy.entry_conditions_text) > 0 else "--"
+            condition_text = strategy.entry_conditions_text[0] if len(strategy.entry_conditions_text) > 0 else None
+            if condition_text and condition_text.strip() and condition_text != "--":
+                return condition_text
         
         # Check for buy_conditions and sell_conditions (used by OHLC and VWAP strategies)
         if signal:
@@ -761,26 +821,34 @@ class MainWindow(QMainWindow):
                 conditions = strategy.buy_conditions if signal == 'BUY' else strategy.sell_conditions
                 if conditions:
                     condition = conditions[0]  # Get first condition
-                    return self._format_condition_text(condition, signal, 'ohlc')
+                    condition_text = self._format_condition_text(condition, signal, 'ohlc')
+                    if condition_text and condition_text.strip() and condition_text != "--":
+                        return condition_text
             
             elif isinstance(strategy, VWAPStrategy):
                 conditions = strategy.buy_conditions if signal == 'BUY' else strategy.sell_conditions
                 if conditions:
                     condition = conditions[0]  # Get first condition
-                    return self._format_condition_text(condition, signal, 'vwap')
+                    condition_text = self._format_condition_text(condition, signal, 'vwap')
+                    if condition_text and condition_text.strip() and condition_text != "--":
+                        return condition_text
 
             elif isinstance(strategy, EMAStrategy):
                 conditions = strategy.buy_conditions if signal == 'BUY' else strategy.sell_conditions
                 if conditions:
                     condition = conditions[0]
-                    return self._format_condition_text(condition, signal, 'ema')
+                    condition_text = self._format_condition_text(condition, signal, 'ema')
+                    if condition_text and condition_text.strip() and condition_text != "--":
+                        return condition_text
         
-        return "--"
+        # Check if it's a time-based entry (if strategy has time-based entry logic)
+        # For now, return "no condition" if no condition is found
+        return "no condition"
     
     def _format_condition_text(self, condition, signal: str, strategy_type: str) -> str:
         """Format condition object to human-readable text"""
         if not condition:
-            return "--"
+            return "no condition"
         
         price_ref = getattr(condition, 'price_reference', 'Current Price')
         operator = getattr(condition, 'operator', '>')
@@ -839,6 +907,16 @@ class MainWindow(QMainWindow):
         Returns:
             tuple: (success: bool, error_message: str | None) - success is True if order was placed, error_message contains reason if failed
         """
+        # #region agent log
+        import json
+        import time
+        log_path = r"c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log"
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({"id":f"log_{int(time.time()*1000)}_exec_signal_entry","timestamp":int(time.time()*1000),"location":"main_window.py:801","message":"execute_strategy_signal entry","data":{"strategy":strategy.name,"signal":signal,"mt5_connected":self.mt5.is_connected()},"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}) + "\n")
+        except: pass
+        # #endregion
+        
         logger.info(f"execute_strategy_signal: Executing {signal} signal for strategy {strategy.name}")
         symbol = strategy.symbol
         
@@ -880,6 +958,12 @@ class MainWindow(QMainWindow):
         # Calculate stop loss and take profit from strategy settings
         sl, tp = self.calculate_strategy_sl_tp(strategy, symbol, entry_price, signal)
         logger.info(f"execute_strategy_signal: Calculated SL={sl:.5f}, TP={tp:.5f} for {signal} order")
+        
+        # Log strategy configuration for debugging
+        logger.info(f"execute_strategy_signal: Strategy SL/TP Config - sl_enabled={getattr(strategy, 'sl_enabled', True)}, "
+                   f"tp_enabled={getattr(strategy, 'tp_enabled', True)}, sl_type={getattr(strategy, 'sl_type', None)}, "
+                   f"sl_value={getattr(strategy, 'sl_value', None)}, tp_value={getattr(strategy, 'tp_value', None)}, "
+                   f"use_ratio={getattr(strategy, 'use_ratio', None)}")
         
         # Always check for existing positions to prevent duplicate entries (strict)
         # If strategy already has a position in the same direction, skip
@@ -950,7 +1034,13 @@ class MainWindow(QMainWindow):
                             exit_price = closed_deal.get('price', entry_price)
                             deal_time = closed_deal.get('time')
                             if isinstance(deal_time, datetime):
-                                exit_time = deal_time
+                                # Convert timezone-aware datetime to naive UTC (remove timezone info)
+                                # This ensures consistency with entry_time which is also naive
+                                if deal_time.tzinfo is not None:
+                                    # Convert to UTC and remove timezone info
+                                    exit_time = deal_time.astimezone(UTC).replace(tzinfo=None)
+                                else:
+                                    exit_time = deal_time
                             elif isinstance(deal_time, (int, float)):
                                 exit_time = datetime.fromtimestamp(deal_time)
                             else:
@@ -966,12 +1056,16 @@ class MainWindow(QMainWindow):
                         trade = self.order_manager.trade_history.get_trade(opp_ticket)
                         entry_price_for_exit = opp_pos.get('entry_price')
                         entry_time_for_exit = opp_pos.get('entry_time', datetime.now())
-                        entry_condition_for_exit = opp_pos.get('entry_condition', '--')
+                        entry_condition_for_exit = opp_pos.get('entry_condition', 'no condition')
+                        if entry_condition_for_exit in ['--', '']:
+                            entry_condition_for_exit = 'no condition'
                         
                         if trade and not entry_price_for_exit:
                             entry_price_for_exit = trade.get('entry_price', entry_price)
                             entry_time_for_exit = trade.get('entry_time', datetime.now())
-                            entry_condition_for_exit = trade.get('entry_condition', '--')
+                            entry_condition_for_exit = trade.get('entry_condition', 'no condition')
+                            if entry_condition_for_exit in ['--', '']:
+                                entry_condition_for_exit = 'no condition'
                         
                         # Update trade history with exit details
                         try:
@@ -989,7 +1083,7 @@ class MainWindow(QMainWindow):
                         # Send Telegram notification
                         if hasattr(self, 'telegram_bot') and self.telegram_bot and self.telegram_bot._initialized:
                             try:
-                                self.telegram_bot.send_trade_exit(
+                                success = self.telegram_bot.send_trade_exit(
                                     ticker=symbol,
                                     volume=opp_pos.get('volume', lot_size),
                                     strategy_name=opp_strategy_name,
@@ -1003,9 +1097,21 @@ class MainWindow(QMainWindow):
                                     entry_type=opposite_direction,
                                     exit_type=("SELL" if opposite_direction == "BUY" else "BUY")
                                 )
-                                logger.info(f"Sent Telegram exit notification for trade {opp_ticket} (opposite strategy): {exit_condition}, P&L: {profit:.2f}")
+                                if success:
+                                    logger.info(f"Sent Telegram exit notification for trade {opp_ticket} (opposite strategy): {exit_condition}, P&L: {profit:.2f}")
+                                else:
+                                    logger.warning(f"Failed to send Telegram exit notification for trade {opp_ticket} (opposite strategy) - check bot configuration")
                             except Exception as e:
                                 logger.error(f"Error sending Telegram exit notification: {e}", exc_info=True)
+                        else:
+                            # Log why notification wasn't sent
+                            if not hasattr(self, 'telegram_bot'):
+                                logger.debug(f"Telegram bot not available (not initialized) - exit notification skipped for trade {opp_ticket}")
+                            elif not self.telegram_bot:
+                                logger.debug(f"Telegram bot is None - exit notification skipped for trade {opp_ticket}")
+                            elif not self.telegram_bot._initialized:
+                                error_msg = getattr(self.telegram_bot, '_init_error', 'Unknown error')
+                                logger.warning(f"Telegram bot not initialized - exit notification skipped for trade {opp_ticket}. Error: {error_msg}")
                         
                         # Remove from position tracker
                         self.order_manager.position_tracker.remove_position(
@@ -1022,7 +1128,7 @@ class MainWindow(QMainWindow):
             logger.warning(f"execute_strategy_signal: {error_msg} for {strategy.name}")
             return (False, error_msg)
         
-        logger.info(f"execute_strategy_signal: Placing {signal} order for {symbol}, lot={lot_size}, SL={sl}, TP={tp}")
+        logger.info(f"execute_strategy_signal: Placing {signal} order for {symbol}, lot={lot_size}, SL={sl:.5f}, TP={tp:.5f}")
         
         # Log diagnostic information before placing order
         logger.info(f"execute_strategy_signal: MT5 connected={self.mt5.is_connected()}, symbol={symbol}, strategy={strategy.name}")
@@ -1097,6 +1203,7 @@ class MainWindow(QMainWindow):
                         entry_time = datetime.now()
                         
                         # Verify position was opened with correct TP/SL values
+                        logger.info(f"execute_strategy_signal: Verifying position {ticket} - Requested SL={sl:.5f}, TP={tp:.5f}")
                         actual_position = self.mt5.get_positions(symbol=symbol)
                         position_found = None
                         for pos in actual_position:
@@ -1110,11 +1217,43 @@ class MainWindow(QMainWindow):
                             logger.info(f"Position {ticket} opened: {symbol} {signal} @ {entry_price:.5f}, "
                                       f"SL={actual_sl:.5f} (requested {sl:.5f}), TP={actual_tp:.5f} (requested {tp:.5f})")
                             
-                            # Warn if TP/SL values don't match
-                            if abs(actual_tp - tp) > 0.00001 and tp > 0:
-                                logger.warning(f"Position {ticket} TP mismatch: requested {tp:.5f}, actual {actual_tp:.5f}")
-                            if abs(actual_sl - sl) > 0.00001 and sl > 0:
-                                logger.warning(f"Position {ticket} SL mismatch: requested {sl:.5f}, actual {actual_sl:.5f}")
+                            # Check if TP/SL are missing or incorrect
+                            sl_missing = (sl > 0 and actual_sl <= 0)
+                            tp_missing = (tp > 0 and actual_tp <= 0)
+                            sl_mismatch = (sl > 0 and actual_sl > 0 and abs(actual_sl - sl) > 0.00001)
+                            tp_mismatch = (tp > 0 and actual_tp > 0 and abs(actual_tp - tp) > 0.00001)
+                            
+                            if sl_missing or tp_missing or sl_mismatch or tp_mismatch:
+                                logger.warning(f"Position {ticket} SL/TP issue detected:")
+                                if sl_missing:
+                                    logger.warning(f"  - SL is MISSING (requested {sl:.5f}, actual {actual_sl:.5f})")
+                                elif sl_mismatch:
+                                    logger.warning(f"  - SL MISMATCH (requested {sl:.5f}, actual {actual_sl:.5f})")
+                                if tp_missing:
+                                    logger.warning(f"  - TP is MISSING (requested {tp:.5f}, actual {actual_tp:.5f})")
+                                elif tp_mismatch:
+                                    logger.warning(f"  - TP MISMATCH (requested {tp:.5f}, actual {actual_tp:.5f})")
+                                
+                                # Attempt to fix missing SL/TP
+                                if sl_missing or tp_missing or sl_mismatch or tp_mismatch:
+                                    logger.info(f"Attempting to fix SL/TP for position {ticket}...")
+                                    fix_success = self.order_manager.modify_position(ticket, sl if sl > 0 else actual_sl, tp if tp > 0 else actual_tp)
+                                    if fix_success:
+                                        logger.info(f"Successfully fixed SL/TP for position {ticket}")
+                                        # Re-verify after modification
+                                        import time
+                                        time.sleep(0.2)
+                                        positions_after = self.mt5.get_positions(symbol=symbol)
+                                        for pos_after in positions_after:
+                                            if pos_after.get('ticket') == ticket:
+                                                final_sl = pos_after.get('sl', 0.0)
+                                                final_tp = pos_after.get('tp', 0.0)
+                                                logger.info(f"Position {ticket} after fix - SL={final_sl:.5f}, TP={final_tp:.5f}")
+                                                break
+                                    else:
+                                        error_detail = self.mt5.get_last_error() if hasattr(self.mt5, 'get_last_error') else 'Unknown error'
+                                        logger.error(f"Failed to fix SL/TP for position {ticket}: {error_detail}")
+                                        system_log_service.log("ERROR", f"Failed to set SL/TP for position {ticket}: {error_detail}", strategy=strategy.name)
                         else:
                             logger.warning(f"Position {ticket} not found in MT5 after opening - may need to wait")
                         
@@ -1145,15 +1284,31 @@ class MainWindow(QMainWindow):
                         
                         # Send Telegram notification
                         if hasattr(self, 'telegram_bot') and self.telegram_bot and self.telegram_bot._initialized:
-                            self.telegram_bot.send_trade_entry(
-                                ticker=symbol,
-                                volume=lot_size,
-                                strategy_name=strategy.name,
-                                entry_price=entry_price,
-                                entry_time=datetime.now(),
-                                entry_condition=entry_condition_text,
-                                entry_type=signal
-                            )
+                            try:
+                                success = self.telegram_bot.send_trade_entry(
+                                    ticker=symbol,
+                                    volume=lot_size,
+                                    strategy_name=strategy.name,
+                                    entry_price=entry_price,
+                                    entry_time=datetime.now(),
+                                    entry_condition=entry_condition_text,
+                                    entry_type=signal
+                                )
+                                if success:
+                                    logger.info(f"Sent Telegram entry notification for trade {ticket}: {strategy.name} {signal} {symbol} at {entry_price:.5f}")
+                                else:
+                                    logger.warning(f"Failed to send Telegram entry notification for trade {ticket} - check bot configuration")
+                            except Exception as e:
+                                logger.error(f"Error sending Telegram entry notification: {e}", exc_info=True)
+                        else:
+                            # Log why notification wasn't sent
+                            if not hasattr(self, 'telegram_bot'):
+                                logger.debug(f"Telegram bot not available (not initialized) - entry notification skipped for trade {ticket}")
+                            elif not self.telegram_bot:
+                                logger.debug(f"Telegram bot is None - entry notification skipped for trade {ticket}")
+                            elif not self.telegram_bot._initialized:
+                                error_msg = getattr(self.telegram_bot, '_init_error', 'Unknown error')
+                                logger.warning(f"Telegram bot not initialized - entry notification skipped for trade {ticket}. Error: {error_msg}")
                 
                 self.status_bar.showMessage(
                     f"Strategy {strategy.name} executed {signal} order for {symbol}",
@@ -1178,7 +1333,13 @@ class MainWindow(QMainWindow):
                     detailed_error = f"Order placement failed (Code: {retcode}): {error_msg}"
                 
                 # Check if trading is disabled and show user-friendly message
-                if 'Trading disabled' in error_msg or 'trade_mode=0' in error_msg or result.get('trade_mode') == 0:
+                # Only show Trading Disabled dialog if terminal_trade_allowed is False (AutoTrading disabled)
+                # Do NOT show it just because trade_mode=0 if AutoTrading is enabled
+                terminal_trade_allowed_val = result.get('terminal_trade_allowed')
+                has_autotrading_disabled_msg = 'AutoTrading disabled' in error_msg or 'AutoTrading is disabled' in error_msg
+                is_trading_disabled = terminal_trade_allowed_val is False or has_autotrading_disabled_msg
+                
+                if is_trading_disabled:
                     detailed_error = "Trading is disabled on your MT5 account. Enable in Tools > Options > Expert Advisors"
                     QMessageBox.warning(
                         self,
@@ -1291,7 +1452,8 @@ class MainWindow(QMainWindow):
                         for direction, pos_data in list(self.order_manager.position_tracker.positions[strategy_name][symbol].items()):
                             tracked_ticket = pos_data.get('ticket')
                             # If tracked position is not in open positions, it was closed
-                            if tracked_ticket and tracked_ticket not in open_tickets:
+                            # Also handle cases where ticket might be missing/0 (should not happen for valid open positions)
+                            if (tracked_ticket and tracked_ticket not in open_tickets) or not tracked_ticket:
                                 # Check if it was already handled by monitor_trades (SL/TP)
                                 # If not, it was manually closed
                                 self._handle_manual_close(tracked_ticket, strategy_name, symbol, direction, pos_data)
@@ -1400,23 +1562,35 @@ class MainWindow(QMainWindow):
                     tracked_pos = self.order_manager.position_tracker.get_positions_for_strategy(
                         strategy.name, original_entry_symbol
                     )
-                    entry_condition_text = "--"
+                    entry_condition_text = "no condition"
                     for tp in tracked_pos:
                         if tp.get('ticket') == ticket:
-                            entry_condition_text = tp.get('entry_condition', '--')
+                            entry_condition_text = tp.get('entry_condition', 'no condition')
+                            if entry_condition_text in ['--', '']:
+                                entry_condition_text = 'no condition'
                             break
                     
                     # If not found in tracker, try to get from strategy
-                    if entry_condition_text == "--":
+                    if entry_condition_text in ["--", "no condition"]:
                         entry_condition_text = self._get_entry_condition_text(strategy, direction)
                     
                     # Update trade history - get exit condition from MT5 (with retry, passing action)
                     import time
+                    # Check if this position had trailing SL enabled
+                    had_trailing_sl = ticket in self.trade_monitor.active_trailing_sl
                     exit_condition = self._get_exit_condition_from_mt5(ticket, action, action)
                     # If MT5 hasn't processed yet, wait and retry once
                     if exit_condition not in ["SL", "TP"] and action in ["SL", "TP"]:
                         time.sleep(0.5)  # Wait for MT5 to process
                         exit_condition = self._get_exit_condition_from_mt5(ticket, action, action)
+                    
+                    # Make exit condition more specific
+                    if exit_condition == "SL" and had_trailing_sl:
+                        exit_condition = "Trailing SL"
+                    elif exit_condition == "SL":
+                        exit_condition = "Normal SL"
+                    elif exit_condition == "TP":
+                        exit_condition = "TP"
                         
                         profit = pos_to_close.get('profit', 0.0)
                         try:
@@ -1440,7 +1614,7 @@ class MainWindow(QMainWindow):
                             try:
                                 # Get profit from position data
                                 trade_profit = pos_to_close.get('profit', 0.0)
-                                self.telegram_bot.send_trade_exit(
+                                success = self.telegram_bot.send_trade_exit(
                                     ticker=original_entry_symbol,
                                     volume=pos_to_close.get('volume', 0.01),
                                     strategy_name=strategy.name,
@@ -1454,9 +1628,21 @@ class MainWindow(QMainWindow):
                                     entry_type=direction,
                                     exit_type=("SELL" if direction == "BUY" else "BUY")
                                 )
-                                logger.info(f"Sent Telegram exit notification for trade {ticket}: {exit_condition}, P&L: {trade_profit:.2f}")
+                                if success:
+                                    logger.info(f"Sent Telegram exit notification for trade {ticket}: {exit_condition}, P&L: {trade_profit:.2f}")
+                                else:
+                                    logger.warning(f"Failed to send Telegram exit notification for trade {ticket} - check bot configuration")
                             except Exception as e:
                                 logger.error(f"Error sending Telegram exit notification: {e}", exc_info=True)
+                        else:
+                            # Log why notification wasn't sent
+                            if not hasattr(self, 'telegram_bot'):
+                                logger.debug(f"Telegram bot not available (not initialized) - exit notification skipped for trade {ticket}")
+                            elif not self.telegram_bot:
+                                logger.debug(f"Telegram bot is None - exit notification skipped for trade {ticket}")
+                            elif not self.telegram_bot._initialized:
+                                error_msg = getattr(self.telegram_bot, '_init_error', 'Unknown error')
+                                logger.warning(f"Telegram bot not initialized - exit notification skipped for trade {ticket}. Error: {error_msg}")
                         
                         # Log viewer updates automatically via log handler
                         
@@ -1703,7 +1889,8 @@ class MainWindow(QMainWindow):
             volume=reentry_lot_size,
             sl=sl,
             tp=tp,
-            comment=f"Strategy: {strategy.name} (Re-Entry {action})"
+            comment=f"Strategy: {strategy.name} (Re-Entry {action})",
+            strategy_name=strategy.name
         )
         
         if result:
@@ -1726,45 +1913,10 @@ class MainWindow(QMainWindow):
     
     def load_saved_strategies(self):
         """Load saved strategies from disk"""
-        # #region agent log
-        import json
-        import os
-        import traceback
-        log_path = r"c:\Users\Calin Jasper\Music\mc_meta\.cursor\debug.log"
-        try:
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({
-                    "id": "load_strat_1",
-                    "timestamp": int(__import__('time').time() * 1000),
-                    "location": "main_window.py:1474",
-                    "message": "load_saved_strategies called",
-                    "data": {"strategy_count_before": len(self.strategy_manager.get_all_strategies())},
-                    "sessionId": "debug-session",
-                    "runId": "post-fix",
-                    "hypothesisId": "A"
-                }) + "\n")
-        except: pass
-        # #endregion
         try:
             from ..strategy.strategy_persistence import StrategyPersistence
             persistence = StrategyPersistence()
             strategies = persistence.load_all_strategies()
-            
-            # #region agent log
-            try:
-                with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({
-                        "id": "load_strat_2",
-                        "timestamp": int(__import__('time').time() * 1000),
-                        "location": "main_window.py:1479",
-                        "message": "Strategies loaded from disk",
-                        "data": {"strategies_found": len(strategies) if strategies else 0},
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "A"
-                    }) + "\n")
-            except: pass
-            # #endregion
             
             for strategy in strategies:
                 # Set market data panel reference for OHLC strategies
@@ -1778,22 +1930,6 @@ class MainWindow(QMainWindow):
                 # Restore enabled state from saved file
                 # Add strategy first
                 self.strategy_manager.add_strategy(strategy)
-                
-                # #region agent log
-                try:
-                    with open(log_path, 'a', encoding='utf-8') as f:
-                        f.write(json.dumps({
-                            "id": "load_strat_3",
-                            "timestamp": int(__import__('time').time() * 1000),
-                            "location": "main_window.py:1492",
-                            "message": "Strategy added to manager",
-                            "data": {"strategy_name": strategy.name, "strategy_count_after": len(self.strategy_manager.get_all_strategies())},
-                            "sessionId": "debug-session",
-                            "runId": "run1",
-                            "hypothesisId": "A"
-                        }) + "\n")
-                except: pass
-                # #endregion
                 
                 # Log enabled state
                 logger.info(f"Strategy '{strategy.name}' loaded with enabled={strategy.enabled}")
@@ -1829,36 +1965,20 @@ class MainWindow(QMainWindow):
                 logger.error(f"Error saving strategy state: {e}")
     
     def on_strategy_edit_requested(self, strategy_name: str):
-        """Handle strategy edit request - load strategy into builder"""
-        strategy = self.strategy_manager.get_strategy(strategy_name)
-        if not strategy:
-            logger.warning(f"Strategy '{strategy_name}' not found for editing")
-            return
-        
-        # Load strategy into builder
-        # Strategy Builder tab has been removed
-        # Switch to Execution tab instead
-        for i in range(self.tab_widget.count()):
-            if self.tab_widget.tabText(i) == "Execution":
-                self.tab_widget.setCurrentIndex(i)
-                break
-    
-    def on_strategy_edit_requested(self, strategy_name: str):
-        """Handle strategy edit request - strategy builder removed, use strategy panel for editing"""
+        """Handle strategy edit request - switch to Strategy tab for editing"""
         strategy = self.strategy_manager.get_strategy(strategy_name)
         if not strategy:
             QMessageBox.warning(self, "Error", f"Strategy '{strategy_name}' not found")
             return
         
-        # Switch to Execution tab for editing
+        # Switch to Strategy tab for editing
         for i in range(self.tab_widget.count()):
-            if self.tab_widget.tabText(i) == "Execution":
+            if self.tab_widget.tabText(i) == "Strategy":
                 self.tab_widget.setCurrentIndex(i)
                 break
         
         QMessageBox.information(self, "Strategy Editing", 
-                              f"Use the Execution tab to edit '{strategy_name}'. "
-                              f"The Strategy Builder tab has been removed.")
+                              f"Use the Strategy tab to edit '{strategy_name}'.")
     
     def show_about(self):
         """Show about dialog"""
@@ -2017,24 +2137,34 @@ class MainWindow(QMainWindow):
             if use_ratio:
                 # Use 1:2 ratio (TP = 2x SL distance)
                 tp_distance = sl_distance * 2.0
+                logger.info(f"calculate_strategy_sl_tp: Using ratio mode - TP distance = {tp_distance:.5f} (2x SL distance {sl_distance:.5f})")
             else:
                 # Use manual TP value
                 tp_value = getattr(strategy, 'tp_value', sl_value * 2.0)
                 if "Pips" in sl_type:
                     pip_size = point * (10 if digits == 5 else 1)
                     tp_distance = tp_value * pip_size
+                    logger.info(f"calculate_strategy_sl_tp: TP in Pips - tp_value={tp_value}, pip_size={pip_size:.5f}, tp_distance={tp_distance:.5f}")
                 elif "Points" in sl_type:
                     tp_distance = tp_value * point
+                    logger.info(f"calculate_strategy_sl_tp: TP in Points - tp_value={tp_value}, point={point:.5f}, tp_distance={tp_distance:.5f}")
                 else:  # Percentage
                     tp_distance = entry_price * (tp_value / 100.0)
+                    logger.info(f"calculate_strategy_sl_tp: TP in Percentage - tp_value={tp_value}%, tp_distance={tp_distance:.5f}")
             
             # Calculate TP price
             if signal == 'BUY':
                 tp = entry_price + tp_distance
             else:  # SELL
                 tp = entry_price - tp_distance
+            
+            logger.info(f"calculate_strategy_sl_tp: Calculated TP for {signal} - entry={entry_price:.5f}, tp_distance={tp_distance:.5f}, tp_price={tp:.5f}")
         else:
             tp = 0.0
+            logger.info(f"calculate_strategy_sl_tp: TP disabled for strategy (tp_enabled=False)")
+        
+        # Final validation logging before adjustment
+        logger.info(f"calculate_strategy_sl_tp: Pre-validation values for {signal} - SL={sl:.5f}, TP={tp:.5f}, Entry={entry_price:.5f}")
         
         # Validate and adjust SL/TP based on symbol's trade_stops_level (minimum distance requirement)
         trade_stops_level = symbol_info.get('trade_stops_level', 0)
@@ -2063,6 +2193,9 @@ class MainWindow(QMainWindow):
                         tp = entry_price - min_distance
                     tp = round(tp, digits)
         
+        # Final logging after all adjustments
+        logger.info(f"calculate_strategy_sl_tp: Final values for {signal} - SL={sl:.5f}, TP={tp:.5f}, Entry={entry_price:.5f}")
+        
         return sl, tp
     
     def _initialize_telegram_bot(self):
@@ -2071,18 +2204,24 @@ class MainWindow(QMainWindow):
             bot_token = self.config.get('telegram.bot_token', '')
             channel_id = self.config.get('telegram.channel_id', '')
             channel_name = self.config.get('telegram.channel_name', 'TradingBot_Alerts')
+            logger.info(f"Telegram bot initialization: enabled=True, bot_token={'***' + bot_token[-4:] if bot_token else 'EMPTY'}, channel_id={channel_id}")
             if bot_token:
                 try:
                     from ..notifications.telegram_bot import TelegramBot
                     self.telegram_bot = TelegramBot(bot_token, channel_id, channel_name)
                     if self.telegram_bot._initialized:
-                        logger.info("Telegram bot initialized successfully")
+                        logger.info("Telegram bot initialized successfully - notifications will be sent")
                     else:
-                        logger.warning("Telegram bot initialization failed")
+                        error_msg = getattr(self.telegram_bot, '_init_error', 'Unknown error')
+                        logger.warning(f"Telegram bot initialization failed: {error_msg}")
                 except Exception as e:
-                    logger.error(f"Error initializing Telegram bot: {e}")
+                    logger.error(f"Error initializing Telegram bot: {e}", exc_info=True)
                     self.telegram_bot = None
+            else:
+                logger.warning("Telegram bot token is empty - bot not initialized")
+                self.telegram_bot = None
         else:
+            logger.info("Telegram notifications are disabled in config")
             self.telegram_bot = None
     
     def update_telegram_status(self):
@@ -2175,7 +2314,13 @@ class MainWindow(QMainWindow):
                 exit_price = closed_deal.get('price', exit_price)
                 deal_time = closed_deal.get('time')
                 if isinstance(deal_time, datetime):
-                    exit_time = deal_time
+                    # Convert timezone-aware datetime to naive UTC (remove timezone info)
+                    # This ensures consistency with entry_time which is also naive
+                    if deal_time.tzinfo is not None:
+                        # Convert to UTC and remove timezone info
+                        exit_time = deal_time.astimezone(UTC).replace(tzinfo=None)
+                    else:
+                        exit_time = deal_time
                 elif isinstance(deal_time, (int, float)):
                     exit_time = datetime.fromtimestamp(deal_time)
                 else:
@@ -2206,6 +2351,9 @@ class MainWindow(QMainWindow):
             # Only override with "SL" or "TP" if detected via price comparison
             exit_condition = "Manual"
             
+            # Check if this position had trailing SL enabled
+            had_trailing_sl = ticket in self.trade_monitor.active_trailing_sl
+            
             # Try to determine if exit was SL/TP based on price comparison
             if True:  # Always check for SL/TP detection
                 # Get SL and TP from position data or trade history
@@ -2227,13 +2375,13 @@ class MainWindow(QMainWindow):
                         if direction == 'BUY':
                             # BUY position: exit below entry = likely SL, exit above entry = likely TP
                             if sl > 0 and abs(exit_price - sl) < abs(exit_price - entry_price) * 0.01:  # Within 1% of SL
-                                exit_condition = "SL"
+                                exit_condition = "Trailing SL" if had_trailing_sl else "Normal SL"
                                 logger.info(f"Detected SL exit for position {ticket}: exit_price={exit_price}, sl={sl}, entry={entry_price}")
                             elif tp > 0 and abs(exit_price - tp) < abs(exit_price - entry_price) * 0.01:  # Within 1% of TP
                                 exit_condition = "TP"
                                 logger.info(f"Detected TP exit for position {ticket}: exit_price={exit_price}, tp={tp}, entry={entry_price}")
                             elif exit_price <= sl and sl > 0:
-                                exit_condition = "SL"
+                                exit_condition = "Trailing SL" if had_trailing_sl else "Normal SL"
                                 logger.info(f"Detected SL exit for position {ticket}: exit_price={exit_price} <= sl={sl}")
                             elif exit_price >= tp and tp > 0:
                                 exit_condition = "TP"
@@ -2241,22 +2389,24 @@ class MainWindow(QMainWindow):
                         else:  # SELL
                             # SELL position: exit above entry = likely SL, exit below entry = likely TP
                             if sl > 0 and abs(exit_price - sl) < abs(exit_price - entry_price) * 0.01:  # Within 1% of SL
-                                exit_condition = "SL"
+                                exit_condition = "Trailing SL" if had_trailing_sl else "Normal SL"
                                 logger.info(f"Detected SL exit for position {ticket}: exit_price={exit_price}, sl={sl}, entry={entry_price}")
                             elif tp > 0 and abs(exit_price - tp) < abs(exit_price - entry_price) * 0.01:  # Within 1% of TP
                                 exit_condition = "TP"
                                 logger.info(f"Detected TP exit for position {ticket}: exit_price={exit_price}, tp={tp}, entry={entry_price}")
                             elif exit_price >= sl and sl > 0:
-                                exit_condition = "SL"
+                                exit_condition = "Trailing SL" if had_trailing_sl else "Normal SL"
                                 logger.info(f"Detected SL exit for position {ticket}: exit_price={exit_price} >= sl={sl}")
                             elif exit_price <= tp and tp > 0:
                                 exit_condition = "TP"
                                 logger.info(f"Detected TP exit for position {ticket}: exit_price={exit_price} <= tp={tp}")
             
             # Get entry condition
-            entry_condition = pos_data.get('entry_condition', '--')
-            if entry_condition == '--' and strategy:
+            entry_condition = pos_data.get('entry_condition', 'no condition')
+            if entry_condition in ['--', ''] and strategy:
                 entry_condition = self._get_entry_condition_text(strategy, direction)
+            elif entry_condition == '--':
+                entry_condition = 'no condition'
             
             # Check if trade exists in history before closing
             trade = self.order_manager.trade_history.get_trade(ticket)
@@ -2277,7 +2427,13 @@ class MainWindow(QMainWindow):
                             entry_price = deal.get('price', 0.0)
                             deal_time = deal.get('time')
                             if isinstance(deal_time, datetime):
-                                entry_time = deal_time
+                                # Convert timezone-aware datetime to naive UTC (remove timezone info)
+                                # This ensures consistency with other times which are also naive
+                                if deal_time.tzinfo is not None:
+                                    # Convert to UTC and remove timezone info
+                                    entry_time = deal_time.astimezone(UTC).replace(tzinfo=None)
+                                else:
+                                    entry_time = deal_time
                             elif isinstance(deal_time, (int, float)):
                                 entry_time = datetime.fromtimestamp(deal_time)
                             break
@@ -2422,13 +2578,18 @@ class MainWindow(QMainWindow):
             action: Known action ("SL" or "TP") from monitoring - if provided, prioritize this
             
         Returns:
-            Exit condition string from MT5 (SL/TP/Manual/etc)
+            Exit condition string from MT5 (Normal SL/Trailing SL/TP/Manual/etc)
         """
         try:
+            # Check if this position had trailing SL enabled
+            had_trailing_sl = ticket in self.trade_monitor.active_trailing_sl
+            
             if not self.mt5.is_connected():
                 # If we know the action (SL/TP), use it even if MT5 is not connected
-                if action in ["SL", "TP"]:
-                    return action
+                if action == "SL":
+                    return "Trailing SL" if had_trailing_sl else "Normal SL"
+                elif action == "TP":
+                    return "TP"
                 return fallback
             
             # Get deal history for this position (recent deals only - last 1 hour)
@@ -2467,25 +2628,33 @@ class MainWindow(QMainWindow):
             if exit_deal:
                 exit_condition = exit_deal.get('exit_condition', fallback)
                 
+                # Make exit condition more specific
+                if exit_condition == "SL":
+                    exit_condition = "Trailing SL" if had_trailing_sl else "Normal SL"
+                elif exit_condition == "TP":
+                    exit_condition = "TP"
+                
                 # If action is provided (SL/TP) and MT5 says something else (like "Expert"),
                 # prioritize the action since we detected it from monitoring
                 if action in ["SL", "TP"]:
-                    # If MT5 confirms SL/TP, use it
-                    if exit_condition in ["SL", "TP"]:
+                    # If MT5 confirms SL/TP, use it (but make it specific)
+                    if exit_condition in ["Normal SL", "Trailing SL", "TP"]:
                         logger.debug(f"Found exit condition from MT5 for ticket {ticket}: {exit_condition} (confirmed by action)")
                         return exit_condition
-                    # If MT5 says something else but we know it's SL/TP, use action
-                    logger.debug(f"MT5 says {exit_condition} for ticket {ticket}, but monitoring detected {action}, using {action}")
-                    return action
+                    # If MT5 says something else but we know it's SL/TP, use action with specificity
+                    specific_action = "Trailing SL" if (action == "SL" and had_trailing_sl) else ("Normal SL" if action == "SL" else "TP")
+                    logger.debug(f"MT5 says {exit_condition} for ticket {ticket}, but monitoring detected {action}, using {specific_action}")
+                    return specific_action
                 
                 if exit_condition and exit_condition != fallback:
                     logger.debug(f"Found exit condition from MT5 for ticket {ticket}: {exit_condition}")
                     return exit_condition
             
-            # If not found in MT5 but we know the action, use it
+            # If not found in MT5 but we know the action, use it with specificity
             if action in ["SL", "TP"]:
-                logger.debug(f"Exit condition not found in MT5 for ticket {ticket}, but monitoring detected {action}, using {action}")
-                return action
+                specific_action = "Trailing SL" if (action == "SL" and had_trailing_sl) else ("Normal SL" if action == "SL" else "TP")
+                logger.debug(f"Exit condition not found in MT5 for ticket {ticket}, but monitoring detected {action}, using {specific_action}")
+                return specific_action
             
             # If not found, return fallback
             logger.debug(f"Exit condition not found in MT5 for ticket {ticket}, using fallback: {fallback}")
@@ -2493,8 +2662,11 @@ class MainWindow(QMainWindow):
         except Exception as e:
             logger.error(f"Error getting exit condition from MT5 for ticket {ticket}: {e}", exc_info=True)
             # If we know the action, use it even on error
-            if action in ["SL", "TP"]:
-                return action
+            if action == "SL":
+                had_trailing_sl = ticket in self.trade_monitor.active_trailing_sl
+                return "Trailing SL" if had_trailing_sl else "Normal SL"
+            elif action == "TP":
+                return "TP"
             return fallback
     
     def _check_mt5_position_exists(self, strategy_name: str, symbol: str, direction: str) -> Tuple[bool, Optional[Dict]]:

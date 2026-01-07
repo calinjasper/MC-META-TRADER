@@ -4,8 +4,9 @@ View and manage active strategies
 """
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
-                             QTableWidgetItem, QPushButton, QHeaderView, QLabel, QMessageBox)
-from PyQt6.QtCore import Qt, pyqtSignal
+                             QTableWidgetItem, QPushButton, QHeaderView, QLabel, QMessageBox, QStyle)
+from PyQt6.QtCore import Qt, pyqtSignal, QSize
+from PyQt6.QtGui import QIcon
 from typing import List, Optional
 
 from ..strategy.strategy_manager import StrategyManager
@@ -103,6 +104,34 @@ class StrategyPanel(QWidget):
                 else:
                     # Show first condition with count if multiple
                     entry_condition = f"{strategy.entry_conditions_text[0]} (+{len(strategy.entry_conditions_text)-1})"
+            elif hasattr(strategy, 'buy_conditions') or hasattr(strategy, 'sell_conditions'):
+                # Handle specialized strategies (EMA, VWAP, OHLC)
+                condition_count = 0
+                first_cond_str = ""
+                
+                if hasattr(strategy, 'buy_conditions'):
+                    condition_count += len(strategy.buy_conditions)
+                    if not first_cond_str and strategy.buy_conditions:
+                        c = strategy.buy_conditions[0]
+                        # Try to format nicely
+                        ref = getattr(c, 'price_reference', 'Price')
+                        op = getattr(c, 'operator', 'conditions')
+                        first_cond_str = f"Buy: {ref} {op} ..."
+                        
+                if hasattr(strategy, 'sell_conditions'):
+                    condition_count += len(strategy.sell_conditions)
+                    if not first_cond_str and strategy.sell_conditions:
+                        c = strategy.sell_conditions[0]
+                        ref = getattr(c, 'price_reference', 'Price')
+                        op = getattr(c, 'operator', 'conditions')
+                        first_cond_str = f"Sell: {ref} {op} ..."
+                
+                if condition_count > 0:
+                    if condition_count == 1:
+                        entry_condition = first_cond_str
+                    else:
+                        entry_condition = f"{condition_count} Conditions"
+            
             self.strategies_table.setItem(row, 3, QTableWidgetItem(entry_condition))
             
             # Last signal
@@ -173,38 +202,56 @@ class StrategyPanel(QWidget):
             action_widget = QWidget()
             action_layout = QHBoxLayout(action_widget)
             action_layout.setContentsMargins(2, 2, 2, 2)
-            action_layout.setSpacing(2)
+            action_layout.setSpacing(5)
+            action_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             
-            detail_btn = QPushButton("Detail")
-            detail_btn.setMaximumWidth(60)
+            # Get standard icons
+            style = self.style()
+            
+            # Helper function to create icon button
+            def create_icon_button(text, icon_pixmap, min_width=85, max_width=95):
+                btn = QPushButton(text)
+                icon = style.standardIcon(icon_pixmap)
+                if not icon.isNull():
+                    btn.setIcon(icon)
+                    btn.setIconSize(QSize(16, 16))  # Set explicit icon size
+                btn.setMinimumWidth(min_width)
+                btn.setMaximumWidth(max_width)
+                btn.setStyleSheet("""
+                    QPushButton {
+                        padding: 4px 8px;
+                        text-align: left;
+                    }
+                    QPushButton::icon {
+                        margin-right: 4px;
+                    }
+                """)
+                return btn
+            
+            detail_btn = create_icon_button("Detail", QStyle.StandardPixmap.SP_FileDialogDetailedView, 80, 90)
             detail_btn.clicked.connect(lambda checked, s=strategy.name: self.show_strategy_detail(s))
             action_layout.addWidget(detail_btn)
             
             # Execute button - only show for enabled strategies
             if strategy.enabled:
-                execute_btn = QPushButton("Execute")
-                execute_btn.setMaximumWidth(70)
+                execute_btn = create_icon_button("Execute", QStyle.StandardPixmap.SP_MediaPlay, 85, 95)
                 execute_btn.clicked.connect(lambda checked, s=strategy.name: self.manual_execute_strategy(s))
                 action_layout.addWidget(execute_btn)
             
-            edit_btn = QPushButton("Edit")
-            edit_btn.setMaximumWidth(60)
+            edit_btn = create_icon_button("Edit", QStyle.StandardPixmap.SP_FileDialogInfoView, 75, 85)
             edit_btn.clicked.connect(lambda checked, s=strategy.name: self.edit_strategy(s))
             action_layout.addWidget(edit_btn)
             
             if strategy.enabled:
-                disable_btn = QPushButton("Disable")
-                disable_btn.setMaximumWidth(70)
+                disable_btn = create_icon_button("Disable", QStyle.StandardPixmap.SP_MediaStop, 85, 95)
                 disable_btn.clicked.connect(lambda checked, s=strategy.name: self.disable_strategy(s))
                 action_layout.addWidget(disable_btn)
             else:
-                enable_btn = QPushButton("Enable")
-                enable_btn.setMaximumWidth(70)
+                enable_btn = create_icon_button("Enable", QStyle.StandardPixmap.SP_MediaPlay, 80, 90)
                 enable_btn.clicked.connect(lambda checked, s=strategy.name: self.enable_strategy(s))
                 action_layout.addWidget(enable_btn)
             
-            remove_btn = QPushButton("Remove")
-            remove_btn.setMaximumWidth(70)
+            remove_btn = create_icon_button("Remove", QStyle.StandardPixmap.SP_TrashIcon, 85, 95)
             remove_btn.clicked.connect(lambda checked, s=strategy.name: self.remove_strategy(s))
             action_layout.addWidget(remove_btn)
             

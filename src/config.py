@@ -86,7 +86,7 @@ class Config:
                 "default_symbol": "EURUSD",
                 "default_lot_size": 0.01,
                 "default_slippage": 3,
-                "max_positions": 10
+                "max_positions": None
             },
             "ui": {
                 "theme": "dark",

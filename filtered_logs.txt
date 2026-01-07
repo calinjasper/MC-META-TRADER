@@ -1,0 +1,287 @@
+2026-01-06 13:34:57,918 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=None
+2026-01-06 13:34:59,488 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=None
+2026-01-06 13:34:59,544 - src.strategy.base_strategy - INFO - Strategy EMA20_GOLD_1M generated NEW BUY signal for XAUUSDM (was SELL)
+2026-01-06 13:34:59,544 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=BUY
+2026-01-06 13:34:59,544 - src.gui.main_window - INFO - Strategy EMA20_GOLD_1M generated BUY signal for XAUUSDM
+2026-01-06 13:34:59,545 - src.gui.main_window - INFO - Executing BUY signal for strategy EMA20_GOLD_1M on XAUUSDM
+2026-01-06 13:34:59,545 - src.gui.chart_widget - INFO - Added signal marker: EMA20_GOLD_1M BUY at 0.0 for XAUUSDM
+2026-01-06 13:34:59,571 - src.gui.main_window - INFO - execute_strategy_signal: Executing BUY signal for strategy EMA20_GOLD_1M
+2026-01-06 13:34:59,572 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA20_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=BUY
+2026-01-06 13:34:59,588 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA20_GOLD_1M
+2026-01-06 13:34:59,597 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA20_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:34:59,603 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA20_GOLD_1M. Symbol: XAUUSDm, Signal: BUY
+2026-01-06 13:35:00,758 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:00,824 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:01,447 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:01,505 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:02,503 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:02,595 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:03,485 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:03,561 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:04,513 - src.strategy.base_strategy - DEBUG - Strategy EMA50_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:04,514 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:04,586 - src.strategy.base_strategy - INFO - Strategy EMA20_GOLD_1M generated NEW SELL signal for XAUUSDM (was BUY)
+2026-01-06 13:35:04,587 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:04,587 - src.gui.main_window - INFO - Strategy EMA50_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:04,588 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA50_GOLD_1M on XAUUSDM
+2026-01-06 13:35:04,588 - src.gui.chart_widget - INFO - Added signal marker: EMA50_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:04,647 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA50_GOLD_1M
+2026-01-06 13:35:04,648 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA50_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:04,665 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA50_GOLD_1M
+2026-01-06 13:35:04,671 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA50_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:04,674 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA50_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:04,676 - src.gui.main_window - INFO - Strategy EMA20_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:04,676 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA20_GOLD_1M on XAUUSDM
+2026-01-06 13:35:04,677 - src.gui.chart_widget - INFO - Added signal marker: EMA20_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:04,732 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA20_GOLD_1M
+2026-01-06 13:35:04,732 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA20_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:04,760 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA20_GOLD_1M
+2026-01-06 13:35:04,765 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA20_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:04,768 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA20_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:05,715 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:05,792 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:06,835 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:06,905 - src.strategy.base_strategy - DEBUG - Strategy EMA20_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:06,906 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:06,906 - src.gui.main_window - INFO - Strategy EMA20_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:06,907 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA20_GOLD_1M on XAUUSDM
+2026-01-06 13:35:06,907 - src.gui.chart_widget - INFO - Added signal marker: EMA20_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:06,968 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA20_GOLD_1M
+2026-01-06 13:35:06,969 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA20_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:06,987 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA20_GOLD_1M
+2026-01-06 13:35:06,992 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA20_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:06,994 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA20_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:07,902 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:07,986 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:08,697 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:08,768 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:09,709 - src.strategy.base_strategy - DEBUG - Strategy EMA50_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:09,709 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:09,871 - src.strategy.base_strategy - DEBUG - Strategy EMA20_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:09,872 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:09,872 - src.gui.main_window - INFO - Strategy EMA50_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:09,872 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA50_GOLD_1M on XAUUSDM
+2026-01-06 13:35:09,873 - src.gui.chart_widget - INFO - Added signal marker: EMA50_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:09,926 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA50_GOLD_1M
+2026-01-06 13:35:09,926 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA50_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:09,943 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA50_GOLD_1M
+2026-01-06 13:35:09,947 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA50_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:09,950 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA50_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:09,951 - src.gui.main_window - INFO - Strategy EMA20_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:09,952 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA20_GOLD_1M on XAUUSDM
+2026-01-06 13:35:09,952 - src.gui.chart_widget - INFO - Added signal marker: EMA20_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:10,003 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA20_GOLD_1M
+2026-01-06 13:35:10,004 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA20_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:10,022 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA20_GOLD_1M
+2026-01-06 13:35:10,026 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA20_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:10,029 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA20_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:10,688 - src.strategy.base_strategy - DEBUG - Strategy EMA50_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:10,688 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:10,804 - src.strategy.base_strategy - DEBUG - Strategy EMA20_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:10,804 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:10,804 - src.gui.main_window - INFO - Strategy EMA50_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:10,805 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA50_GOLD_1M on XAUUSDM
+2026-01-06 13:35:10,806 - src.gui.chart_widget - INFO - Added signal marker: EMA50_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:10,861 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA50_GOLD_1M
+2026-01-06 13:35:10,862 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA50_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:10,882 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA50_GOLD_1M
+2026-01-06 13:35:10,888 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA50_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:10,891 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA50_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:10,893 - src.gui.main_window - INFO - Strategy EMA20_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:10,893 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA20_GOLD_1M on XAUUSDM
+2026-01-06 13:35:10,894 - src.gui.chart_widget - INFO - Added signal marker: EMA20_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:10,946 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA20_GOLD_1M
+2026-01-06 13:35:10,947 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA20_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:10,963 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA20_GOLD_1M
+2026-01-06 13:35:10,967 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA20_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:10,970 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA20_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:11,714 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:11,778 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:12,753 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:12,817 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:14,021 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:14,103 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:14,694 - src.strategy.base_strategy - DEBUG - Strategy EMA50_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:14,695 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:14,775 - src.strategy.base_strategy - DEBUG - Strategy EMA20_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:14,775 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:14,775 - src.gui.main_window - INFO - Strategy EMA50_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:14,776 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA50_GOLD_1M on XAUUSDM
+2026-01-06 13:35:14,777 - src.gui.chart_widget - INFO - Added signal marker: EMA50_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:14,821 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA50_GOLD_1M
+2026-01-06 13:35:14,822 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA50_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:14,838 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA50_GOLD_1M
+2026-01-06 13:35:14,844 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA50_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:14,846 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA50_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:14,848 - src.gui.main_window - INFO - Strategy EMA20_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:14,848 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA20_GOLD_1M on XAUUSDM
+2026-01-06 13:35:14,849 - src.gui.chart_widget - INFO - Added signal marker: EMA20_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:14,923 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA20_GOLD_1M
+2026-01-06 13:35:14,923 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA20_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:14,939 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA20_GOLD_1M
+2026-01-06 13:35:14,945 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA20_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:14,946 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA20_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:15,679 - src.strategy.base_strategy - DEBUG - Strategy EMA50_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:15,679 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:15,742 - src.strategy.base_strategy - DEBUG - Strategy EMA20_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:15,742 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:15,742 - src.gui.main_window - INFO - Strategy EMA50_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:15,743 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA50_GOLD_1M on XAUUSDM
+2026-01-06 13:35:15,744 - src.gui.chart_widget - INFO - Added signal marker: EMA50_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:15,772 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA50_GOLD_1M
+2026-01-06 13:35:15,773 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA50_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:15,795 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA50_GOLD_1M
+2026-01-06 13:35:15,799 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA50_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:15,803 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA50_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:16,108 - src.gui.main_window - INFO - Strategy EMA20_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:16,108 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA20_GOLD_1M on XAUUSDM
+2026-01-06 13:35:16,109 - src.gui.chart_widget - INFO - Added signal marker: EMA20_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:16,347 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA20_GOLD_1M
+2026-01-06 13:35:16,381 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA20_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:16,406 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA20_GOLD_1M
+2026-01-06 13:35:16,465 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA20_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:16,467 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA20_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:17,098 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:17,425 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:18,380 - src.strategy.base_strategy - DEBUG - Strategy EMA50_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:18,380 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:18,442 - src.strategy.base_strategy - DEBUG - Strategy EMA20_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:18,442 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:18,443 - src.gui.main_window - INFO - Strategy EMA50_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:18,443 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA50_GOLD_1M on XAUUSDM
+2026-01-06 13:35:18,443 - src.gui.chart_widget - INFO - Added signal marker: EMA50_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:18,476 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA50_GOLD_1M
+2026-01-06 13:35:18,476 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA50_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:18,494 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA50_GOLD_1M
+2026-01-06 13:35:18,497 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA50_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:18,499 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA50_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:18,500 - src.gui.main_window - INFO - Strategy EMA20_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:18,500 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA20_GOLD_1M on XAUUSDM
+2026-01-06 13:35:18,501 - src.gui.chart_widget - INFO - Added signal marker: EMA20_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:18,548 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA20_GOLD_1M
+2026-01-06 13:35:18,570 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA20_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:18,736 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA20_GOLD_1M
+2026-01-06 13:35:18,740 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA20_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:18,743 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA20_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:19,430 - src.strategy.base_strategy - DEBUG - Strategy EMA50_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:19,430 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:19,484 - src.strategy.base_strategy - DEBUG - Strategy EMA20_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:19,484 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:19,484 - src.gui.main_window - INFO - Strategy EMA50_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:19,485 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA50_GOLD_1M on XAUUSDM
+2026-01-06 13:35:19,485 - src.gui.chart_widget - INFO - Added signal marker: EMA50_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:19,534 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA50_GOLD_1M
+2026-01-06 13:35:19,534 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA50_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:19,546 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA50_GOLD_1M
+2026-01-06 13:35:19,549 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA50_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:19,551 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA50_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:19,552 - src.gui.main_window - INFO - Strategy EMA20_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:19,553 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA20_GOLD_1M on XAUUSDM
+2026-01-06 13:35:19,553 - src.gui.chart_widget - INFO - Added signal marker: EMA20_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:19,591 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA20_GOLD_1M
+2026-01-06 13:35:19,592 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA20_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:19,603 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA20_GOLD_1M
+2026-01-06 13:35:19,606 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA20_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:19,608 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA20_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:20,208 - src.strategy.base_strategy - DEBUG - Strategy EMA50_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:20,209 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:20,278 - src.strategy.base_strategy - DEBUG - Strategy EMA20_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:20,278 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:20,279 - src.gui.main_window - INFO - Strategy EMA50_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:20,279 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA50_GOLD_1M on XAUUSDM
+2026-01-06 13:35:20,280 - src.gui.chart_widget - INFO - Added signal marker: EMA50_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:20,362 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA50_GOLD_1M
+2026-01-06 13:35:20,363 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA50_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:20,386 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA50_GOLD_1M
+2026-01-06 13:35:20,391 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA50_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:20,394 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA50_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:20,396 - src.gui.main_window - INFO - Strategy EMA20_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:20,396 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA20_GOLD_1M on XAUUSDM
+2026-01-06 13:35:20,397 - src.gui.chart_widget - INFO - Added signal marker: EMA20_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:20,451 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA20_GOLD_1M
+2026-01-06 13:35:20,452 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA20_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:20,467 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA20_GOLD_1M
+2026-01-06 13:35:20,472 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA20_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:20,475 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA20_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:21,244 - src.strategy.base_strategy - DEBUG - Strategy EMA50_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:21,244 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:21,307 - src.strategy.base_strategy - DEBUG - Strategy EMA20_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:21,307 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:21,307 - src.gui.main_window - INFO - Strategy EMA50_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:21,308 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA50_GOLD_1M on XAUUSDM
+2026-01-06 13:35:21,308 - src.gui.chart_widget - INFO - Added signal marker: EMA50_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:21,335 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA50_GOLD_1M
+2026-01-06 13:35:21,336 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA50_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:21,364 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA50_GOLD_1M
+2026-01-06 13:35:21,370 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA50_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:21,373 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA50_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:21,376 - src.gui.main_window - INFO - Strategy EMA20_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:21,376 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA20_GOLD_1M on XAUUSDM
+2026-01-06 13:35:21,377 - src.gui.chart_widget - INFO - Added signal marker: EMA20_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:21,435 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA20_GOLD_1M
+2026-01-06 13:35:21,436 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA20_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:21,458 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA20_GOLD_1M
+2026-01-06 13:35:21,462 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA20_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:21,464 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA20_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:22,200 - src.strategy.base_strategy - DEBUG - Strategy EMA50_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:22,201 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:22,260 - src.strategy.base_strategy - DEBUG - Strategy EMA20_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:22,260 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:22,260 - src.gui.main_window - INFO - Strategy EMA50_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:22,261 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA50_GOLD_1M on XAUUSDM
+2026-01-06 13:35:22,261 - src.gui.chart_widget - INFO - Added signal marker: EMA50_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:22,323 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA50_GOLD_1M
+2026-01-06 13:35:22,324 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA50_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:22,337 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA50_GOLD_1M
+2026-01-06 13:35:22,342 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA50_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:22,345 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA50_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:22,347 - src.gui.main_window - INFO - Strategy EMA20_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:22,347 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA20_GOLD_1M on XAUUSDM
+2026-01-06 13:35:22,347 - src.gui.chart_widget - INFO - Added signal marker: EMA20_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:22,395 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA20_GOLD_1M
+2026-01-06 13:35:22,396 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA20_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:22,409 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA20_GOLD_1M
+2026-01-06 13:35:22,424 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA20_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:22,426 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA20_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:23,189 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:23,546 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=None
+2026-01-06 13:35:24,545 - src.strategy.base_strategy - DEBUG - Strategy EMA50_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:24,545 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:24,599 - src.strategy.base_strategy - DEBUG - Strategy EMA20_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:24,600 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:24,600 - src.gui.main_window - INFO - Strategy EMA50_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:24,600 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA50_GOLD_1M on XAUUSDM
+2026-01-06 13:35:24,601 - src.gui.chart_widget - INFO - Added signal marker: EMA50_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:24,627 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA50_GOLD_1M
+2026-01-06 13:35:24,628 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA50_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:24,649 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA50_GOLD_1M
+2026-01-06 13:35:24,654 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA50_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:24,656 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA50_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:24,657 - src.gui.main_window - INFO - Strategy EMA20_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:24,657 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA20_GOLD_1M on XAUUSDM
+2026-01-06 13:35:24,658 - src.gui.chart_widget - INFO - Added signal marker: EMA20_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:24,681 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA20_GOLD_1M
+2026-01-06 13:35:24,682 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA20_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:24,693 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA20_GOLD_1M
+2026-01-06 13:35:24,702 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA20_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:24,704 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA20_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:25,201 - src.strategy.base_strategy - DEBUG - Strategy EMA50_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:25,202 - src.strategy.strategy_manager - DEBUG - Strategy EMA50_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:25,260 - src.strategy.base_strategy - DEBUG - Strategy EMA20_GOLD_1M: Condition still met - SELL signal
+2026-01-06 13:35:25,261 - src.strategy.strategy_manager - DEBUG - Strategy EMA20_GOLD_1M: update() returned signal=SELL
+2026-01-06 13:35:25,261 - src.gui.main_window - INFO - Strategy EMA50_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:25,261 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA50_GOLD_1M on XAUUSDM
+2026-01-06 13:35:25,262 - src.gui.chart_widget - INFO - Added signal marker: EMA50_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:25,302 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA50_GOLD_1M
+2026-01-06 13:35:25,303 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA50_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:25,315 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA50_GOLD_1M
+2026-01-06 13:35:25,318 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA50_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:25,320 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA50_GOLD_1M. Symbol: XAUUSDm, Signal: SELL
+2026-01-06 13:35:25,321 - src.gui.main_window - INFO - Strategy EMA20_GOLD_1M generated SELL signal for XAUUSDM
+2026-01-06 13:35:25,322 - src.gui.main_window - INFO - Executing SELL signal for strategy EMA20_GOLD_1M on XAUUSDM
+2026-01-06 13:35:25,322 - src.gui.chart_widget - INFO - Added signal marker: EMA20_GOLD_1M SELL at 0.0 for XAUUSDM
+2026-01-06 13:35:25,364 - src.gui.main_window - INFO - execute_strategy_signal: Executing SELL signal for strategy EMA20_GOLD_1M
+2026-01-06 13:35:25,365 - src.gui.main_window - DEBUG - execute_strategy_signal: Strategy EMA20_GOLD_1M - enabled=True, symbol=XAUUSDM, signal=SELL
+2026-01-06 13:35:25,378 - src.gui.main_window - INFO - execute_strategy_signal: MT5 connected=True, symbol=XAUUSDm, strategy=EMA20_GOLD_1M
+2026-01-06 13:35:25,382 - src.gui.main_window - ERROR - execute_strategy_signal: Exception calling place_market_order for EMA20_GOLD_1M: cannot access local variable 'time' where it is not associated with a value
+2026-01-06 13:35:25,384 - src.gui.main_window - ERROR - execute_strategy_signal: Order placement returned None for EMA20_GOLD_1M. Symbol: XAUUSDm, Signal: SELL

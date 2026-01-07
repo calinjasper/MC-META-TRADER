@@ -126,12 +126,27 @@ class ChartWidget(QWidget):
         self.show_trade_levels = False
         self.strategy_signals = []  # List of {time, type, price, strategy_name, symbol, timestamp}
         
+        # Strategy indicator mode
+        self.use_strategy_indicators = False
+        self.selected_strategy_name = None
+        self.original_timeframe = None  # Store original timeframe when auto-switching
+        self._last_strategy_update_time = None  # Track when strategy last updated
+        self._strategy_refresh_timer = QTimer()  # Timer for auto-refresh
+        self._strategy_refresh_timer.timeout.connect(self._check_strategy_updates)
+        self._strategy_refresh_timer.start(500)  # Check every 500ms
+        
         # Signal persistence
         self.signals_file = Path("data/strategy_signals.json")
         self.load_signals_from_file()
         
+        # Optional PocketBase manager for data storage
+        self.pb_manager: Optional[Any] = None
+        
         self.setup_ui()
         self.setup_connections()
+        
+        # Start strategy update monitoring timer
+        self._strategy_refresh_timer.start(500)  # Check every 500ms
         
         logger.info("ChartWidget initialized with TradingView Lightweight Charts")
     
@@ -275,6 +290,31 @@ class ChartWidget(QWidget):
         
         layout.addSpacing(20)
         
+        # Strategy Indicator Mode section
+        layout.addWidget(QFrame())  # Separator
+        layout.addSpacing(10)
+        
+        # Use Strategy Indicators toggle
+        self.use_strategy_indicators_check = QCheckBox("Use Strategy Indicators")
+        self.use_strategy_indicators_check.setToolTip("Display indicator values from selected strategy instead of calculating independently")
+        self.use_strategy_indicators_check.toggled.connect(self.on_use_strategy_indicators_toggled)
+        layout.addWidget(self.use_strategy_indicators_check)
+        
+        # Strategy selector dropdown
+        layout.addWidget(QLabel("Strategy:"))
+        self.strategy_selector_combo = QComboBox()
+        self.strategy_selector_combo.setMinimumWidth(150)
+        self.strategy_selector_combo.setEnabled(False)
+        self.strategy_selector_combo.currentTextChanged.connect(self.on_strategy_selector_changed)
+        layout.addWidget(self.strategy_selector_combo)
+        
+        # Strategy info label
+        self.strategy_info_label = QLabel("")
+        self.strategy_info_label.setStyleSheet("padding: 2px 5px; border-radius: 3px;")
+        layout.addWidget(self.strategy_info_label)
+        
+        layout.addSpacing(20)
+        
         # Import History button
         import_btn = QPushButton("Import MT5 History")
         import_btn.setToolTip("Import closed trades from MT5 history")
@@ -367,6 +407,9 @@ class ChartWidget(QWidget):
         
         self.current_symbol = symbol
         
+        # Update strategy selector when symbol changes
+        self._update_strategy_selector()
+        
         # Notify chart about symbol change
         timeframe = self.get_timeframe_str()
         logger.info(f"Emitting symbolChanged signal: {symbol}, {timeframe}")
@@ -383,6 +426,9 @@ class ChartWidget(QWidget):
     def on_timeframe_changed(self, timeframe_str: str):
         """Handle timeframe change"""
         logger.info(f"Timeframe changed to: {timeframe_str}")
+        # Update strategy info label if in strategy mode (timeframe may have changed)
+        if self.use_strategy_indicators:
+            self._update_strategy_info_label()
         self.ensure_symbol_subscribed()
         self.refresh_chart()
         # Request fit content when timeframe changes
@@ -414,6 +460,73 @@ class ChartWidget(QWidget):
         self.crosshair_enabled = enabled
         if self.bridge.is_ready():
             self.web_view.page().runJavaScript(f"setCrosshairEnabled({str(enabled).lower()});")
+    
+    def on_use_strategy_indicators_toggled(self, enabled: bool):
+        """Handle use strategy indicators toggle"""
+        logger.info(f"Use strategy indicators {'enabled' if enabled else 'disabled'}")
+        self.use_strategy_indicators = enabled
+        
+        # Enable/disable strategy selector
+        self.strategy_selector_combo.setEnabled(enabled)
+        
+        if enabled:
+            # Update strategy selector and select first matching strategy if available
+            self._update_strategy_selector()
+            if self.strategy_selector_combo.count() > 0 and self.strategy_selector_combo.currentText() != "No strategies available":
+                # Get the actual strategy name from the combo box data
+                current_index = self.strategy_selector_combo.currentIndex()
+                if current_index >= 0:
+                    strategy_name = self.strategy_selector_combo.itemData(current_index)
+                    if not strategy_name:
+                        # Fallback: extract from display text (remove status prefix)
+                        display_text = self.strategy_selector_combo.currentText()
+                        if " " in display_text:
+                            strategy_name = " ".join(display_text.split()[1:])  # Remove "✓" or "✗" prefix
+                        else:
+                            strategy_name = display_text
+                    
+                    self.selected_strategy_name = strategy_name
+                    # Sync timeframe with strategy
+                    self._sync_timeframe_with_strategy()
+                else:
+                    self.selected_strategy_name = None
+            else:
+                self.selected_strategy_name = None
+                self.use_strategy_indicators_check.setChecked(False)
+                self.use_strategy_indicators = False
+                self.strategy_selector_combo.setEnabled(False)
+        else:
+            self.selected_strategy_name = None
+            # Restore original timeframe if it was auto-switched
+            if self.original_timeframe:
+                self.timeframe_combo.setCurrentText(self.original_timeframe)
+                self.original_timeframe = None
+        
+        self._update_strategy_info_label()
+        self.refresh_chart()
+    
+    def on_strategy_selector_changed(self, strategy_name: str):
+        """Handle strategy selector change"""
+        if not strategy_name or strategy_name == "No strategies available":
+            self.selected_strategy_name = None
+        else:
+            # Extract actual strategy name from display text (remove status prefix)
+            if " " in strategy_name and (strategy_name.startswith("✓") or strategy_name.startswith("✗")):
+                self.selected_strategy_name = " ".join(strategy_name.split()[1:])
+            else:
+                # Try to get from item data
+                current_index = self.strategy_selector_combo.currentIndex()
+                if current_index >= 0:
+                    data_name = self.strategy_selector_combo.itemData(current_index)
+                    self.selected_strategy_name = data_name if data_name else strategy_name
+                else:
+                    self.selected_strategy_name = strategy_name
+            
+            # Check timeframe match and auto-switch if needed
+            self._sync_timeframe_with_strategy()
+        
+        self._update_strategy_info_label()
+        self.refresh_chart()
     
     def on_add_indicator(self, indicator_type: str):
         """Handle adding a new indicator from dropdown"""
@@ -704,6 +817,155 @@ class ChartWidget(QWidget):
         self.update_indicator_list_ui()
         self.refresh_chart()
     
+    def _mt5_timeframe_to_string(self, mt5_timeframe: int) -> Optional[str]:
+        """Convert MT5 timeframe constant to string"""
+        try:
+            import MetaTrader5 as mt5
+            timeframe_map = {
+                mt5.TIMEFRAME_M1: "M1",
+                mt5.TIMEFRAME_M5: "M5",
+                mt5.TIMEFRAME_M15: "M15",
+                mt5.TIMEFRAME_M30: "M30",
+                mt5.TIMEFRAME_H1: "H1",
+                mt5.TIMEFRAME_H4: "H4",
+                mt5.TIMEFRAME_D1: "D1",
+            }
+            return timeframe_map.get(mt5_timeframe)
+        except Exception as e:
+            logger.error(f"Error converting MT5 timeframe to string: {e}")
+            return None
+    
+    def _find_matching_strategies(self) -> List[tuple]:
+        """
+        Find strategies matching current chart symbol
+        
+        Returns:
+            List of tuples: (strategy_name, strategy_object) for matching strategies
+        """
+        matching_strategies = []
+        
+        if not self.strategy_manager:
+            return matching_strategies
+        
+        # Resolve current symbol
+        actual_symbol = self.symbol_mapper.find_symbol(self.current_symbol)
+        if not actual_symbol:
+            actual_symbol = self.current_symbol
+        
+        # Get all strategies
+        all_strategies = self.strategy_manager.get_all_strategies()
+        
+        for strategy in all_strategies:
+            # Case-insensitive symbol matching
+            strategy_symbol = strategy.symbol.upper() if strategy.symbol else ""
+            chart_symbol = actual_symbol.upper()
+            
+            if strategy_symbol == chart_symbol:
+                matching_strategies.append((strategy.name, strategy))
+        
+        return matching_strategies
+    
+    def _update_strategy_selector(self):
+        """Update strategy selector dropdown with matching strategies"""
+        self.strategy_selector_combo.clear()
+        
+        matching_strategies = self._find_matching_strategies()
+        
+        if not matching_strategies:
+            self.strategy_selector_combo.addItem("No strategies available")
+            self.strategy_selector_combo.setEnabled(False)
+            # Clear selected strategy if no matches
+            if self.use_strategy_indicators:
+                self.selected_strategy_name = None
+                self._update_strategy_info_label()
+        else:
+            for strategy_name, strategy in matching_strategies:
+                # Show enabled status in the name
+                status = "✓" if strategy.enabled else "✗"
+                display_name = f"{status} {strategy_name}"
+                index = self.strategy_selector_combo.addItem(display_name)
+                # Store strategy name in itemData for easy retrieval
+                self.strategy_selector_combo.setItemData(index, strategy_name)
+            self.strategy_selector_combo.setEnabled(self.use_strategy_indicators)
+            
+            # If we had a selected strategy, try to restore it
+            if self.selected_strategy_name:
+                for i in range(self.strategy_selector_combo.count()):
+                    if self.strategy_selector_combo.itemData(i) == self.selected_strategy_name:
+                        self.strategy_selector_combo.setCurrentIndex(i)
+                        break
+    
+    def _sync_timeframe_with_strategy(self):
+        """Auto-switch chart timeframe to match selected strategy if needed"""
+        if not self.selected_strategy_name or not self.strategy_manager:
+            return
+        
+        strategy = self.strategy_manager.get_strategy(self.selected_strategy_name)
+        if not strategy or not hasattr(strategy, 'timeframe'):
+            return
+        
+        strategy_timeframe = strategy.timeframe
+        chart_timeframe = self.get_mt5_timeframe()
+        
+        # Check if timeframes match
+        if strategy_timeframe != chart_timeframe:
+            # Store original timeframe if not already stored
+            if not self.original_timeframe:
+                self.original_timeframe = self.get_timeframe_str()
+            
+            # Convert strategy timeframe to string and switch chart
+            strategy_tf_str = self._mt5_timeframe_to_string(strategy_timeframe)
+            if strategy_tf_str and strategy_tf_str in ["M1", "M5", "M15", "M30", "H1", "H4", "D1"]:
+                logger.info(f"Auto-switching chart timeframe from {self.original_timeframe} to {strategy_tf_str} to match strategy")
+                self.timeframe_combo.setCurrentText(strategy_tf_str)
+    
+    def _update_strategy_info_label(self):
+        """Update strategy info label with current status"""
+        if not self.use_strategy_indicators or not self.selected_strategy_name:
+            self.strategy_info_label.setText("")
+            self.strategy_info_label.setStyleSheet("")
+            return
+        
+        strategy = self.strategy_manager.get_strategy(self.selected_strategy_name) if self.strategy_manager else None
+        
+        if not strategy:
+            self.strategy_info_label.setText("Strategy not found")
+            self.strategy_info_label.setStyleSheet("padding: 2px 5px; border-radius: 3px; background-color: #f44336; color: white;")
+            return
+        
+        # Check symbol match
+        actual_symbol = self.symbol_mapper.find_symbol(self.current_symbol)
+        if not actual_symbol:
+            actual_symbol = self.current_symbol
+        
+        symbol_match = strategy.symbol.upper() == actual_symbol.upper()
+        
+        # Check timeframe match
+        strategy_timeframe = getattr(strategy, 'timeframe', None)
+        chart_timeframe = self.get_mt5_timeframe()
+        timeframe_match = strategy_timeframe == chart_timeframe if strategy_timeframe else True
+        
+        # Build status text
+        status_parts = [f"Indicators from: {strategy.name}"]
+        if not strategy.enabled:
+            status_parts.append("(Disabled)")
+        
+        # Set color based on status
+        if symbol_match and timeframe_match:
+            # Green: All good
+            color = "#4CAF50"
+        elif symbol_match and not timeframe_match:
+            # Yellow: Timeframe mismatch (but auto-switched)
+            color = "#FFC107"
+            status_parts.append("(Timeframe auto-switched)")
+        else:
+            # Red: Symbol mismatch
+            color = "#f44336"
+            status_parts.append("(Symbol mismatch)")
+        
+        self.strategy_info_label.setText(" | ".join(status_parts))
+        self.strategy_info_label.setStyleSheet(f"padding: 2px 5px; border-radius: 3px; background-color: {color}; color: white;")
+    
     def get_timeframe_str(self) -> str:
         """Get current timeframe as string"""
         if self.timeframe_combo:
@@ -759,9 +1021,15 @@ class ChartWidget(QWidget):
             trade_markers = self.get_trade_level_markers()
             logger.info(f"DEBUG: show_trade_levels={self.show_trade_levels}, trade_markers_count={len(trade_markers)}")
             
-            # Combine signal markers and trade markers
-            all_markers = markers + trade_markers
-            logger.debug(f"Total markers: {len(all_markers)} (signals: {len(markers)}, trades: {len(trade_markers)})")
+            # Get condition markers (when using strategy indicators)
+            condition_markers = []
+            if self.use_strategy_indicators and self.selected_strategy_name:
+                condition_markers = self._get_condition_markers()
+                logger.debug(f"Condition markers: {len(condition_markers)}")
+            
+            # Combine all markers: signals, trades, and condition triggers
+            all_markers = markers + trade_markers + condition_markers
+            logger.debug(f"Total markers: {len(all_markers)} (signals: {len(markers)}, trades: {len(trade_markers)}, conditions: {len(condition_markers)})")
             
             # Send combined markers - both signals and trades
             if all_markers or self.show_signals or self.show_trade_levels:  # Send even empty to clear
@@ -980,6 +1248,591 @@ class ChartWidget(QWidget):
         
         return candles
     
+    def _get_strategy_indicators(self) -> List[Dict]:
+        """
+        Get indicator values from selected strategy
+        
+        Returns:
+            List of indicator dicts with {name, color, width, points}
+        """
+        indicators = []
+        
+        if not self.selected_strategy_name or not self.strategy_manager:
+            return indicators
+        
+        try:
+            strategy = self.strategy_manager.get_strategy(self.selected_strategy_name)
+            if not strategy:
+                logger.warning(f"Strategy {self.selected_strategy_name} not found")
+                return indicators
+            
+            # Check if strategy has indicators
+            if not hasattr(strategy, 'indicators') or not strategy.indicators:
+                logger.warning(f"Strategy {self.selected_strategy_name} has no indicators")
+                # Update info label to show warning
+                self.strategy_info_label.setText(f"Strategy {strategy.name} has no indicators")
+                self.strategy_info_label.setStyleSheet("padding: 2px 5px; border-radius: 3px; background-color: #FF9800; color: white;")
+                return indicators
+            
+            # Get candles for strategy timeframe
+            actual_symbol = self.symbol_mapper.find_symbol(self.current_symbol)
+            if not actual_symbol:
+                actual_symbol = self.current_symbol
+            
+            strategy_timeframe = getattr(strategy, 'timeframe', None)
+            if not strategy_timeframe:
+                logger.warning(f"Strategy {self.selected_strategy_name} has no timeframe")
+                return indicators
+            
+            # Get rates for the strategy timeframe - USE SAME DATA SOURCE AS CHART
+            rates = None
+            times = None
+            
+            # First, try to get from market data panel (same as chart uses)
+            if self.market_data_panel and hasattr(self.market_data_panel, 'get_ohlc_data'):
+                ohlc_data = self.market_data_panel.get_ohlc_data(actual_symbol)
+                if ohlc_data and len(ohlc_data) > 0:
+                    # Use the same data source as chart to ensure matching time range
+                    rates = ohlc_data
+                    times = [r.get('time') if hasattr(r, 'keys') else r['time'] for r in rates]
+                    logger.info(f"Using {len(rates)} candles from market_data_panel for strategy indicators")
+            
+            # Fallback to data feed with larger count to match chart range
+            if not rates and self.data_feed:
+                # Request more candles (2000 instead of 500) to match chart's visible range
+                rates = self.data_feed.get_rates(actual_symbol, strategy_timeframe, count=2000)
+                if rates is not None and len(rates) > 0:
+                    times = [r.get('time') if hasattr(r, 'keys') else r['time'] for r in rates]
+                    logger.info(f"Using {len(rates)} candles from data_feed for strategy indicators")
+            
+            if not rates or not times:
+                logger.warning(f"No rates available for {actual_symbol} at timeframe {strategy_timeframe}")
+                # Update info label to show error
+                self.strategy_info_label.setText(f"No data available for {strategy.name}")
+                self.strategy_info_label.setStyleSheet("padding: 2px 5px; border-radius: 3px; background-color: #f44336; color: white;")
+                return indicators
+            
+            # Convert rates to list of dicts if needed
+            rates_list = []
+            for r in rates:
+                if hasattr(r, 'keys'):
+                    if 'tick_volume' not in r and 'volume' not in r:
+                        r['tick_volume'] = 1.0
+                    elif 'tick_volume' not in r and 'volume' in r:
+                        r['tick_volume'] = r['volume']
+                    rates_list.append(r)
+                else:
+                    tick_vol = 0
+                    if 'tick_volume' in r.dtype.names:
+                        tick_vol = int(r['tick_volume'])
+                    elif 'volume' in r.dtype.names:
+                        tick_vol = int(r['volume'])
+                    else:
+                        tick_vol = 1.0
+                    
+                    rates_list.append({
+                        'time': r['time'],
+                        'open': float(r['open']),
+                        'high': float(r['high']),
+                        'low': float(r['low']),
+                        'close': float(r['close']),
+                        'tick_volume': tick_vol
+                    })
+            
+            # Extract indicators using strategy's EXACT calculation methods
+            indicators_extracted = False
+            strategy_type = type(strategy).__name__
+            
+            # Use strategy-specific calculation methods for exact match
+            if strategy_type == 'EMAStrategy':
+                # Use strategy's exact EMA calculation method
+                candles_for_strategy = rates_list[-300:] if len(rates_list) > 300 else rates_list  # Strategy uses 300 candles
+                ema_values_dict = strategy._compute_ema_values(candles_for_strategy)
+                
+                # Convert EMA values dict to chart format
+                for field, ema_value in ema_values_dict.items():
+                    if ema_value is None:
+                        continue
+                    
+                    # Get the EMA indicator to find period
+                    ema_ind = strategy._ema_indicators.get(field)
+                    if not ema_ind:
+                        continue
+                    
+                    period = ema_ind.period
+                    ind_name = f"EMA_{field}"
+                    
+                    # Calculate full EMA series for chart display
+                    ema_series = ema_ind.calculate(candles_for_strategy)
+                    
+                    # Match with times
+                    strategy_times = times[-len(ema_series):] if len(times) >= len(ema_series) else times
+                    min_len = min(len(strategy_times), len(ema_series))
+                    
+                    points = []
+                    for i in range(min_len):
+                        if ema_series[i] is not None:
+                            time_val = strategy_times[i]
+                            time_unix = int(time_val.timestamp()) if isinstance(time_val, datetime) else int(time_val)
+                            points.append({'time': time_unix, 'value': float(ema_series[i])})
+                    
+                    if points:
+                        indicators.append({
+                            'name': f'EMA({period})_strategy_{ind_name}',
+                            'color': '#FFA726',
+                            'width': 2,
+                            'points': points
+                        })
+                        indicators_extracted = True
+            
+            elif strategy_type == 'VWAPStrategy':
+                # Use strategy's VWAP calculation method
+                if hasattr(strategy, 'vwap_indicator') and strategy.vwap_indicator:
+                    # Calculate full VWAP series using strategy's method
+                    strategy._update_indicators(rates_list)
+                    
+                    # Get VWAP values for all candles
+                    vwap_values = strategy.vwap_indicator.calculate(rates_list)
+                    
+                    if vwap_values and len(vwap_values) > 0 and times:
+                        # Match VWAP values with times
+                        min_len = min(len(times), len(vwap_values), len(rates_list))
+                        vwap_times = times[-min_len:] if len(times) > min_len else times
+                        vwap_vals = vwap_values[-min_len:] if len(vwap_values) > min_len else vwap_values
+                        
+                        points = []
+                        for time_val, vwap_val in zip(vwap_times, vwap_vals):
+                            if vwap_val is not None:
+                                time_unix = int(time_val.timestamp()) if isinstance(time_val, datetime) else int(time_val)
+                                points.append({'time': time_unix, 'value': float(vwap_val)})
+                        
+                        if points:
+                            indicators.append({
+                                'name': 'VWAP_strategy',
+                                'color': '#00FFFF',
+                                'width': 2,
+                                'points': points
+                            })
+                            indicators_extracted = True
+            
+            else:
+                # Generic fallback - use indicator objects directly
+                for ind_name, indicator_obj in strategy.indicators.items():
+                    try:
+                        # Calculate indicator values from candle data (same way strategy does)
+                        # First try to get pre-calculated values
+                        ind_values = None
+                        if hasattr(indicator_obj, 'get_values'):
+                            ind_values = indicator_obj.get_values()
+                        elif hasattr(indicator_obj, 'values') and indicator_obj.values:
+                            ind_values = indicator_obj.values
+                        
+                        # If no pre-calculated values, calculate them from rates
+                        if not ind_values or len(ind_values) == 0:
+                            if hasattr(indicator_obj, 'calculate'):
+                                # Calculate indicator values from candle data
+                                ind_values = indicator_obj.calculate(rates_list)
+                            elif hasattr(indicator_obj, 'update'):
+                                # Update indicator with candle data, then get values
+                                indicator_obj.update(rates_list)
+                                ind_values = indicator_obj.get_values() if hasattr(indicator_obj, 'get_values') else indicator_obj.values
+                            else:
+                                logger.warning(f"Indicator {ind_name} has no calculate() or update() method")
+                                continue
+                        
+                        if not ind_values or len(ind_values) == 0:
+                            logger.debug(f"Indicator {ind_name} has no values after calculation")
+                            continue
+                        
+                        indicators_extracted = True
+                        
+                        # Use times from rates (they should match)
+                        ind_times = times
+                        
+                        # Match lengths
+                        min_len = min(len(ind_times), len(ind_values), len(rates_list))
+                        ind_times = ind_times[:min_len] if ind_times else times[:min_len]
+                        ind_values = ind_values[:min_len] if ind_values else []
+                        
+                        # Determine indicator type from name or object type
+                        ind_type_name = type(indicator_obj).__name__
+                        
+                        # Map indicator to chart format
+                        if 'EMA' in ind_name or ind_type_name == 'EMA':
+                            # EMA indicator (generic fallback)
+                            period = getattr(indicator_obj, 'period', 14)
+                            color = '#FFA726'  # Default EMA color
+                            
+                            points = []
+                            for time_val, ema_val in zip(ind_times, ind_values):
+                                if ema_val is not None:
+                                    time_unix = int(time_val.timestamp()) if isinstance(time_val, datetime) else int(time_val)
+                                    points.append({'time': time_unix, 'value': float(ema_val)})
+                            
+                            if points:
+                                indicators.append({
+                                    'name': f'EMA({period})_strategy_{ind_name}',
+                                    'color': color,
+                                    'width': 2,
+                                    'points': points
+                                })
+                        
+                        elif 'VWAP' in ind_name or ind_type_name == 'VWAP':
+                            # VWAP indicator - get main VWAP line
+                            vwap_value = None
+                            if hasattr(indicator_obj, 'get_vwap'):
+                                vwap_value = indicator_obj.get_vwap()
+                            elif hasattr(indicator_obj, 'vwap_value'):
+                                vwap_value = indicator_obj.vwap_value
+                            elif len(ind_values) > 0:
+                                vwap_value = ind_values[-1] if ind_values else None
+                            
+                            if vwap_value is not None:
+                                # Get current candle time
+                                if times and len(times) > 0:
+                                    last_time = times[-1]
+                                    time_unix = int(last_time.timestamp()) if isinstance(last_time, datetime) else int(last_time)
+                                    
+                                    indicators.append({
+                                        'name': f'VWAP_strategy_{ind_name}',
+                                        'color': '#00FFFF',
+                                        'width': 2,
+                                        'points': [{'time': time_unix, 'value': float(vwap_value)}]
+                                    })
+                        
+                        elif 'SuperTrend' in ind_name or ind_type_name == 'SuperTrend':
+                            # SuperTrend - typically returns a single value
+                            st_value = ind_values[-1] if ind_values else None
+                            if st_value is not None and times and len(times) > 0:
+                                last_time = times[-1]
+                                time_unix = int(last_time.timestamp()) if isinstance(last_time, datetime) else int(last_time)
+                                
+                                # Determine color based on trend direction (if available)
+                                color = '#00E676'  # Default green
+                                if hasattr(indicator_obj, 'trend') and indicator_obj.trend == 'down':
+                                    color = '#FF1744'
+                                
+                                indicators.append({
+                                    'name': f'SuperTrend_strategy_{ind_name}',
+                                    'color': color,
+                                    'width': 2,
+                                    'points': [{'time': time_unix, 'value': float(st_value)}]
+                                })
+                        
+                        else:
+                            # Generic indicator - try to map values
+                            points = []
+                            for time_val, ind_val in zip(ind_times, ind_values):
+                                if ind_val is not None:
+                                    time_unix = int(time_val.timestamp()) if isinstance(time_val, datetime) else int(time_val)
+                                    points.append({'time': time_unix, 'value': float(ind_val)})
+                            
+                            if points:
+                                indicators.append({
+                                    'name': f'{ind_name}_strategy',
+                                    'color': '#FFFFFF',  # Default white
+                                    'width': 2,
+                                    'points': points
+                                })
+                
+                    except Exception as e:
+                        logger.error(f"Error extracting indicator {ind_name} from strategy: {e}", exc_info=True)
+                        continue
+            
+            # If no indicators were extracted, show warning
+            if not indicators_extracted:
+                logger.warning(f"Strategy {self.selected_strategy_name} has indicators but none could be extracted")
+                self.strategy_info_label.setText(f"Could not extract indicators from {strategy.name}")
+                self.strategy_info_label.setStyleSheet("padding: 2px 5px; border-radius: 3px; background-color: #FF9800; color: white;")
+        
+        except Exception as e:
+            logger.error(f"Error getting strategy indicators: {e}", exc_info=True)
+            # Update info label to show error
+            if self.selected_strategy_name:
+                self.strategy_info_label.setText(f"Error loading indicators from {self.selected_strategy_name}")
+                self.strategy_info_label.setStyleSheet("padding: 2px 5px; border-radius: 3px; background-color: #f44336; color: white;")
+        
+        return indicators
+    
+    def _detect_strategy_conditions(self, strategy, candles: List[Dict], times: List) -> List[Dict]:
+        """
+        Detect when strategy conditions are met (crosses, triggers, etc.)
+        
+        Args:
+            strategy: Strategy object
+            candles: List of candle dicts
+            times: List of timestamps matching candles
+            
+        Returns:
+            List of condition events: [{'time': timestamp, 'type': 'cross_above', 'description': '...', 'price': float}, ...]
+        """
+        condition_events = []
+        
+        if not strategy or not candles or not times:
+            return condition_events
+        
+        try:
+            strategy_type = type(strategy).__name__
+            
+            # Get current and previous prices
+            if len(candles) < 2:
+                return condition_events
+            
+            current_candle = candles[-1]
+            previous_candle = candles[-2] if len(candles) > 1 else current_candle
+            
+            current_price = current_candle.get('close', 0)
+            previous_price = previous_candle.get('close', 0)
+            
+            if current_price == 0 or previous_price == 0:
+                return condition_events
+            
+            # Strategy-specific condition detection
+            if strategy_type == 'EMAStrategy':
+                # Detect EMA crosses across all historical candles
+                if hasattr(strategy, 'buy_conditions') and hasattr(strategy, 'sell_conditions'):
+                    # Get EMA values for all candles using strategy's exact method
+                    strategy_candles = candles[-300:] if len(candles) > 300 else candles
+                    strategy_times = times[-len(strategy_candles):] if len(times) >= len(strategy_candles) else times
+                    
+                    # Calculate EMA series for each EMA field
+                    ema_series_dict = {}
+                    for field, ema_ind in strategy._ema_indicators.items():
+                        ema_series = ema_ind.calculate(strategy_candles)
+                        ema_series_dict[field] = ema_series
+                    
+                    # Check all conditions and scan through history for crosses
+                    all_conditions = strategy.buy_conditions + strategy.sell_conditions
+                    for condition in all_conditions:
+                        if condition.operator in ["Crosses Above", "Crosses Under"]:
+                            ema_field = condition.ema_field or condition.right_field
+                            if ema_field and ema_field in ema_series_dict:
+                                ema_series = ema_series_dict[ema_field]
+                                
+                                # Scan through candles to find all crosses
+                                for i in range(1, min(len(strategy_candles), len(ema_series), len(strategy_times))):
+                                    if ema_series[i] is None:
+                                        continue
+                                    
+                                    prev_price = strategy_candles[i-1].get('close', 0)
+                                    curr_price = strategy_candles[i].get('close', 0)
+                                    ema_value = ema_series[i]
+                                    
+                                    if prev_price == 0 or curr_price == 0:
+                                        continue
+                                    
+                                    was_below = prev_price < ema_value
+                                    is_above = curr_price >= ema_value
+                                    was_above = prev_price > ema_value
+                                    is_below = curr_price <= ema_value
+                                    
+                                    if condition.operator == "Crosses Above" and was_below and is_above:
+                                        time_val = strategy_times[i]
+                                        time_unix = int(time_val.timestamp()) if isinstance(time_val, datetime) else int(time_val)
+                                        condition_events.append({
+                                            'time': time_unix,
+                                            'type': 'cross_above',
+                                            'description': f'Price crosses above EMA({ema_field})',
+                                            'price': curr_price,
+                                            'indicator_value': ema_value,
+                                            'indicator_name': f'EMA_{ema_field}'
+                                        })
+                                    elif condition.operator == "Crosses Under" and was_above and is_below:
+                                        time_val = strategy_times[i]
+                                        time_unix = int(time_val.timestamp()) if isinstance(time_val, datetime) else int(time_val)
+                                        condition_events.append({
+                                            'time': time_unix,
+                                            'type': 'cross_below',
+                                            'description': f'Price crosses under EMA({ema_field})',
+                                            'price': curr_price,
+                                            'indicator_value': ema_value,
+                                            'indicator_name': f'EMA_{ema_field}'
+                                        })
+            
+            elif strategy_type == 'VWAPStrategy':
+                # Detect VWAP crosses across all historical candles
+                if hasattr(strategy, 'vwap_indicator') and strategy.vwap_indicator:
+                    # Calculate VWAP series for all candles
+                    strategy._update_indicators(candles)
+                    vwap_series = strategy.vwap_indicator.calculate(candles)
+                    
+                    if vwap_series and len(vwap_series) > 0:
+                        # Scan through candles to find all VWAP crosses
+                        all_conditions = []
+                        if hasattr(strategy, 'buy_conditions'):
+                            all_conditions.extend(strategy.buy_conditions)
+                        if hasattr(strategy, 'sell_conditions'):
+                            all_conditions.extend(strategy.sell_conditions)
+                        
+                        for condition in all_conditions:
+                            if condition.operator in ["Crosses Above", "Crosses Under"] and condition.vwap_field:
+                                # Scan through history
+                                for i in range(1, min(len(candles), len(vwap_series), len(times))):
+                                    if vwap_series[i] is None:
+                                        continue
+                                    
+                                    prev_price = candles[i-1].get('close', 0)
+                                    curr_price = candles[i].get('close', 0)
+                                    vwap_value = vwap_series[i]
+                                    
+                                    if prev_price == 0 or curr_price == 0:
+                                        continue
+                                    
+                                    was_below = prev_price < vwap_value
+                                    is_above = curr_price >= vwap_value
+                                    was_above = prev_price > vwap_value
+                                    is_below = curr_price <= vwap_value
+                                    
+                                    if condition.operator == "Crosses Above" and was_below and is_above:
+                                        time_val = times[i]
+                                        time_unix = int(time_val.timestamp()) if isinstance(time_val, datetime) else int(time_val)
+                                        condition_events.append({
+                                            'time': time_unix,
+                                            'type': 'cross_above',
+                                            'description': 'Price crosses above VWAP',
+                                            'price': curr_price,
+                                            'indicator_value': vwap_value,
+                                            'indicator_name': 'VWAP'
+                                        })
+                                    elif condition.operator == "Crosses Under" and was_above and is_below:
+                                        time_val = times[i]
+                                        time_unix = int(time_val.timestamp()) if isinstance(time_val, datetime) else int(time_val)
+                                        condition_events.append({
+                                            'time': time_unix,
+                                            'type': 'cross_below',
+                                            'description': 'Price crosses under VWAP',
+                                            'price': curr_price,
+                                            'indicator_value': vwap_value,
+                                            'indicator_name': 'VWAP'
+                                        })
+        
+        except Exception as e:
+            logger.error(f"Error detecting strategy conditions: {e}", exc_info=True)
+        
+        return condition_events
+    
+    def _get_condition_markers(self) -> List[Dict]:
+        """
+        Get visual markers for strategy condition triggers
+        
+        Returns:
+            List of marker dicts compatible with chart marker format
+        """
+        markers = []
+        
+        if not self.use_strategy_indicators or not self.selected_strategy_name or not self.strategy_manager:
+            return markers
+        
+        try:
+            strategy = self.strategy_manager.get_strategy(self.selected_strategy_name)
+            if not strategy:
+                return markers
+            
+            # Get candles for condition detection
+            actual_symbol = self.symbol_mapper.find_symbol(self.current_symbol)
+            if not actual_symbol:
+                actual_symbol = self.current_symbol
+            
+            strategy_timeframe = getattr(strategy, 'timeframe', None)
+            if not strategy_timeframe:
+                return markers
+            
+            # Get rates (same as indicator calculation)
+            rates = None
+            times = None
+            
+            if self.market_data_panel and hasattr(self.market_data_panel, 'get_ohlc_data'):
+                ohlc_data = self.market_data_panel.get_ohlc_data(actual_symbol)
+                if ohlc_data and len(ohlc_data) > 0:
+                    rates = ohlc_data
+                    times = [r.get('time') if hasattr(r, 'keys') else r['time'] for r in rates]
+            
+            if not rates and self.data_feed:
+                rates = self.data_feed.get_rates(actual_symbol, strategy_timeframe, count=2000)
+                if rates is not None and len(rates) > 0:
+                    times = [r.get('time') if hasattr(r, 'keys') else r['time'] for r in rates]
+            
+            if not rates or not times:
+                return markers
+            
+            # Convert to list of dicts
+            candles_list = []
+            for r in rates:
+                if hasattr(r, 'keys'):
+                    candles_list.append(r)
+                else:
+                    candles_list.append({
+                        'time': r['time'],
+                        'open': float(r['open']),
+                        'high': float(r['high']),
+                        'low': float(r['low']),
+                        'close': float(r['close']),
+                        'tick_volume': float(r.get('tick_volume', 0))
+                    })
+            
+            # Detect conditions
+            condition_events = self._detect_strategy_conditions(strategy, candles_list, times)
+            
+            # Convert condition events to markers
+            for event in condition_events:
+                if event['type'] == 'cross_above':
+                    markers.append({
+                        'time': event['time'],
+                        'position': 'belowBar',
+                        'color': '#00E676',  # Green for cross above
+                        'shape': 'arrowUp',
+                        'text': event['description'],
+                        'size': 1
+                    })
+                elif event['type'] == 'cross_below':
+                    markers.append({
+                        'time': event['time'],
+                        'position': 'aboveBar',
+                        'color': '#FF1744',  # Red for cross below
+                        'shape': 'arrowDown',
+                        'text': event['description'],
+                        'size': 1
+                    })
+        
+        except Exception as e:
+            logger.error(f"Error getting condition markers: {e}", exc_info=True)
+        
+        return markers
+    
+    def _check_strategy_updates(self):
+        """Check if monitored strategy has updated and refresh chart if needed"""
+        if not self.use_strategy_indicators or not self.selected_strategy_name or not self.strategy_manager:
+            return
+        
+        try:
+            strategy = self.strategy_manager.get_strategy(self.selected_strategy_name)
+            if not strategy:
+                return
+            
+            # Check if strategy has a last update time or signal history
+            # If strategy generated a signal recently, refresh chart
+            if hasattr(strategy, 'signal_history') and strategy.signal_history:
+                last_signal = strategy.signal_history[-1] if strategy.signal_history else None
+                if last_signal:
+                    signal_time = last_signal.get('time')
+                    if signal_time and (not self._last_strategy_update_time or signal_time > self._last_strategy_update_time):
+                        self._last_strategy_update_time = signal_time
+                        # Refresh chart to show updated indicators and condition markers
+                        self.refresh_chart()
+                        logger.debug(f"Chart refreshed due to strategy {self.selected_strategy_name} update")
+            
+            # Also check if we're on the strategy's symbol and timeframe
+            # Refresh periodically to catch indicator updates
+            if self.isVisible() and self.bridge.is_ready():
+                # Refresh every few seconds to catch indicator value changes
+                current_time = datetime.now()
+                if not self._last_strategy_update_time or (current_time - self._last_strategy_update_time).total_seconds() > 2.0:
+                    self._last_strategy_update_time = current_time
+                    self.refresh_chart()
+        
+        except Exception as e:
+            logger.debug(f"Error checking strategy updates: {e}")
+    
     def get_indicator_data(self) -> List[Dict]:
         """
         Get indicator data to overlay on chart
@@ -987,6 +1840,11 @@ class ChartWidget(QWidget):
         Returns:
             List of indicator dicts with {name, color, width, points}
         """
+        # Check if we should use strategy indicators
+        if self.use_strategy_indicators and self.selected_strategy_name:
+            return self._get_strategy_indicators()
+        
+        # Otherwise, use chart calculations (existing logic)
         indicators = []
         
         try:
@@ -1413,7 +2271,7 @@ class ChartWidget(QWidget):
                 emit_mode = 'Both'
             
             # Import fractal pivot functions
-            from ..strategy.smc_strategy import _fractal_pivot_high, _fractal_pivot_low
+            from ..strategy.structure_strategy import _fractal_pivot_high, _fractal_pivot_low
             
             # Extract high, low, and close price arrays from rates
             highs = []

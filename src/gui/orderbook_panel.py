@@ -10,6 +10,8 @@ from PyQt6.QtCore import Qt
 from typing import List, Dict, Optional
 from datetime import datetime
 import csv
+import pytz
+UTC = pytz.UTC
 try:
     import MetaTrader5 as mt5
     DEAL_ENTRY_IN = 0
@@ -86,7 +88,11 @@ class OrderbookPanel(QWidget):
                     profit = deal.get('profit', 0.0)
                     exit_time = deal.get('time')
                     if isinstance(exit_time, datetime):
-                        pass  # Already datetime
+                        # Convert timezone-aware datetime to naive UTC (remove timezone info)
+                        # This ensures consistency with entry_time which is also naive
+                        if exit_time.tzinfo is not None:
+                            # Convert to UTC and remove timezone info
+                            exit_time = exit_time.astimezone(UTC).replace(tzinfo=None)
                     elif isinstance(exit_time, (int, float)):
                         exit_time = datetime.fromtimestamp(exit_time)
                     else:
@@ -261,10 +267,22 @@ class OrderbookPanel(QWidget):
                         # Determine actual status from MT5
                         actual_status = 'Open' if ticket in open_tickets else 'Closed'
                         
-                        # Update profit for open trades from current positions
+                        # Get SL/TP - use actual MT5 values for open positions, trade history for closed
+                        sl = trade.get('sl', 0.0)
+                        tp = trade.get('tp', 0.0)
+                        
+                        # For open positions, get actual SL/TP from MT5 (MT5 may have rejected/modified them)
                         if actual_status == 'Open' and ticket in open_positions:
                             current_pos = open_positions[ticket]
                             trade['profit'] = current_pos.get('profit', 0.0)
+                            # Use actual SL/TP from MT5 position
+                            sl = current_pos.get('sl', 0.0)
+                            tp = current_pos.get('tp', 0.0)
+                            # Update trade history with actual MT5 values for consistency
+                            if sl != trade.get('sl', 0.0) or tp != trade.get('tp', 0.0):
+                                logger.debug(f"Updating trade {ticket} SL/TP from MT5: SL={sl:.5f} (was {trade.get('sl', 0.0):.5f}), TP={tp:.5f} (was {trade.get('tp', 0.0):.5f})")
+                                trade['sl'] = sl
+                                trade['tp'] = tp
                         
                         # Format entry time
                         entry_time = trade.get('entry_time')
@@ -294,9 +312,9 @@ class OrderbookPanel(QWidget):
                             'strategy_name': trade.get('strategy_name', '--'),
                             'entry_time': entry_time,
                             'entry_price': trade.get('entry_price', 0.0),
-                            'entry_condition': trade.get('entry_condition', '--'),
-                            'sl': trade.get('sl', 0.0),
-                            'tp': trade.get('tp', 0.0),
+                            'entry_condition': trade.get('entry_condition', 'no condition'),
+                            'sl': sl,
+                            'tp': tp,
                             'exit_time': exit_time,
                             'exit_price': trade.get('exit_price'),
                             'exit_condition': exit_condition,
@@ -333,7 +351,10 @@ class OrderbookPanel(QWidget):
             self.orderbook_table.setItem(row, 2, QTableWidgetItem(f"{entry['entry_price']:.5f}"))
             
             # Entry Condition
-            self.orderbook_table.setItem(row, 3, QTableWidgetItem(entry['entry_condition']))
+            entry_condition = entry.get('entry_condition', 'no condition')
+            if entry_condition in ['--', '']:
+                entry_condition = 'no condition'
+            self.orderbook_table.setItem(row, 3, QTableWidgetItem(entry_condition))
             
             # SL
             sl_text = f"{entry['sl']:.5f}" if entry['sl'] > 0 else "--"
@@ -358,10 +379,15 @@ class OrderbookPanel(QWidget):
             
             # Exit Condition
             exit_condition = entry.get('exit_condition', 'Manual')
+            if exit_condition in ['--', '']:
+                exit_condition = 'Manual'
+            # Normalize exit condition - ensure it's descriptive
+            if exit_condition == "SL":
+                exit_condition = "Normal SL"
             exit_condition_item = QTableWidgetItem(exit_condition)
             if exit_condition == 'TP':
                 exit_condition_item.setForeground(Qt.GlobalColor.green)
-            elif exit_condition == 'SL':
+            elif 'SL' in exit_condition:
                 exit_condition_item.setForeground(Qt.GlobalColor.red)
             self.orderbook_table.setItem(row, 8, exit_condition_item)
             
@@ -397,9 +423,11 @@ class OrderbookPanel(QWidget):
         # This is a placeholder - in a real implementation, you might store
         # entry conditions in a separate tracking system
         if 'Condition:' in comment:
-            return comment.split('Condition:')[1].strip()
+            condition = comment.split('Condition:')[1].strip()
+            if condition and condition not in ['--', '']:
+                return condition
         
-        return "--"
+        return "no condition"
     
     def _get_sl_tp_from_order(self, order_ticket: int) -> tuple:
         """Get SL/TP from order history"""

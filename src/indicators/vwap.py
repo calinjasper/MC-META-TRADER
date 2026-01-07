@@ -18,6 +18,9 @@ class VWAP(BaseIndicator):
     Calculates VWAP for a trading session with standard deviation bands
     """
     
+    # Maximum array size for price/volume storage (matches MT5)
+    MAX_ARRAY_SIZE = 10000
+    
     # Session start times (in UTC)
     SESSION_TIMES = {
         'NY': dt_time(13, 0),  # 8:00 AM ET = 13:00 UTC
@@ -118,6 +121,30 @@ class VWAP(BaseIndicator):
         else:
             return candle.get('close', 0)
     
+    def _calculate_std_dev(self, vwap: float) -> float:
+        """
+        Calculate population standard deviation matching MT5 formula
+        MT5: variance = sumSquaredDeviations / arraySize
+        
+        Args:
+            vwap: Current VWAP value
+            
+        Returns:
+            Standard deviation (0.0 if insufficient data)
+        """
+        if len(self.prices) < 2:
+            return 0.0
+        
+        # Calculate sum of squared deviations (matching MT5 logic)
+        sum_squared_deviations = 0.0
+        for price in self.prices:
+            deviation = price - vwap
+            sum_squared_deviations += deviation * deviation
+        
+        # Population standard deviation (divides by n, not n-1)
+        variance = sum_squared_deviations / len(self.prices)
+        return np.sqrt(variance)
+    
     def calculate(self, data: List[Dict]) -> List[float]:
         """
         Calculate VWAP values from OHLCV data
@@ -152,14 +179,13 @@ class VWAP(BaseIndicator):
                 session_start = self._get_session_start_time(candle_time)
                 self._reset_session(session_start)
             
-            # Get price and volume
+            # Get price and volume (matching MT5 logic)
             price = self._get_price(candle)
             volume = float(candle.get('tick_volume', candle.get('volume', 1.0)))
             
+            # MT5 uses minimum volume of 1.0 if volume <= 0
             if volume <= 0:
-                # Use previous VWAP if volume is 0
-                vwap_values.append(self.current_vwap if self.current_vwap else None)
-                continue
+                volume = 1.0
             
             # Update cumulative values
             self.cumulative_price_volume += price * volume
@@ -171,9 +197,10 @@ class VWAP(BaseIndicator):
                 self.current_vwap = vwap
                 vwap_values.append(vwap)
                 
-                # Store price and volume for STD calculation
-                self.prices.append(price)
-                self.volumes.append(volume)
+                # Store price and volume for STD calculation (with size limit matching MT5)
+                if len(self.prices) < self.MAX_ARRAY_SIZE:
+                    self.prices.append(price)
+                    self.volumes.append(volume)
             else:
                 vwap_values.append(None)
         
@@ -220,28 +247,13 @@ class VWAP(BaseIndicator):
                 session_start = self._get_session_start_time(candle_time)
                 self._reset_session(session_start)
             
-            # Get price and volume
+            # Get price and volume (matching MT5 logic)
             price = self._get_price(candle)
             volume = float(candle.get('tick_volume', candle.get('volume', 1.0)))
             
+            # MT5 uses minimum volume of 1.0 if volume <= 0
             if volume <= 0:
-                # Use previous VWAP if volume is 0
-                vwap_values.append(self.current_vwap if self.current_vwap else None)
-                # Use previous bands if available, otherwise None
-                if self.current_vwap is not None and len(self.prices) >= 2:
-                    price_array = np.array(self.prices)
-                    price_deviations = price_array - self.current_vwap
-                    std = np.std(price_deviations)
-                    for std_dev in std_levels:
-                        upper = self.current_vwap + (std_dev * std)
-                        lower = self.current_vwap - (std_dev * std)
-                        bands[std_dev][0].append(upper)
-                        bands[std_dev][1].append(lower)
-                else:
-                    for std_dev in std_levels:
-                        bands[std_dev][0].append(None)
-                        bands[std_dev][1].append(None)
-                continue
+                volume = 1.0
             
             # Update cumulative values
             self.cumulative_price_volume += price * volume
@@ -253,15 +265,14 @@ class VWAP(BaseIndicator):
                 self.current_vwap = vwap
                 vwap_values.append(vwap)
                 
-                # Store price and volume for STD calculation
-                self.prices.append(price)
-                self.volumes.append(volume)
+                # Store price and volume for STD calculation (with size limit matching MT5)
+                if len(self.prices) < self.MAX_ARRAY_SIZE:
+                    self.prices.append(price)
+                    self.volumes.append(volume)
                 
-                # Calculate std dev of prices from VWAP up to this point
+                # Calculate std dev of prices from VWAP up to this point (matching MT5)
                 if len(self.prices) >= 2:
-                    price_array = np.array(self.prices)
-                    price_deviations = price_array - vwap
-                    std = np.std(price_deviations)
+                    std = self._calculate_std_dev(vwap)
                     
                     # Calculate bands for each level
                     for std_dev in std_levels:
@@ -303,10 +314,8 @@ class VWAP(BaseIndicator):
         if std_dev in self.std_cache:
             return self.std_cache[std_dev]
         
-        # Calculate standard deviation of prices from VWAP
-        price_array = np.array(self.prices)
-        price_deviations = price_array - self.current_vwap
-        std = np.std(price_deviations)
+        # Calculate standard deviation of prices from VWAP (matching MT5)
+        std = self._calculate_std_dev(self.current_vwap)
         
         # Calculate bands
         upper_band = self.current_vwap + (std_dev * std)
@@ -332,11 +341,9 @@ class VWAP(BaseIndicator):
         
         distance_points = current_price - self.current_vwap
         
-        # Calculate distance in standard deviations
+        # Calculate distance in standard deviations (matching MT5)
         if len(self.prices) >= 2:
-            price_array = np.array(self.prices)
-            price_deviations = price_array - self.current_vwap
-            std = np.std(price_deviations)
+            std = self._calculate_std_dev(self.current_vwap)
             if std > 0:
                 distance_std = distance_points / std
             else:

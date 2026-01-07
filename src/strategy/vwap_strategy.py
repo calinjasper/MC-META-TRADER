@@ -49,6 +49,7 @@ class VWAPCondition:
         self.connector = connector or "OR"
         self.previous_state = None  # For cross detection
         self.previous_band_value = None  # Track previous band value for accurate cross detection
+        self.previous_pivot_value = None  # Track previous pivot value to detect pivot changes (for SMC pivots)
     
     def get_threshold(self, vwap_data: Dict) -> Optional[float]:
         """Get the threshold value for comparison"""
@@ -92,6 +93,31 @@ class VWAPCondition:
         if result is not None:
             return result
         
+        # Fallback to legacy behavior for backward compatibility
+        if field == "price" or field == "current_price":
+            return current_price
+        if field == "vwap":
+            return vwap_data.get('vwap') if vwap_data else None
+        if field and field.startswith("vwap_upper_"):
+            # Handle format like "vwap_upper_1.5" -> extract 1.5
+            try:
+                std_dev = float(field.replace('vwap_upper_', ''))
+                return vwap_data.get('bands', {}).get(std_dev, {}).get('upper') if vwap_data else None
+            except:
+                pass
+        if field and field.startswith("upper_band_"):
+            std_dev = float(field.replace('upper_band_', ''))
+            return vwap_data.get('bands', {}).get(std_dev, {}).get('upper') if vwap_data else None
+        if field and field.startswith("vwap_lower_"):
+            try:
+                std_dev = float(field.replace('vwap_lower_', ''))
+                return vwap_data.get('bands', {}).get(std_dev, {}).get('lower') if vwap_data else None
+            except:
+                pass
+        if field and field.startswith("lower_band_"):
+            std_dev = float(field.replace('lower_band_', ''))
+            return vwap_data.get('bands', {}).get(std_dev, {}).get('lower') if vwap_data else None
+        
         # Fallback to legacy value if field couldn't be resolved
         return self.value
     
@@ -124,27 +150,95 @@ class VWAPCondition:
             return False
         
         if self.operator == "Crosses Above":
+            # Enhanced logging for crossover detection
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            # Check if this is an SMC pivot field (which can change when new pivot is detected)
+            is_pivot_field = self.right_field and ("pivot" in self.right_field.lower() or "smc" in self.right_field.lower())
+            
             if previous_price is not None:
                 was_below = previous_price < right_val
                 is_above = left_val > right_val
-                if was_below and is_above:
+                
+                # CRITICAL FIX: If pivot value changed, don't trigger cross (new pivot detected)
+                pivot_changed = False
+                if is_pivot_field and self.previous_pivot_value is not None:
+                    # Check if pivot value changed significantly (new pivot detected)
+                    if abs(self.previous_pivot_value - right_val) > 0.01:
+                        pivot_changed = True
+                        logger.warning(f"⚠️ PIVOT VALUE CHANGED: Old={self.previous_pivot_value:.5f}, New={right_val:.5f} - "
+                                     f"Ignoring potential false cross. Price={left_val:.5f}, Previous Price={previous_price:.5f}")
+                
+                # Log detailed crossover evaluation
+                logger.info(f"CROSSOVER EVAL [{self.right_field}]: left_val={left_val:.5f}, right_val={right_val:.5f}, "
+                          f"previous_price={previous_price:.5f}, was_below={was_below}, is_above={is_above}, "
+                          f"previous_pivot={self.previous_pivot_value}, pivot_changed={pivot_changed}")
+                
+                # Only trigger if: was below AND is above AND pivot value hasn't changed
+                if was_below and is_above and not pivot_changed:
+                    logger.info(f"✅ CROSSOVER DETECTED: Price crossed above {self.right_field} "
+                              f"(prev={previous_price:.5f} < {right_val:.5f} < curr={left_val:.5f})")
                     self.previous_state = True
                     self.previous_band_value = right_val
+                    if is_pivot_field:
+                        self.previous_pivot_value = right_val
                     return True
+                elif was_below and is_above and pivot_changed:
+                    logger.warning(f"❌ FALSE CROSS IGNORED: Price appears to cross but pivot value changed "
+                                 f"(prev_pivot={self.previous_pivot_value:.5f}, new_pivot={right_val:.5f})")
+            else:
+                logger.debug(f"CROSSOVER EVAL: No previous_price available, left_val={left_val:.5f}, right_val={right_val:.5f}")
+            
             self.previous_state = left_val > right_val
             self.previous_band_value = right_val
+            if is_pivot_field:
+                self.previous_pivot_value = right_val
             return False
         
         if self.operator == "Crosses Under":
+            # Enhanced logging for crossunder detection
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            # Check if this is an SMC pivot field (which can change when new pivot is detected)
+            is_pivot_field = self.right_field and ("pivot" in self.right_field.lower() or "smc" in self.right_field.lower())
+            
             if previous_price is not None:
                 was_above = previous_price > right_val
                 is_below = left_val < right_val
-                if was_above and is_below:
+                
+                # CRITICAL FIX: If pivot value changed, don't trigger cross (new pivot detected)
+                pivot_changed = False
+                if is_pivot_field and self.previous_pivot_value is not None:
+                    # Check if pivot value changed significantly (new pivot detected)
+                    if abs(self.previous_pivot_value - right_val) > 0.01:
+                        pivot_changed = True
+                        logger.warning(f"⚠️ PIVOT VALUE CHANGED: Old={self.previous_pivot_value:.5f}, New={right_val:.5f} - "
+                                     f"Ignoring potential false cross. Price={left_val:.5f}, Previous Price={previous_price:.5f}")
+                
+                # Log detailed crossunder evaluation
+                logger.info(f"CROSSUNDER EVAL [{self.right_field}]: left_val={left_val:.5f}, right_val={right_val:.5f}, "
+                          f"previous_price={previous_price:.5f}, was_above={was_above}, is_below={is_below}, "
+                          f"previous_pivot={self.previous_pivot_value}, pivot_changed={pivot_changed}")
+                
+                # Only trigger if: was above AND is below AND pivot value hasn't changed
+                if was_above and is_below and not pivot_changed:
+                    logger.info(f"✅ CROSSUNDER DETECTED: Price crossed under {self.right_field} "
+                              f"(prev={previous_price:.5f} > {right_val:.5f} > curr={left_val:.5f})")
                     self.previous_state = False
                     self.previous_band_value = right_val
+                    if is_pivot_field:
+                        self.previous_pivot_value = right_val
                     return True
+                elif was_above and is_below and pivot_changed:
+                    logger.warning(f"❌ FALSE CROSS IGNORED: Price appears to cross but pivot value changed "
+                                 f"(prev_pivot={self.previous_pivot_value:.5f}, new_pivot={right_val:.5f})")
+            
             self.previous_state = left_val < right_val
             self.previous_band_value = right_val
+            if is_pivot_field:
+                self.previous_pivot_value = right_val
             return False
 
         if self.operator == "Any_Cross":
@@ -519,13 +613,15 @@ class VWAPStrategy(BaseStrategy):
         
         return None
 
-    def _evaluate_condition_chain(self, conditions: List[VWAPCondition], current_price: float, vwap_data: Dict, market_data: Dict = None) -> bool:
+    def _evaluate_condition_chain(self, conditions: List[VWAPCondition], current_price: float, vwap_data: Dict, market_data: Dict = None, previous_price: Optional[float] = None) -> bool:
         if not conditions:
             return False
         cumulative = None
         prev_connector = None
+        # Use provided previous_price, fallback to self.previous_price
+        prev_price = previous_price if previous_price is not None else self.previous_price
         for cond in conditions:
-            result = cond.evaluate(current_price, vwap_data, self.previous_price, market_data)
+            result = cond.evaluate(current_price, vwap_data, prev_price, market_data)
             if cumulative is None:
                 cumulative = result
             else:
@@ -568,6 +664,24 @@ class VWAPStrategy(BaseStrategy):
         if not candles:
             logger.warning(f"Strategy {self.name}: No candles available (symbol={self.symbol}, timeframe={self.timeframe})")
             return None
+        
+        # For cross detection, use candle closes to match chart logic
+        # Get current candle's close (even if candle is still forming)
+        current_candle_close = candles[-1].get('close') if candles else None
+        
+        # Get previous candle's close for cross detection (matches chart logic)
+        previous_candle_close = None
+        if len(candles) >= 2:
+            previous_candle_close = candles[-2].get('close')
+        elif len(candles) >= 1:
+            # If only one candle, use current candle's close as fallback
+            previous_candle_close = candles[-1].get('close')
+        
+        # Use candle closes for cross detection, fallback to tick price
+        current_price_for_cross = current_candle_close if current_candle_close is not None else current_price
+        
+        # Use previous candle close for cross detection, fallback to stored previous_price
+        previous_price_for_cross = previous_candle_close if previous_candle_close is not None else self.previous_price
         
         # Update indicators
         self._update_indicators(candles)
@@ -639,15 +753,26 @@ class VWAPStrategy(BaseStrategy):
             "indicators": market_data.get("indicators", {}) if isinstance(market_data, dict) else {}
         }
         try:
-            if self._evaluate_condition_chain(self.buy_conditions, current_price, vwap_data, strategy_market_data):
-                logger.info(f"Strategy {self.name}: ✅ Buy conditions met")
+            # Log SMC pivot values before evaluating buy conditions
+            smc_pivots = strategy_market_data.get("smc_pivots", {})
+            pivot_high = smc_pivots.get("pivot_high")
+            pivot_low = smc_pivots.get("pivot_low")
+            logger.info(f"Strategy {self.name}: Evaluating BUY conditions - Price={current_price:.5f}, "
+                       f"SMC Pivot High={pivot_high}, SMC Pivot Low={pivot_low}, Previous Price={self.previous_price}")
+            
+            if self._evaluate_condition_chain(self.buy_conditions, current_price_for_cross, vwap_data, strategy_market_data, previous_price_for_cross):
+                logger.info(f"Strategy {self.name}: ✅ Buy conditions met - Price={current_price_for_cross:.5f}, "
+                           f"SMC Pivot High={pivot_high}, Previous Price={previous_price_for_cross}")
                 self.previous_price = current_price
                 return 'BUY'
+            else:
+                logger.debug(f"Strategy {self.name}: Buy conditions NOT met - Price={current_price:.5f}, "
+                            f"SMC Pivot High={pivot_high}, Previous Price={self.previous_price}")
         except Exception as e:
             logger.error(f"Error evaluating buy conditions in {self.name}: {e}", exc_info=True)
         
         try:
-            if self._evaluate_condition_chain(self.sell_conditions, current_price, vwap_data, strategy_market_data):
+            if self._evaluate_condition_chain(self.sell_conditions, current_price_for_cross, vwap_data, strategy_market_data, previous_price_for_cross):
                 logger.info(f"Strategy {self.name}: ✅ Sell conditions met")
                 self.previous_price = current_price
                 return 'SELL'

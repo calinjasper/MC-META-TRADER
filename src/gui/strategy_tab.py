@@ -21,7 +21,7 @@ from ..mt5_connector import MT5Connector
 from ..strategy.base_strategy import BaseStrategy
 from ..strategy.ohlc_price_strategy import OHLCPriceStrategy, OHLCPriceCondition
 from ..strategy.vwap_strategy import VWAPStrategy, VWAPCondition
-from ..strategy.smc_strategy import SMCStrategy
+from ..strategy.structure_strategy import StructureStrategy
 from ..strategy.ema_strategy import EMAStrategy, EMACondition
 from ..strategy.supertrend_strategy import SuperTrendStrategy
 from .system_log_service import system_log_service
@@ -584,6 +584,16 @@ class StrategyTab(QWidget):
         self._update_condition_operands()
         self._update_condition_visibility()
     
+    def _on_ema_period_changed(self):
+        """Handle EMA period change - update operand labels dynamically"""
+        if self.strategy_type_combo.currentData() == "ema":
+            self._update_condition_operands()
+    
+    def _on_vwap_bands_changed(self):
+        """Handle VWAP bands change - update operand options dynamically"""
+        if self.strategy_type_combo.currentData() == "vwap":
+            self._update_condition_operands()
+    
     def _on_direction_changed(self):
         """Handle direction change - show/hide condition sections"""
         self._update_condition_visibility()
@@ -656,6 +666,7 @@ class StrategyTab(QWidget):
             self.vwap_std_bands_input = QLineEdit()
             self.vwap_std_bands_input.setText("1, 1.5, 2")
             self.vwap_std_bands_input.setToolTip("Comma-separated standard deviation bands (e.g., '1, 1.5, 2')")
+            self.vwap_std_bands_input.textChanged.connect(self._on_vwap_bands_changed)
             self.config_layout.addRow("Standard Deviation Bands:", self.vwap_std_bands_input)
             
             self.vwap_swing_period_spin = QSpinBox()
@@ -670,24 +681,28 @@ class StrategyTab(QWidget):
             self.ema1_period_spin.setMinimum(1)
             self.ema1_period_spin.setMaximum(500)
             self.ema1_period_spin.setValue(20)
+            self.ema1_period_spin.valueChanged.connect(self._on_ema_period_changed)
             self.config_layout.addRow("EMA 1 Period:", self.ema1_period_spin)
             
             self.ema2_period_spin = QSpinBox()
             self.ema2_period_spin.setMinimum(1)
             self.ema2_period_spin.setMaximum(500)
             self.ema2_period_spin.setValue(50)
+            self.ema2_period_spin.valueChanged.connect(self._on_ema_period_changed)
             self.config_layout.addRow("EMA 2 Period:", self.ema2_period_spin)
             
             self.ema3_period_spin = QSpinBox()
             self.ema3_period_spin.setMinimum(1)
             self.ema3_period_spin.setMaximum(500)
             self.ema3_period_spin.setValue(100)
+            self.ema3_period_spin.valueChanged.connect(self._on_ema_period_changed)
             self.config_layout.addRow("EMA 3 Period:", self.ema3_period_spin)
             
             self.ema4_period_spin = QSpinBox()
             self.ema4_period_spin.setMinimum(1)
             self.ema4_period_spin.setMaximum(500)
             self.ema4_period_spin.setValue(200)
+            self.ema4_period_spin.valueChanged.connect(self._on_ema_period_changed)
             self.config_layout.addRow("EMA 4 Period:", self.ema4_period_spin)
         
         elif strategy_type == "supertrend":
@@ -754,27 +769,46 @@ class StrategyTab(QWidget):
             ("(H + L)/2", "hl2"),
             ("(H + L + C)/3", "hlc3"),
             ("(O + H + L + C)/4", "ohlc4"),
+            # Volume and indicator operands (mentioned in documentation examples)
+            ("Volume", "volume"),
+            ("Volume_MA", "volume_ma"),
+            ("RSI", "rsi"),
+            ("Stochastic %K", "stochastic_k"),
+            ("Stochastic %D", "stochastic_d"),
         ]
         
         # Add strategy-specific operands
         if strategy_type == "ema":
-            # Add EMA fields (will be populated with actual periods from config)
+            # Add EMA fields with dynamic labels based on configured periods
+            ema1_period = self.ema1_period_spin.value() if hasattr(self, 'ema1_period_spin') else 20
+            ema2_period = self.ema2_period_spin.value() if hasattr(self, 'ema2_period_spin') else 50
+            ema3_period = self.ema3_period_spin.value() if hasattr(self, 'ema3_period_spin') else 100
+            ema4_period = self.ema4_period_spin.value() if hasattr(self, 'ema4_period_spin') else 200
+            
             operands.extend([
-                ("EMA_20", "ema_20"),
-                ("EMA_50", "ema_50"),
-                ("EMA_100", "ema_100"),
-                ("EMA_200", "ema_200"),
+                (f"EMA_{ema1_period}", "ema_1"),
+                (f"EMA_{ema2_period}", "ema_2"),
+                (f"EMA_{ema3_period}", "ema_3"),
+                (f"EMA_{ema4_period}", "ema_4"),
             ])
         elif strategy_type == "vwap":
-            operands.extend([
-                ("VWAP", "vwap"),
-                ("VWAP Upper 1.0σ", "vwap_upper_1.0"),
-                ("VWAP Upper 1.5σ", "vwap_upper_1.5"),
-                ("VWAP Upper 2.0σ", "vwap_upper_2.0"),
-                ("VWAP Lower 1.0σ", "vwap_lower_1.0"),
-                ("VWAP Lower 1.5σ", "vwap_lower_1.5"),
-                ("VWAP Lower 2.0σ", "vwap_lower_2.0"),
-            ])
+            # Add VWAP base
+            operands.append(("VWAP", "vwap"))
+            
+            # Dynamically generate bands based on configured std_bands
+            if hasattr(self, 'vwap_std_bands_input'):
+                bands_str = self.vwap_std_bands_input.text().strip()
+                try:
+                    std_bands = [float(x.strip()) for x in bands_str.split(',') if x.strip()]
+                except:
+                    std_bands = [1.0, 1.5, 2.0]  # Default fallback
+            else:
+                std_bands = [1.0, 1.5, 2.0]  # Default fallback
+            
+            # Generate operands for each band
+            for std_dev in std_bands:
+                operands.append((f"VWAP Upper {std_dev}σ", f"vwap_upper_{std_dev}"))
+                operands.append((f"VWAP Lower {std_dev}σ", f"vwap_lower_{std_dev}"))
         elif strategy_type == "supertrend":
             operands.extend([
                 ("SuperTrend Value", "supertrend_value"),
@@ -843,25 +877,45 @@ class StrategyTab(QWidget):
             ("(H + L)/2", "hl2"),
             ("(H + L + C)/3", "hlc3"),
             ("(O + H + L + C)/4", "ohlc4"),
+            # Volume and indicator operands (mentioned in documentation examples)
+            ("Volume", "volume"),
+            ("Volume_MA", "volume_ma"),
+            ("RSI", "rsi"),
+            ("Stochastic %K", "stochastic_k"),
+            ("Stochastic %D", "stochastic_d"),
         ]
         
         if strategy_type == "ema":
+            # Add EMA fields with dynamic labels based on configured periods
+            ema1_period = self.ema1_period_spin.value() if hasattr(self, 'ema1_period_spin') else 20
+            ema2_period = self.ema2_period_spin.value() if hasattr(self, 'ema2_period_spin') else 50
+            ema3_period = self.ema3_period_spin.value() if hasattr(self, 'ema3_period_spin') else 100
+            ema4_period = self.ema4_period_spin.value() if hasattr(self, 'ema4_period_spin') else 200
+            
             operands.extend([
-                ("EMA_20", "ema_20"),
-                ("EMA_50", "ema_50"),
-                ("EMA_100", "ema_100"),
-                ("EMA_200", "ema_200"),
+                (f"EMA_{ema1_period}", "ema_1"),
+                (f"EMA_{ema2_period}", "ema_2"),
+                (f"EMA_{ema3_period}", "ema_3"),
+                (f"EMA_{ema4_period}", "ema_4"),
             ])
         elif strategy_type == "vwap":
-            operands.extend([
-                ("VWAP", "vwap"),
-                ("VWAP Upper 1.0σ", "vwap_upper_1.0"),
-                ("VWAP Upper 1.5σ", "vwap_upper_1.5"),
-                ("VWAP Upper 2.0σ", "vwap_upper_2.0"),
-                ("VWAP Lower 1.0σ", "vwap_lower_1.0"),
-                ("VWAP Lower 1.5σ", "vwap_lower_1.5"),
-                ("VWAP Lower 2.0σ", "vwap_lower_2.0"),
-            ])
+            # Add VWAP base
+            operands.append(("VWAP", "vwap"))
+            
+            # Dynamically generate bands based on configured std_bands
+            if hasattr(self, 'vwap_std_bands_input'):
+                bands_str = self.vwap_std_bands_input.text().strip()
+                try:
+                    std_bands = [float(x.strip()) for x in bands_str.split(',') if x.strip()]
+                except:
+                    std_bands = [1.0, 1.5, 2.0]  # Default fallback
+            else:
+                std_bands = [1.0, 1.5, 2.0]  # Default fallback
+            
+            # Generate operands for each band
+            for std_dev in std_bands:
+                operands.append((f"VWAP Upper {std_dev}σ", f"vwap_upper_{std_dev}"))
+                operands.append((f"VWAP Lower {std_dev}σ", f"vwap_lower_{std_dev}"))
         elif strategy_type == "supertrend":
             operands.extend([
                 ("SuperTrend Value", "supertrend_value"),
@@ -1022,8 +1076,8 @@ class StrategyTab(QWidget):
                 strategy = self._create_ema_strategy(name, symbol, timeframe)
             elif strategy_type == "supertrend":
                 strategy = self._create_supertrend_strategy(name, symbol, timeframe)
-            elif strategy_type == "smc":
-                strategy = self._create_smc_strategy(name, symbol, timeframe)
+            elif strategy_type == "smc" or strategy_type == "structure":
+                strategy = self._create_structure_strategy(name, symbol, timeframe)
             elif strategy_type == "no_strategy":
                 strategy = self._create_no_strategy(name, symbol, timeframe)
             else:
@@ -1192,8 +1246,8 @@ class StrategyTab(QWidget):
         
         return strategy
     
-    def _create_smc_strategy(self, name: str, symbol: str, timeframe: int) -> SMCStrategy:
-        """Create SMC Strategy"""
+    def _create_structure_strategy(self, name: str, symbol: str, timeframe: int) -> StructureStrategy:
+        """Create Structure Strategy (replaces SMC Strategy)"""
         pivot_left = self.smc_pivot_left_spin.value() if hasattr(self, 'smc_pivot_left_spin') else 2
         pivot_right = self.smc_pivot_right_spin.value() if hasattr(self, 'smc_pivot_right_spin') else 2
         emit_on = self.smc_emit_on_combo.currentData() if hasattr(self, 'smc_emit_on_combo') else "CHoCH"
@@ -1202,7 +1256,7 @@ class StrategyTab(QWidget):
         buy_filters = self._parse_conditions(self.buy_condition_rows)
         sell_filters = self._parse_conditions(self.sell_condition_rows)
         
-        strategy = SMCStrategy(
+        strategy = StructureStrategy(
             name, symbol, timeframe,
             pivot_left=pivot_left,
             pivot_right=pivot_right,
@@ -1335,7 +1389,7 @@ class StrategyTab(QWidget):
                 self.strategy_type_combo.setCurrentIndex(2)  # EMA
             elif isinstance(strategy, SuperTrendStrategy):
                 self.strategy_type_combo.setCurrentIndex(3)  # SuperTrend
-            elif isinstance(strategy, SMCStrategy):
+            elif isinstance(strategy, StructureStrategy):
                 self.strategy_type_combo.setCurrentIndex(4)  # SMC
             else:
                 self.strategy_type_combo.setCurrentIndex(5)  # No Strategy
@@ -1498,7 +1552,7 @@ class StrategyTab(QWidget):
                     if idx >= 0:
                         self.st_atr_method_combo.setCurrentIndex(idx)
             
-            elif isinstance(strategy, SMCStrategy):
+            elif isinstance(strategy, StructureStrategy):
                 if hasattr(self, 'smc_pivot_left_spin'):
                     self.smc_pivot_left_spin.setValue(getattr(strategy, 'pivot_left', 2))
                 if hasattr(self, 'smc_pivot_right_spin'):

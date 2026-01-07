@@ -104,13 +104,15 @@ class SignalRouter:
         
         # Execute new order
         try:
+            strategy_name = signal.get('strategy_name', '')
             result = self.order_manager.place_market_order(
                 symbol=symbol,
                 order_type=action,
                 volume=quantity,
                 sl=stop_loss,
                 tp=take_profit,
-                comment=comment
+                comment=comment,
+                strategy_name=strategy_name if strategy_name else None
             )
             
             if result:

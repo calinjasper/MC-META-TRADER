@@ -280,19 +280,22 @@ class BaseStrategy(ABC):
         if signal:
             current_time = datetime.now()
             
-            # Log signal change or continuation
+            # Only add to signal history when signal changes (NEW signal)
+            # This prevents counting duplicate signals when condition stays met
             if signal != self.last_signal:
                 logger.info(f"Strategy {self.name} generated NEW {signal} signal for {self.symbol} (was {self.last_signal})")
+                self.last_signal = signal
+                self.signal_history.append({
+                    'time': current_time,
+                    'signal': signal,
+                    'symbol': self.symbol,
+                    'data': market_data.copy()
+                })
             else:
-                logger.debug(f"Strategy {self.name}: Condition still met - {signal} signal")
-            
-            self.last_signal = signal
-            self.signal_history.append({
-                'time': current_time,
-                'signal': signal,
-                'symbol': self.symbol,
-                'data': market_data.copy()
-            })
+                # Condition still met but same signal - don't add to history to prevent duplicate counting
+                logger.debug(f"Strategy {self.name}: Condition still met - {signal} signal (not adding to history)")
+                # Still update last_signal to track current state
+                self.last_signal = signal
         
         return signal
     

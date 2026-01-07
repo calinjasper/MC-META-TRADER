@@ -101,7 +101,8 @@ class SimpleConditionStrategy(BaseStrategy):
     
     def generate_signal(self, market_data: Dict) -> Optional[str]:
         """
-        Generate signal based on buy/sell conditions only
+        Generate signal based on buy/sell conditions only, or direct execution if no conditions.
+        Respects time restrictions and other entry conditions from BaseStrategy.
         
         Args:
             market_data: Dictionary with market data
@@ -109,6 +110,10 @@ class SimpleConditionStrategy(BaseStrategy):
         Returns:
             'BUY', 'SELL', or None
         """
+        # Check time restrictions first (from BaseStrategy)
+        if not self.is_trading_time():
+            return None
+        
         # Get current price from market data
         tick = market_data.get("tick")
         if not tick:
@@ -121,22 +126,26 @@ class SimpleConditionStrategy(BaseStrategy):
             return None
         
         # If no conditions are set, execute directly based on trade direction (No Strategy mode)
+        # This allows trading with only SL, TP, time restrictions, and risk management settings
         if len(self.buy_conditions) == 0 and len(self.sell_conditions) == 0:
-            # Direct execution mode - no conditions to check
+            # Direct execution mode - no conditions to check, only respects:
+            # - Time restrictions (already checked above)
+            # - Trade direction
+            # - SL/TP and risk management (handled by order execution)
             self.previous_price = current_price
             trade_dir = getattr(self, "trade_direction", "both")
             if trade_dir == "long":
                 signal = 'BUY'
-                logger.info(f"SimpleConditionStrategy {self.name}: Direct execution - BUY (Long-only)")
+                logger.info(f"SimpleConditionStrategy {self.name}: Direct execution - BUY (Long-only, No Strategy mode)")
                 return signal
             elif trade_dir == "short":
                 signal = 'SELL'
-                logger.info(f"SimpleConditionStrategy {self.name}: Direct execution - SELL (Short-only)")
+                logger.info(f"SimpleConditionStrategy {self.name}: Direct execution - SELL (Short-only, No Strategy mode)")
                 return signal
             else:  # both
                 signal = 'BUY'
                 # Default to BUY for both direction when no conditions
-                logger.info(f"SimpleConditionStrategy {self.name}: Direct execution - BUY (Both direction, default)")
+                logger.info(f"SimpleConditionStrategy {self.name}: Direct execution - BUY (Both direction, default, No Strategy mode)")
                 return signal
         
         # Get current candle OHLC data for condition evaluation

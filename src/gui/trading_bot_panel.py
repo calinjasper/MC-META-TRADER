@@ -19,12 +19,13 @@ from ..mt5_connector import MT5Connector
 from ..strategy.base_strategy import BaseStrategy
 from ..strategy.ohlc_price_strategy import OHLCPriceStrategy, OHLCPriceCondition
 from ..strategy.vwap_strategy import VWAPStrategy, VWAPCondition
-from ..strategy.smc_strategy import SMCStrategy
+from ..strategy.structure_strategy import StructureStrategy
 from ..strategy.ema_strategy import EMAStrategy, EMACondition
 from ..strategy.supertrend_strategy import SuperTrendStrategy
 from ..strategy.mixed_condition import MixedCondition
 from .market_data_panel import MarketDataPanel
 from .system_log_service import system_log_service
+from ..config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +125,7 @@ class TradingBotPanel(QWidget):
         self.strategy_manager = strategy_manager
         self.mt5 = mt5
         self.market_data_panel = market_data_panel
+        self.config = Config()
         
         # Current bot strategy (can be OHLC or VWAP)
         self.current_bot: Optional[BaseStrategy] = None
@@ -131,6 +133,29 @@ class TradingBotPanel(QWidget):
         self.strategy_type: str = 'ohlc'  # Will be determined dynamically from conditions
         self.buy_rows = []
         self.sell_rows = []
+        
+        # Strategy type definitions
+        self.strategy_types = {
+            "ohlc": ("OHLC Price Strategy", "ohlc"),
+            "vwap": ("VWAP Strategy", "vwap"),
+            "ema": ("EMA Strategy", "ema"),
+            "supertrend": ("SuperTrend Strategy", "supertrend"),
+            "smc": ("SMC (Smart Money Concepts)", "smc"),
+            "no_strategy": ("No Strategy", "no_strategy")
+        }
+        
+        # Strategy type enable/disable state (default all enabled)
+        self.strategy_type_enabled = {
+            "ohlc": True,
+            "vwap": True,
+            "ema": True,
+            "supertrend": True,
+            "smc": True,
+            "no_strategy": True
+        }
+        
+        # Load enabled state from config
+        self._load_strategy_type_enabled_state()
         
         # Status update timer
         self.status_timer = QTimer()
@@ -164,17 +189,34 @@ class TradingBotPanel(QWidget):
         # Strategy Name Section
         # Strategy Type Selection
         strategy_type_group = QGroupBox("Strategy Type")
-        strategy_type_layout = QFormLayout()
+        strategy_type_layout = QVBoxLayout()
         
+        # Strategy Type Dropdown
+        type_combo_layout = QFormLayout()
         self.strategy_type_combo = QComboBox()
-        self.strategy_type_combo.addItem("OHLC Price Strategy", "ohlc")
-        self.strategy_type_combo.addItem("VWAP Strategy", "vwap")
-        self.strategy_type_combo.addItem("EMA Strategy", "ema")
-        self.strategy_type_combo.addItem("SuperTrend Strategy", "supertrend")
-        self.strategy_type_combo.addItem("SMC (Smart Money Concepts)", "smc")
-        self.strategy_type_combo.addItem("No Strategy", "no_strategy")
+        self._update_strategy_type_combo()
         self.strategy_type_combo.currentIndexChanged.connect(self._on_strategy_type_changed)
-        strategy_type_layout.addRow("Strategy Type:", self.strategy_type_combo)
+        type_combo_layout.addRow("Strategy Type:", self.strategy_type_combo)
+        strategy_type_layout.addLayout(type_combo_layout)
+        
+        # Enable/Disable Checkboxes
+        enable_disable_label = QLabel("Enable/Disable Strategy Types:")
+        enable_disable_label.setStyleSheet("font-weight: bold; margin-top: 5px;")
+        strategy_type_layout.addWidget(enable_disable_label)
+        
+        # Create checkboxes for each strategy type
+        self.strategy_type_checkboxes = {}
+        checkbox_layout = QVBoxLayout()
+        checkbox_layout.setContentsMargins(10, 5, 5, 5)
+        
+        for key, (display_name, value) in self.strategy_types.items():
+            checkbox = QCheckBox(display_name)
+            checkbox.setChecked(self.strategy_type_enabled[key])
+            checkbox.stateChanged.connect(lambda state, k=key: self._on_strategy_type_enable_changed(k, state))
+            self.strategy_type_checkboxes[key] = checkbox
+            checkbox_layout.addWidget(checkbox)
+        
+        strategy_type_layout.addLayout(checkbox_layout)
         strategy_type_group.setLayout(strategy_type_layout)
         layout.addWidget(strategy_type_group)
         
@@ -810,6 +852,7 @@ class TradingBotPanel(QWidget):
         # Initialize
         self.strategy_type = 'ohlc'  # Default to OHLC
         self._update_value_combos()  # Initialize value combos
+        self._update_ui_visibility()  # Update UI visibility based on strategy type
         self.clear_form()
         self.update_symbol_list()
 
@@ -904,6 +947,71 @@ class TradingBotPanel(QWidget):
         self.strategy_name_error_label.setText("")
         return True
     
+    def _load_strategy_type_enabled_state(self):
+        """Load strategy type enabled state from config"""
+        enabled_state = self.config.get('strategy_types.enabled', {})
+        for key in self.strategy_type_enabled.keys():
+            if key in enabled_state:
+                self.strategy_type_enabled[key] = enabled_state[key]
+    
+    def _save_strategy_type_enabled_state(self):
+        """Save strategy type enabled state to config"""
+        self.config.set('strategy_types.enabled', self.strategy_type_enabled.copy())
+        self.config.save()
+    
+    def _update_strategy_type_combo(self):
+        """Update strategy type combo box based on enabled state"""
+        # Block signals to prevent triggering _on_strategy_type_changed during update
+        self.strategy_type_combo.blockSignals(True)
+        
+        current_selection = self.strategy_type_combo.currentData()
+        self.strategy_type_combo.clear()
+        
+        # Add only enabled strategy types
+        for key, (display_name, value) in self.strategy_types.items():
+            if self.strategy_type_enabled[key]:
+                self.strategy_type_combo.addItem(display_name, value)
+        
+        # Restore previous selection if it's still enabled
+        if current_selection:
+            idx = self.strategy_type_combo.findData(current_selection)
+            if idx >= 0:
+                self.strategy_type_combo.setCurrentIndex(idx)
+            elif self.strategy_type_combo.count() > 0:
+                # If previous selection is disabled, select first enabled
+                self.strategy_type_combo.setCurrentIndex(0)
+                self.strategy_type = self.strategy_type_combo.currentData()
+        elif self.strategy_type_combo.count() > 0:
+            # No previous selection, select first enabled
+            self.strategy_type_combo.setCurrentIndex(0)
+            self.strategy_type = self.strategy_type_combo.currentData()
+        
+        # Unblock signals
+        self.strategy_type_combo.blockSignals(False)
+        
+        # Update UI visibility if strategy type changed and UI elements are initialized
+        if hasattr(self, 'strategy_type') and self.strategy_type and hasattr(self, 'vwap_config_group'):
+            self._update_ui_visibility()
+    
+    def _on_strategy_type_enable_changed(self, key: str, state: int):
+        """Handle strategy type enable/disable checkbox change"""
+        # State 0 = Unchecked, 2 = Checked in PyQt6
+        is_enabled = (state == 2)  # Qt.CheckState.Checked = 2
+        self.strategy_type_enabled[key] = is_enabled
+        
+        # Save to config
+        self._save_strategy_type_enabled_state()
+        
+        # Update combo box
+        self._update_strategy_type_combo()
+        
+        # If currently selected type was disabled, select first enabled
+        current_selection = self.strategy_type_combo.currentData()
+        if not current_selection and self.strategy_type_combo.count() > 0:
+            self.strategy_type_combo.setCurrentIndex(0)
+            self.strategy_type = self.strategy_type_combo.currentData()
+            self._update_ui_visibility()
+    
     def _on_strategy_type_changed(self, index: int):
         """Handle strategy type change"""
         self.strategy_type = self.strategy_type_combo.currentData()
@@ -911,6 +1019,10 @@ class TradingBotPanel(QWidget):
     
     def _update_ui_visibility(self):
         """Update UI visibility based on strategy type"""
+        # Return early if UI elements aren't initialized yet
+        if not hasattr(self, 'vwap_config_group'):
+            return
+            
         # Show/hide VWAP-specific UI
         is_vwap = self.strategy_type == 'vwap'
         is_smc = self.strategy_type == 'smc'
@@ -928,9 +1040,17 @@ class TradingBotPanel(QWidget):
         self.ohlc_label.setVisible((not is_vwap) and (not is_smc) and (not is_ema) and (not is_supertrend) and (not is_no_strategy))
 
         # Hide manual condition builders for SuperTrend (SMC now can use filters)
-        # Show buy/sell conditions for no_strategy
+        # Show buy/sell conditions for no_strategy (but they're optional)
         self.buy_group.setVisible((not is_supertrend))
         self.sell_group.setVisible((not is_supertrend))
+        
+        # Update group titles to indicate conditions are optional for no_strategy
+        if is_no_strategy:
+            self.buy_group.setTitle("Buy Conditions (Optional - No Strategy mode executes directly)")
+            self.sell_group.setTitle("Sell Conditions (Optional - No Strategy mode executes directly)")
+        else:
+            self.buy_group.setTitle("Buy Conditions")
+            self.sell_group.setTitle("Sell Conditions")
         
         # Update value combo boxes for VWAP
         self._update_value_combos()
@@ -1251,8 +1371,8 @@ class TradingBotPanel(QWidget):
                 }
                 bot = EMAStrategy(name=strategy_name, symbol=symbol, timeframe=timeframe, ema_periods=periods)
                 bot.set_mt5_connector(self.mt5)
-            elif strategy_type == 'smc':
-                bot = SMCStrategy(
+            elif strategy_type == 'smc' or strategy_type == 'structure':
+                bot = StructureStrategy(
                     name=strategy_name,
                     symbol=symbol,
                     timeframe=timeframe,
@@ -1663,18 +1783,18 @@ class TradingBotPanel(QWidget):
             else:
                 self.ohlc_label.setText("Previous Session OHLC: Not available (fetching...)")
 
-        # Update SMC display
-        if self.strategy_type == 'smc':
-            if self.current_bot and isinstance(self.current_bot, SMCStrategy):
+        # Update Structure display (formerly SMC)
+        if self.strategy_type == 'smc' or self.strategy_type == 'structure':
+            if self.current_bot and isinstance(self.current_bot, StructureStrategy):
                 ph = self.current_bot.last_pivot_high.price if self.current_bot.last_pivot_high else None
                 pl = self.current_bot.last_pivot_low.price if self.current_bot.last_pivot_low else None
                 ph_txt = f"{ph:.5f}" if ph is not None else "--"
                 pl_txt = f"{pl:.5f}" if pl is not None else "--"
                 bias = self.current_bot.bias or "--"
                 ev = self.current_bot.last_structure_event or "--"
-                self.smc_status_label.setText(f"SMC: Bias={bias} | Last={ev} | PH={ph_txt} | PL={pl_txt}")
+                self.smc_status_label.setText(f"Structure: Bias={bias} | Last={ev} | PH={ph_txt} | PL={pl_txt}")
             else:
-                self.smc_status_label.setText("SMC: -- (No active bot)")
+                self.smc_status_label.setText("Structure: -- (No active bot)")
         
         # Check if bot is active
         if self.current_bot and self.current_bot.enabled:
