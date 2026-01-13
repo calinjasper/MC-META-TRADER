@@ -1,0 +1,697 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Harjit91
+
+// Revision_13 All Working and Delivered                        --- 21-11-2024 --- 11:36 AM 
+// Revision_14 All Final Working and Delivered                  --- 21-11-2024 --- 17:41 PM 
+
+
+//@version=6
+strategy("STABLE___Strategy_Template", overlay=true, process_orders_on_close = true)
+
+
+// ****************** Algo-Syntax-Settings { 
+Tooltip_Debug = 'This used to just check the Algo Syntax On  Chart for Debugging'
+Tooltip_Custom__SL_Trail = '\n\nPLACEHOLDERS' + '\nfor Strike   ----> {{STRIKE}}' + '\nfor SL_Price ----> {{SL_PRICE}}' + '\nfor TP_Price ----> {{TP_PRICE}}' + '\nfor Qty      ----> {{QTY}}' + '\nfor OPT_TYPE ----> {{OPT_TYPE}}'
+Tooltip_Custom = 'Here you paste your Own Created Syntax from You AlgoBot Syntax Generator as According to Heading , ' + 'and that will be Fired at the time of Signal' + Tooltip_Custom__SL_Trail
+Group_Algo_Syntax = '🟩 🟩 🟩 Algo-Syntax-Settings 🟩 🟩 🟩'
+Algo_DEBUG = input.bool(false, title = 'Debug', group = Group_Algo_Syntax, tooltip = Tooltip_Debug)
+Group_Custom_Syntax = Group_Algo_Syntax
+iAlgo_Buy_Entry_Syntax = input.string('', title = 'Buy Entry Syntax', group = Group_Custom_Syntax, tooltip = Tooltip_Custom)
+iAlgo_Sell_Entry_Syntax = input.string('', title = 'Sell Entry Syntax', group = Group_Custom_Syntax, tooltip = Tooltip_Custom)
+iAlgo_Buy_Trail_SL_Syntax = input.string('', title = 'Buy Trail SL Syntax', group = Group_Custom_Syntax, tooltip = Tooltip_Custom)
+iAlgo_Sell_Trail_SL_Syntax = input.string('', title = 'Sell Trail SL Syntax', group = Group_Custom_Syntax, tooltip = Tooltip_Custom)
+iAlgo_Buy_TP1_Syntax = input.string('', title = 'Buy TP1 Syntax', group = Group_Custom_Syntax, tooltip = Tooltip_Custom)
+iAlgo_Sell_TP1_Syntax = input.string('', title = 'Sell TP1 Syntax', group = Group_Custom_Syntax, tooltip = Tooltip_Custom)
+iAlgo_Buy_TP2_Syntax = input.string('', title = 'Buy TP2 Syntax', group = Group_Custom_Syntax, tooltip = Tooltip_Custom)
+iAlgo_Sell_TP2_Syntax = input.string('', title = 'Sell TP2 Syntax', group = Group_Custom_Syntax, tooltip = Tooltip_Custom)
+iAlgo_Buy_Exit_Syntax = input.string('', title = 'Buy Exit Syntax', group = Group_Custom_Syntax, tooltip = Tooltip_Custom)
+iAlgo_Sell_Exit_Syntax = input.string('', title = 'Sell Exit Syntax', group = Group_Custom_Syntax, tooltip = Tooltip_Custom)
+
+Placeholder_Updates(_Syntax = '', float _Strike = na, int _Qty = na, string _OPT_Type = na, float _SL_Price = na, float _TP_Price = na) =>
+    _Return = _Syntax
+    if not na(_Strike)
+        _Return := str.replace_all(_Return, '{{STRIKE}}', str.tostring(int(_Strike)))
+        _Return
+    if not na(_Qty)
+        _Return := str.replace_all(_Return, '{{QTY}}', str.tostring(_Qty))
+        _Return
+    if not na(_OPT_Type)
+        _Return := str.replace_all(_Return, '{{OPT_TYPE}}', _OPT_Type)
+        _Return
+    if not na(_SL_Price)
+        _Return := str.replace_all(_Return, '{{SL_PRICE}}', str.tostring(_SL_Price))
+        _Return
+    if not na(_TP_Price)
+        _Return := str.replace_all(_Return, '{{TP_PRICE}}', str.tostring(_TP_Price))
+        _Return
+    _Return
+
+Algo_Buy_Entry_Syntax(MSG, float Price = na, float Strike = na, int Qty = na, string OPT_Type = na, float SL_Price = na, float TP_Price = na) =>
+    MSG == 'OFF' or Algo_DEBUG ? Placeholder_Updates(iAlgo_Buy_Entry_Syntax, _Strike = Strike, _Qty = Qty, _OPT_Type = OPT_Type, _SL_Price = SL_Price, _TP_Price = TP_Price) : MSG
+Algo_Sell_Entry_Syntax(MSG, float Price = na, float Strike = na, int Qty = na, string OPT_Type = na, float SL_Price = na, float TP_Price = na) =>
+    MSG == 'OFF' or Algo_DEBUG ? Placeholder_Updates(iAlgo_Sell_Entry_Syntax, _Strike = Strike, _Qty = Qty, _OPT_Type = OPT_Type, _SL_Price = SL_Price, _TP_Price = TP_Price) : MSG
+Algo_Buy_SL_Trail_Syntax(MSG, float Price = na, float Strike = na, int Qty = na, string OPT_Type = na, float SL_Price = na, float TP_Price = na) =>
+    MSG == 'OFF' or Algo_DEBUG ? Placeholder_Updates(iAlgo_Buy_Trail_SL_Syntax, _Strike = Strike, _Qty = Qty, _OPT_Type = OPT_Type, _SL_Price = SL_Price, _TP_Price = TP_Price) : MSG
+Algo_Sell_SL_Trail_Syntax(MSG, float Price = na, float Strike = na, int Qty = na, string OPT_Type = na, float SL_Price = na, float TP_Price = na) =>
+    MSG == 'OFF' or Algo_DEBUG ? Placeholder_Updates(iAlgo_Sell_Trail_SL_Syntax, _Strike = Strike, _Qty = Qty, _OPT_Type = OPT_Type, _SL_Price = SL_Price, _TP_Price = TP_Price) : MSG
+Algo_Buy_TP1_Syntax(MSG, float Price = na, float Strike = na, int Qty = na, string OPT_Type = na, float SL_Price = na, float TP_Price = na) =>
+    MSG == 'OFF' or Algo_DEBUG ? Placeholder_Updates(iAlgo_Buy_TP1_Syntax, _Strike = Strike, _Qty = Qty, _OPT_Type = OPT_Type, _SL_Price = SL_Price, _TP_Price = TP_Price) : MSG
+Algo_Sell_TP1_Syntax(MSG, float Price = na, float Strike = na, int Qty = na, string OPT_Type = na, float SL_Price = na, float TP_Price = na) =>
+    MSG == 'OFF' or Algo_DEBUG ? Placeholder_Updates(iAlgo_Sell_TP1_Syntax, _Strike = Strike, _Qty = Qty, _OPT_Type = OPT_Type, _SL_Price = SL_Price, _TP_Price = TP_Price) : MSG
+Algo_Buy_TP2_Syntax(MSG, float Price = na, float Strike = na, int Qty = na, string OPT_Type = na, float SL_Price = na, float TP_Price = na) =>
+    MSG == 'OFF' or Algo_DEBUG ? Placeholder_Updates(iAlgo_Buy_TP2_Syntax, _Strike = Strike, _Qty = Qty, _OPT_Type = OPT_Type, _SL_Price = SL_Price, _TP_Price = TP_Price) : MSG
+Algo_Sell_TP2_Syntax(MSG, float Price = na, float Strike = na, int Qty = na, string OPT_Type = na, float SL_Price = na, float TP_Price = na) =>
+    MSG == 'OFF' or Algo_DEBUG ? Placeholder_Updates(iAlgo_Sell_TP2_Syntax, _Strike = Strike, _Qty = Qty, _OPT_Type = OPT_Type, _SL_Price = SL_Price, _TP_Price = TP_Price) : MSG
+Algo_Buy_Exit_Syntax(MSG, float Price = na, float Strike = na, int Qty = na, string OPT_Type = na, float SL_Price = na, float TP_Price = na) =>
+    MSG == 'OFF' or Algo_DEBUG ? Placeholder_Updates(iAlgo_Buy_Exit_Syntax, _Strike = Strike, _Qty = Qty, _OPT_Type = OPT_Type, _SL_Price = SL_Price, _TP_Price = TP_Price) : MSG
+Algo_Sell_Exit_Syntax(MSG, float Price = na, float Strike = na, int Qty = na, string OPT_Type = na, float SL_Price = na, float TP_Price = na) =>
+    MSG == 'OFF' or Algo_DEBUG ? Placeholder_Updates(iAlgo_Sell_Exit_Syntax, _Strike = Strike, _Qty = Qty, _OPT_Type = OPT_Type, _SL_Price = SL_Price, _TP_Price = TP_Price) : MSG
+// ****************** Algo-Syntax-Settings } 
+
+
+// ****************** Intraday-Filter           { 
+
+Group_Entry_Time_1   = " 🟥 🟥 🟥 Time-Filters 🟥 🟥 🟥 " 
+Want_Entry_Session   = input.bool(false, "Want Entry Session",        inline="Iday_Entry_Time", group=Group_Entry_Time_1)
+Entry_Session        = input.session("0915-1640", "",                 inline="Iday_Entry_Time", group=Group_Entry_Time_1)
+Draw_Entry_Area      = input.bool(    false,         "Highlight",     inline="Iday_Entry_Time", group=Group_Entry_Time_1)
+Time_Entry()         => Want_Entry_Session ?  (na(time(timeframe.period, Entry_Session)) ? false : true) : true
+// bgcolor(Time_Entry()   and Draw_Entry_Area and Want_Entry_Session ? color.new(color.green, 88)  : na, title="Entry_Time()")
+
+
+Group_Exit_Time_1   = " 🟥 🟥 🟥 Square OFF Time 🟥 🟥 🟥 " 
+Want_Exit_Session   = input.bool(false, "Want Exit Session",         inline="Iday_Exit_Time", group=Group_Exit_Time_1)
+Exit_Session        = input.session("1515-1640", "",                inline="Iday_Exit_Time", group=Group_Exit_Time_1)
+Draw_Exit_Area      = input.bool(    false,       "Highlight",      inline="Iday_Exit_Time", group=Group_Exit_Time_1)
+Time_Exit()         => Want_Exit_Session ? (na(time(timeframe.period, Exit_Session)) ? false : true)    : false
+// bgcolor(Time_Exit()   and Draw_Exit_Area and Want_Exit_Session ? color.new(color.red, 88)  : na, title="Exit_Time()")
+
+
+
+
+// ***********************  Date Filter { *********************** 
+group_date_filter_1     = " 🟥 🟥 🟥  Date Filter ↓ 🟥 🟥 🟥"
+start_date              = input.time(title="Start Date",  defval=timestamp("2000-01-01T00:00+05:30"), group=group_date_filter_1)
+end_date                = input.time(title="End_ Date",   defval=timestamp("2030-02-20T00:00+05:30" ), group=group_date_filter_1)  
+Date_Filter()           => (time >= start_date and time <= end_date ? true : false)
+
+// ***********************  Date Filter } *********************** 
+
+// ************ Intraday-Filter     } ***************
+
+
+// ************ Indicator     {
+
+// ***** Enums  | Types  | Methods {
+Tooltip_String_Source = "Last input can  Accept Price Placholder Such as open, high, low, close, hl2, hlc3, ohlc4, hlcc4  \n&& as well as float also \n\nso only number or Placholder from above can be Accept here else it create error"
+enum Conditions_Enum
+    Greater_Than   = "Greater_Than"
+    Lower_Than     = "Lower_Than"
+    Equals         = "Equals"
+    Crossover      = "Crossover"
+    Crossunder     = "Crossunder"
+    Any_Cross      = "Any_Cross"
+
+
+type Conditions_Template
+    string    ID     // LE, LX, SE, SX
+    bool      Want 
+    string    Condition
+    float     Source_A
+    float     Source_B
+    bool      isCheck
+
+method Check_Condition( Conditions_Template _CD )=>
+    Condition__Greater_Than =                _CD.Source_A >  _CD.Source_B
+    Condition__Lower_Than   =                _CD.Source_A <  _CD.Source_B
+    Condition__Equals       =                _CD.Source_A == _CD.Source_B
+    Condition__Crossover    = ta.crossover  (_CD.Source_A ,  _CD.Source_B)
+    Condition__Crossunder   = ta.crossunder (_CD.Source_A ,  _CD.Source_B)
+    Condition__Any_Cross    = ta.cross      (_CD.Source_A ,  _CD.Source_B)
+    if _CD.Want
+        _CD.isCheck := _CD.Condition==str.tostring( Conditions_Enum.Greater_Than ) ? Condition__Greater_Than 
+                     : _CD.Condition==str.tostring( Conditions_Enum.Lower_Than   ) ? Condition__Lower_Than   
+                     : _CD.Condition==str.tostring( Conditions_Enum.Equals       ) ? Condition__Equals       
+                     : _CD.Condition==str.tostring( Conditions_Enum.Crossover    ) ? Condition__Crossover    
+                     : _CD.Condition==str.tostring( Conditions_Enum.Crossunder   ) ? Condition__Crossunder   
+                     : _CD.Condition==str.tostring( Conditions_Enum.Any_Cross    ) ? Condition__Any_Cross    
+                     : true
+    else
+        _CD.isCheck := (_CD.ID=="LE" or _CD.ID=="SE" ? true : false)
+        
+
+
+Get_Source_From_String(string _String)=>
+    _Return      = _String=='open'    ? open     
+                 : _String=='high'    ? high     
+                 : _String=='low'     ? low      
+                 : _String=='close'   ? close    
+                 : _String=='hl2'     ? hl2      
+                 : _String=='hlc3'    ? hlc3     
+                 : _String=='ohlc4'   ? ohlc4    
+                 : _String=='hlcc4'   ? hlcc4    
+                 : str.tonumber(_String)
+    _Return
+
+
+Get_Inputs(_ID, bool _Want, float _Source_A, string _Condition, float _Source_B=na,  string _Source_B_String=na )=>
+    _Return = Conditions_Template.new(
+                 ID        = _ID,
+                 Want      = _Want,
+                 Condition = _Condition,
+                 Source_A  = _Source_A
+                 )
+    if na (_Source_B_String)
+        _Return.Source_B := _Source_B
+    else
+        _Return.Source_B := Get_Source_From_String(_Source_B_String)
+    _Return.Check_Condition()
+    _Return
+
+// }
+
+
+// ***** Inputs {
+
+// ***** Long_Entry {
+group__Long_Entry   = " 🟩 🟩 🟩 Long_Entry 🟩 🟩 🟩 " 
+Long_Entry_1      = Get_Inputs("LE", input.bool(true,                                   "LE_1", inline = "Long_Entry_1", group = group__Long_Entry),
+                                     input.source(open,                                    " ", inline = "Long_Entry_1", group = group__Long_Entry),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Long_Entry_1", group = group__Long_Entry)),
+                                     input.source(close,                                   " ", inline = "Long_Entry_1", group = group__Long_Entry)
+                                     )
+Long_Entry_2      = Get_Inputs("LE", input.bool(false,                                  "LE_2", inline = "Long_Entry_2", group = group__Long_Entry),
+                                     input.source(open,                                    " ", inline = "Long_Entry_2", group = group__Long_Entry),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Long_Entry_2", group = group__Long_Entry)),
+                                     input.source(close,                                   " ", inline = "Long_Entry_2", group = group__Long_Entry)
+                                     )
+Long_Entry_3      = Get_Inputs("LE", input.bool(false,                                  "LE_3", inline = "Long_Entry_3", group = group__Long_Entry),
+                                     input.source(open,                                    " ", inline = "Long_Entry_3", group = group__Long_Entry),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Long_Entry_3", group = group__Long_Entry)),
+                                     input.source(close,                                   " ", inline = "Long_Entry_3", group = group__Long_Entry)
+                                     )
+Long_Entry_4      = Get_Inputs("LE", input.bool(false,                                  "LE_4", inline = "Long_Entry_4", group = group__Long_Entry),
+                                     input.source(open,                                    " ", inline = "Long_Entry_4", group = group__Long_Entry),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Long_Entry_4", group = group__Long_Entry)), 
+                                     na,
+                                     input.string("close",                                 " ", inline = "Long_Entry_4", group = group__Long_Entry, tooltip = Tooltip_String_Source)
+                                     )
+Long_Entry_5      = Get_Inputs("LE", input.bool(false,                                  "LE_5", inline = "Long_Entry_5", group = group__Long_Entry),
+                                     input.source(open,                                    " ", inline = "Long_Entry_5", group = group__Long_Entry),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Long_Entry_5", group = group__Long_Entry)),
+                                     na,
+                                     input.string("close",                                 " ", inline = "Long_Entry_5", group = group__Long_Entry, tooltip = Tooltip_String_Source)
+                                     )
+Long_Entry_6      = Get_Inputs("LE", input.bool(false,                                  "LE_6", inline = "Long_Entry_6", group = group__Long_Entry),
+                                     input.source(open,                                    " ", inline = "Long_Entry_6", group = group__Long_Entry),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Long_Entry_6", group = group__Long_Entry)),
+                                     na,
+                                     input.string("close",                                 " ", inline = "Long_Entry_6", group = group__Long_Entry, tooltip = Tooltip_String_Source)
+                                     )
+
+Long_Entry =     Long_Entry_1.isCheck 
+             and Long_Entry_2.isCheck 
+             and Long_Entry_3.isCheck 
+             and Long_Entry_4.isCheck 
+             and Long_Entry_5.isCheck 
+             and Long_Entry_6.isCheck 
+
+// bgcolor(Long_Entry ? color.new(color.lime, 88) : na)
+plotshape(Long_Entry, "Long_Entry", shape.triangleup, location.bottom, color.green, size = size.small)
+// }
+
+
+// ***** Long_Exit {
+group__Long_Exit   = " 🟩 🟩 🟩 Long_Exit 🟩 🟩 🟩 " 
+
+Long_Exit_1      = Get_Inputs("LX",  input.bool(true,                                   "LX_1", inline = "Long_Exit_1", group = group__Long_Exit),
+                                     input.source(open,                                    " ", inline = "Long_Exit_1", group = group__Long_Exit),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Long_Exit_1", group = group__Long_Exit)),
+                                     input.source(close,                                   " ", inline = "Long_Exit_1", group = group__Long_Exit)
+                                     )
+Long_Exit_2      = Get_Inputs("LX",  input.bool(false,                                  "LX_2", inline = "Long_Exit_2", group = group__Long_Exit),
+                                     input.source(open,                                    " ", inline = "Long_Exit_2", group = group__Long_Exit),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Long_Exit_2", group = group__Long_Exit)),
+                                     input.source(close,                                   " ", inline = "Long_Exit_2", group = group__Long_Exit)
+                                     )
+Long_Exit_3      = Get_Inputs("LX",  input.bool(false,                                  "LX_3", inline = "Long_Exit_3", group = group__Long_Exit),
+                                     input.source(open,                                    " ", inline = "Long_Exit_3", group = group__Long_Exit),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Long_Exit_3", group = group__Long_Exit)),
+                                     na,
+                                     input.string("close",                                 " ", inline = "Long_Exit_3", group = group__Long_Exit, tooltip = Tooltip_String_Source)
+                                     )
+Long_Exit_4      = Get_Inputs("LX",  input.bool(false,                                  "LX_4", inline = "Long_Exit_4", group = group__Long_Exit),
+                                     input.source(open,                                    " ", inline = "Long_Exit_4", group = group__Long_Exit),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Long_Exit_4", group = group__Long_Exit)), 
+                                     na,
+                                     input.string("close",                                 " ", inline = "Long_Exit_4", group = group__Long_Exit, tooltip = Tooltip_String_Source)
+                                     )
+
+Long_Exit =     Long_Exit_1.isCheck 
+             or Long_Exit_2.isCheck 
+             or Long_Exit_3.isCheck 
+             or Long_Exit_4.isCheck 
+
+// bgcolor(Long_Exit ? color.new(color.red, 88) : na)
+plotshape(Long_Exit, "Long_Exit", shape.triangledown, location.bottom, color.gray, size = size.small)
+// }
+
+
+// ***** Short_Entry {
+group__Short_Entry   = " 🟥 🟥 🟥 Short_Entry 🟥 🟥 🟥 " 
+Short_Entry_1     = Get_Inputs("SE", input.bool(true,                                   "SE_1", inline = "Short_Entry_1", group = group__Short_Entry),
+                                     input.source(open,                                    " ", inline = "Short_Entry_1", group = group__Short_Entry),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Short_Entry_1", group = group__Short_Entry)),
+                                     input.source(close,                                   " ", inline = "Short_Entry_1", group = group__Short_Entry)
+                                     )
+Short_Entry_2     = Get_Inputs("SE", input.bool(false,                                  "SE_2", inline = "Short_Entry_2", group = group__Short_Entry),
+                                     input.source(open,                                    " ", inline = "Short_Entry_2", group = group__Short_Entry),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Short_Entry_2", group = group__Short_Entry)),
+                                     input.source(close,                                   " ", inline = "Short_Entry_2", group = group__Short_Entry)
+                                     )
+Short_Entry_3     = Get_Inputs("SE", input.bool(false,                                  "SE_3", inline = "Short_Entry_3", group = group__Short_Entry),
+                                     input.source(open,                                    " ", inline = "Short_Entry_3", group = group__Short_Entry),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Short_Entry_3", group = group__Short_Entry)),
+                                     input.source(close,                                   " ", inline = "Short_Entry_3", group = group__Short_Entry)
+                                     )
+Short_Entry_4     = Get_Inputs("SE", input.bool(false,                                  "SE_4", inline = "Short_Entry_4", group = group__Short_Entry),
+                                     input.source(open,                                    " ", inline = "Short_Entry_4", group = group__Short_Entry),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Short_Entry_4", group = group__Short_Entry)), 
+                                     na,
+                                     input.string("close",                                 " ", inline = "Short_Entry_4", group = group__Short_Entry, tooltip = Tooltip_String_Source)
+                                     )
+Short_Entry_5     = Get_Inputs("SE", input.bool(false,                                  "SE_5", inline = "Short_Entry_5", group = group__Short_Entry),
+                                     input.source(open,                                    " ", inline = "Short_Entry_5", group = group__Short_Entry),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Short_Entry_5", group = group__Short_Entry)),
+                                     na,
+                                     input.string("close",                                 " ", inline = "Short_Entry_5", group = group__Short_Entry, tooltip = Tooltip_String_Source)
+                                     )
+Short_Entry_6     = Get_Inputs("SE", input.bool(false,                                  "SE_6", inline = "Short_Entry_6", group = group__Short_Entry),
+                                     input.source(open,                                    " ", inline = "Short_Entry_6", group = group__Short_Entry),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Short_Entry_6", group = group__Short_Entry)),
+                                     na,
+                                     input.string("close",                                 " ", inline = "Short_Entry_6", group = group__Short_Entry, tooltip = Tooltip_String_Source)
+                                     )
+
+Short_Entry =    Short_Entry_1.isCheck 
+             and Short_Entry_2.isCheck 
+             and Short_Entry_3.isCheck 
+             and Short_Entry_4.isCheck 
+             and Short_Entry_5.isCheck 
+             and Short_Entry_6.isCheck 
+
+// bgcolor(Short_Entry ? color.new(color.red, 88) : na)
+plotshape(Short_Entry, "Short_Entry", shape.triangledown, location.top, color.red, size = size.small)
+// }
+
+
+// ***** Short_Exit {
+group__Short_Exit   = " 🟥 🟥 🟥 Short_Exit 🟥 🟥 🟥 " 
+
+Short_Exit_1     = Get_Inputs("SX",  input.bool(true,                                   "SX_1", inline = "Short_Exit_1", group = group__Short_Exit),
+                                     input.source(open,                                    " ", inline = "Short_Exit_1", group = group__Short_Exit),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Short_Exit_1", group = group__Short_Exit)),
+                                     input.source(close,                                   " ", inline = "Short_Exit_1", group = group__Short_Exit)
+                                     )
+Short_Exit_2     = Get_Inputs("SX",  input.bool(false,                                  "SX_2", inline = "Short_Exit_2", group = group__Short_Exit),
+                                     input.source(open,                                    " ", inline = "Short_Exit_2", group = group__Short_Exit),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Short_Exit_2", group = group__Short_Exit)),
+                                     input.source(close,                                   " ", inline = "Short_Exit_2", group = group__Short_Exit)
+                                     )
+Short_Exit_3     = Get_Inputs("SX",  input.bool(false,                                  "SX_3", inline = "Short_Exit_3", group = group__Short_Exit),
+                                     input.source(open,                                    " ", inline = "Short_Exit_3", group = group__Short_Exit),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Short_Exit_3", group = group__Short_Exit)),
+                                     na,
+                                     input.string("close",                                 " ", inline = "Short_Exit_3", group = group__Short_Exit, tooltip = Tooltip_String_Source)
+                                     )
+Short_Exit_4     = Get_Inputs("SX",  input.bool(false,                                  "SX_4", inline = "Short_Exit_4", group = group__Short_Exit),
+                                     input.source(open,                                    " ", inline = "Short_Exit_4", group = group__Short_Exit),
+                                     str.tostring(input.enum(Conditions_Enum.Greater_Than, " ", inline = "Short_Exit_4", group = group__Short_Exit)), 
+                                     na,
+                                     input.string("close",                                 " ", inline = "Short_Exit_4", group = group__Short_Exit, tooltip = Tooltip_String_Source)
+                                     )
+
+Short_Exit =     Short_Exit_1.isCheck 
+             or  Short_Exit_2.isCheck 
+             or  Short_Exit_3.isCheck 
+             or  Short_Exit_4.isCheck 
+
+// bgcolor(Short_Exit ? color.new(color.aqua, 88) : na)
+plotshape(Short_Exit, "Short_Exit", shape.triangledown, location.top, color.gray, size = size.small)
+// }
+
+
+// }
+
+
+
+
+
+
+// ***********************  Entry/Exits { *********************** 
+
+group_strategy_1    = " 🟥 🟥 🟥 Strategy-Settings  🟥 🟥 🟥"
+
+
+// Want_Reversal_Exit    = input.bool(true,       title = "Want Reversal Exits",  group=group_strategy_1)
+Strategy_Type_1       = input.string("Buy" , title = "Strategy_Type" , options = ["Buy" , "Sell" , "Both"] , group=group_strategy_1)
+Buy_Strategy_Type_1   = Strategy_Type_1 == "Buy" or Strategy_Type_1 == "Both"
+Sell_Strategy_Type_1  = Strategy_Type_1 == "Sell" or Strategy_Type_1 == "Both"
+
+Buy_Time    = Long_Entry  and Date_Filter()  and Time_Entry()  and Time_Exit()==false and Buy_Strategy_Type_1  and strategy.position_size<=0
+Sell_Time   = Short_Entry and Date_Filter()  and Time_Entry()  and Time_Exit()==false and Sell_Strategy_Type_1 and strategy.position_size>=0
+
+bgcolor( Buy_Time  ? color.new(color.red, 88) : na,  title="Buy_Time"    )
+bgcolor( Sell_Time ? color.new(color.red, 88) : na,  title="Sell_Time"   )
+
+
+
+
+
+
+Want_SL             = input.bool(true, "SL_Type",               inline = "SL_Type",    group=group_strategy_1 )
+SL_Type             = input.string('Percent',"",                inline = "SL_Type",    group=group_strategy_1, options=['Percent', 'Points', "Swing"])
+SL_Points_Percent   = input.float(0.25, title="",               inline = "SL_Type",    group=group_strategy_1  )
+SL_Swing_Length     = input.int(5,      "Length",               inline = "SL_Type",    group=group_strategy_1 , tooltip = "SL Swing is Calculated as Pivot(Left, Right)" )
+
+Want_TP             = input.bool(true, "TP_Type",               inline = "TP_Type",    group=group_strategy_1 )
+TP_Type             = input.string('Percent', "",               inline = "TP_Type",    group=group_strategy_1, options=['Percent', 'Points', "RR"])
+
+// TP1 and TP2 Settings
+TP1_Points_Percent  = input.float(0.25, "TP1",                  inline = "TP1_Qty1",  group=group_strategy_1  )
+Qty1_Percent        = input.float(50.0, "Qty1",                  inline = "TP1_Qty1",  group=group_strategy_1  )
+Move_SL_BreakEven   = input.bool(false, "Move SL to BreakEven @TP1",                   group=group_strategy_1  )
+
+TP2_Points_Percent  = input.float(0.5,  "TP2",                  inline = "TP2_Exec",  group=group_strategy_1  )
+TP_Execute_Type     = input.string('On Close', "TP_Execute_Type", inline = "TP2_Exec", group=group_strategy_1, options=['On Close', 'On Touch'], tooltip = "On Close: Exit when bar closes at TP2\nOn Touch: Exit immediately when TP2 is touched")
+
+Want_Trailing_SL    = input.bool(true,  "Want_Trailing_SL",     inline="Trail_1_1",    group=group_strategy_1  )
+Trail_Cal_Type      = input.string('Points',"Type",             inline="Trail_1_1",    group=group_strategy_1, options=['Percent', 'Points'])
+Trail_Start_Points  = input.float(20.0, "SL Trail_Start Point / %",                    group=group_strategy_1  )*(  Trail_Cal_Type=="Percent"  ?  close*0.01   :  1   ) 
+SL_Trailing_Points  = input.float(20.0, "SL Trailing    Point / %",                    group=group_strategy_1  )*(  Trail_Cal_Type=="Percent"  ?  close*0.01   :  1   ) 
+
+SL_High             = fixnan(ta.pivothigh (SL_Swing_Length, SL_Swing_Length))
+SL_Low              = fixnan(ta.pivotlow  (SL_Swing_Length, SL_Swing_Length))
+
+
+
+
+var Buy_Trail_Start_Price    = float(na)
+var Sell_Trail_Start_Price   = float(na)
+var Buy_EP_Price             = float(na)
+var Sell_EP_Price            = float(na)
+var Buy_TP_Price             = float(na)
+var Sell_TP_Price            = float(na)
+var Buy_TP1_Price            = float(na)
+var Sell_TP1_Price           = float(na)
+var Buy_TP2_Price            = float(na)
+var Sell_TP2_Price           = float(na)
+var Buy_SL_Price             = float(na)
+var Sell_SL_Price            = float(na)
+var Buy_Trail_SL_Updated     = bool(false)
+var Sell_Trail_SL_Updated    = bool(false)
+var Buy_TP1_Hit              = bool(false)
+var Sell_TP1_Hit              = bool(false)
+var Buy_TP1_Hit_Previous      = bool(false)
+var Sell_TP1_Hit_Previous     = bool(false)
+var Buy_SL_Moved_To_BreakEven = bool(false)
+var Sell_SL_Moved_To_BreakEven = bool(false)
+
+
+if Want_Trailing_SL
+    if strategy.position_size > 0
+        if high > Buy_Trail_Start_Price
+            New_Buy_SL_Price = math.max(high - SL_Trailing_Points, Buy_SL_Price)
+            if New_Buy_SL_Price != Buy_SL_Price
+                Buy_SL_Price := New_Buy_SL_Price
+                Buy_Trail_SL_Updated := true
+    if strategy.position_size < 0
+        if low  < Sell_Trail_Start_Price
+            New_Sell_SL_Price = math.min(low  + SL_Trailing_Points, Sell_SL_Price)
+            if New_Sell_SL_Price != Sell_SL_Price
+                Sell_SL_Price := New_Sell_SL_Price
+                Sell_Trail_SL_Updated := true
+    
+
+
+
+Buy_Exit_1              =                      Long_Exit   and strategy.position_size>0
+Sell_Exit_1             =                      Short_Exit  and strategy.position_size<0
+Buy_Exit_2              =  false    // Want_Reversal_Exit ? Long_Entry  and strategy.position_size>0 : false
+Sell_Exit_2             =  false    // Want_Reversal_Exit ? Short_Entry and strategy.position_size<0 : false
+
+// TP1 and TP2 Exit Logic
+// TP1: Check if price reaches TP1 and TP1 hasn't been hit yet
+Buy_TP1_Hit_Condition   = (close >= Buy_TP1_Price or high >= Buy_TP1_Price) and strategy.position_size>0 and not Buy_TP1_Hit
+Sell_TP1_Hit_Condition  = (close <= Sell_TP1_Price or low <= Sell_TP1_Price) and strategy.position_size<0 and not Sell_TP1_Hit
+
+// TP2: Only check if TP1 was already hit on a previous bar AND price actually reaches TP2 (must be > TP1 for Buy, < TP1 for Sell)
+// IMPORTANT: TP2 is NOT included in Buy_Exit/Sell_Exit - it's handled separately to prevent same-bar execution
+Buy_TP2_Hit_Condition   = strategy.position_size>0 and Buy_TP1_Hit_Previous and Buy_TP2_Price > Buy_TP1_Price and (TP_Execute_Type == 'On Close' ? close >= Buy_TP2_Price : high >= Buy_TP2_Price)
+Sell_TP2_Hit_Condition  = strategy.position_size<0 and Sell_TP1_Hit_Previous and Sell_TP2_Price < Sell_TP1_Price and (TP_Execute_Type == 'On Close' ? close <= Sell_TP2_Price : low <= Sell_TP2_Price)
+
+Buy_Exit_3__TP1_Hit      = false  // TP1 is handled separately, not through Buy_Exit
+Sell_Exit_3__TP1_Hit     = false  // TP1 is handled separately, not through Sell_Exit
+Buy_Exit_4__TP2_Hit      = false  // TP2 is handled separately, not through Buy_Exit
+Sell_Exit_4__TP2_Hit     = false  // TP2 is handled separately, not through Sell_Exit
+
+Buy_Exit_5__SL_Hit       =  close <  Buy_SL_Price and strategy.position_size>0 
+Sell_Exit_5__SL_Hit      =  close > Sell_SL_Price and strategy.position_size<0 
+
+Buy_Exit    = Buy_Exit_1   or Buy_Exit_2   or Buy_Exit_5__SL_Hit  
+Sell_Exit   = Sell_Exit_1  or Sell_Exit_2  or Sell_Exit_5__SL_Hit 
+
+
+
+
+
+if Buy_Time
+    Buy_EP_Price       := close 
+    Buy_TP1_Hit        := false
+    Buy_TP1_Hit_Previous := false
+    Buy_SL_Moved_To_BreakEven := false
+    
+    if Want_SL
+        if      SL_Type=="Percent"
+            Buy_SL_Price   := Buy_EP_Price - (Buy_EP_Price*0.01*SL_Points_Percent)     
+        else if SL_Type=="Points"
+            Buy_SL_Price   := Buy_EP_Price - SL_Points_Percent
+        else if SL_Type=="Swing"
+            Buy_SL_Price   := SL_Low
+    
+    if Want_TP
+        // Calculate TP1 and TP2
+        if      TP_Type=="Percent"
+            Buy_TP1_Price   := Buy_EP_Price + (Buy_EP_Price*0.01*TP1_Points_Percent)
+            Buy_TP2_Price   := Buy_EP_Price + (Buy_EP_Price*0.01*TP2_Points_Percent)
+        else if TP_Type=="Points"
+            Buy_TP1_Price   := Buy_EP_Price + TP1_Points_Percent
+            Buy_TP2_Price   := Buy_EP_Price + TP2_Points_Percent
+        else if TP_Type=="RR"
+            SL_Points       = math.abs(Buy_EP_Price - Buy_SL_Price)
+            Buy_TP1_Price   := Buy_EP_Price + TP1_Points_Percent*SL_Points
+            Buy_TP2_Price   := Buy_EP_Price + TP2_Points_Percent*SL_Points
+    
+    if Want_Trailing_SL
+        Buy_Trail_Start_Price   := Buy_EP_Price + Trail_Start_Points
+    
+    // Fire Buy Entry Alert
+    if iAlgo_Buy_Entry_Syntax != ''
+        Alert_Message = Algo_Buy_Entry_Syntax('OFF', Price = Buy_EP_Price, Strike = Buy_EP_Price, SL_Price = Buy_SL_Price, TP_Price = Buy_TP1_Price)
+        alert(Alert_Message, alert.freq_once_per_bar_close)
+
+
+if Sell_Time
+    Sell_EP_Price       := close 
+    Sell_TP1_Hit        := false
+    Sell_TP1_Hit_Previous := false
+    Sell_SL_Moved_To_BreakEven := false
+    
+    if Want_SL
+        if      SL_Type=="Percent"
+            Sell_SL_Price   := Sell_EP_Price + (Sell_EP_Price*0.01*SL_Points_Percent)     
+        else if SL_Type=="Points"
+            Sell_SL_Price   := Sell_EP_Price + SL_Points_Percent
+        else if SL_Type=="Swing"
+            Sell_SL_Price   := SL_High
+
+    if Want_TP
+        // Calculate TP1 and TP2
+        if      TP_Type=="Percent"
+            Sell_TP1_Price   := Sell_EP_Price - (Sell_EP_Price*0.01*TP1_Points_Percent)
+            Sell_TP2_Price   := Sell_EP_Price - (Sell_EP_Price*0.01*TP2_Points_Percent)
+        else if TP_Type=="Points"
+            Sell_TP1_Price   := Sell_EP_Price - TP1_Points_Percent
+            Sell_TP2_Price   := Sell_EP_Price - TP2_Points_Percent
+        else if TP_Type=="RR"
+            SL_Points       = math.abs(Sell_EP_Price - Sell_SL_Price)
+            Sell_TP1_Price   := Sell_EP_Price - TP1_Points_Percent*SL_Points
+            Sell_TP2_Price   := Sell_EP_Price - TP2_Points_Percent*SL_Points
+
+    if Want_Trailing_SL
+        Sell_Trail_Start_Price   := Sell_EP_Price - Trail_Start_Points
+    
+    // Fire Sell Entry Alert
+    if iAlgo_Sell_Entry_Syntax != ''
+        Alert_Message = Algo_Sell_Entry_Syntax('OFF', Price = Sell_EP_Price, Strike = Sell_EP_Price, SL_Price = Sell_SL_Price, TP_Price = Sell_TP1_Price)
+        alert(Alert_Message, alert.freq_once_per_bar_close)
+
+
+
+
+
+
+
+
+
+// ***** Strategy. Workouts{
+
+// Handle TP1 Partial Exit and BreakEven SL Move
+// Process TP1 first, then TP2 can only trigger on next bar
+if Buy_TP1_Hit_Condition and strategy.position_size > 0
+    Buy_TP1_Hit := true
+    Qty1_Percent_Actual = math.min(Qty1_Percent, 100.0)  // Cap at 100%
+    Exit_Qty_Percent = Qty1_Percent_Actual / 100.0
+    
+    // Partial exit at TP1
+    if Exit_Qty_Percent > 0 and Exit_Qty_Percent < 1.0
+        strategy.close("Buy", qty_percent = Exit_Qty_Percent * 100, comment = 'Buy_TP1')
+    else if Exit_Qty_Percent >= 1.0
+        // If 100%, close entire position
+        strategy.close("Buy", comment = 'Buy_TP1')
+    
+    // Move SL to BreakEven if enabled
+    if Move_SL_BreakEven and not Buy_SL_Moved_To_BreakEven
+        Buy_SL_Price := Buy_EP_Price
+        Buy_SL_Moved_To_BreakEven := true
+    
+    // Fire Buy TP1 Alert
+    if iAlgo_Buy_TP1_Syntax != ''
+        Alert_Message = Algo_Buy_TP1_Syntax('OFF', Price = close, Strike = Buy_EP_Price, SL_Price = Buy_SL_Price, TP_Price = Buy_TP1_Price)
+        alert(Alert_Message, alert.freq_once_per_bar_close)
+
+if Sell_TP1_Hit_Condition and strategy.position_size < 0
+    Sell_TP1_Hit := true
+    Qty1_Percent_Actual = math.min(Qty1_Percent, 100.0)  // Cap at 100%
+    Exit_Qty_Percent = Qty1_Percent_Actual / 100.0
+    
+    // Partial exit at TP1
+    if Exit_Qty_Percent > 0 and Exit_Qty_Percent < 1.0
+        strategy.close("Sell", qty_percent = Exit_Qty_Percent * 100, comment = 'Sell_TP1')
+    else if Exit_Qty_Percent >= 1.0
+        // If 100%, close entire position
+        strategy.close("Sell", comment = 'Sell_TP1')
+    
+    // Move SL to BreakEven if enabled
+    if Move_SL_BreakEven and not Sell_SL_Moved_To_BreakEven
+        Sell_SL_Price := Sell_EP_Price
+        Sell_SL_Moved_To_BreakEven := true
+    
+    // Fire Sell TP1 Alert
+    if iAlgo_Sell_TP1_Syntax != ''
+        Alert_Message = Algo_Sell_TP1_Syntax('OFF', Price = close, Strike = Sell_EP_Price, SL_Price = Sell_SL_Price, TP_Price = Sell_TP1_Price)
+        alert(Alert_Message, alert.freq_once_per_bar_close)
+
+// Handle TP2 Exit separately (only after TP1 was hit on previous bar)
+if Buy_TP2_Hit_Condition and strategy.position_size > 0
+    strategy.close("Buy", comment = 'Buy_TP2')
+    // Fire Buy TP2 Alert
+    if iAlgo_Buy_TP2_Syntax != ''
+        Alert_Message = Algo_Buy_TP2_Syntax('OFF', Price = close, Strike = Buy_EP_Price, SL_Price = Buy_SL_Price, TP_Price = Buy_TP2_Price)
+        alert(Alert_Message, alert.freq_once_per_bar_close)
+    // Also fire Buy Exit Alert for TP2 if configured
+    else if iAlgo_Buy_Exit_Syntax != ''
+        Alert_Message = Algo_Buy_Exit_Syntax('OFF', Price = close, Strike = Buy_EP_Price, SL_Price = Buy_SL_Price, TP_Price = Buy_TP2_Price)
+        alert(Alert_Message, alert.freq_once_per_bar_close)
+
+if Sell_TP2_Hit_Condition and strategy.position_size < 0
+    strategy.close("Sell", comment = 'Sell_TP2')
+    // Fire Sell TP2 Alert
+    if iAlgo_Sell_TP2_Syntax != ''
+        Alert_Message = Algo_Sell_TP2_Syntax('OFF', Price = close, Strike = Sell_EP_Price, SL_Price = Sell_SL_Price, TP_Price = Sell_TP2_Price)
+        alert(Alert_Message, alert.freq_once_per_bar_close)
+    // Also fire Sell Exit Alert for TP2 if configured
+    else if iAlgo_Sell_Exit_Syntax != ''
+        Alert_Message = Algo_Sell_Exit_Syntax('OFF', Price = close, Strike = Sell_EP_Price, SL_Price = Sell_SL_Price, TP_Price = Sell_TP2_Price)
+        alert(Alert_Message, alert.freq_once_per_bar_close)
+
+// Update previous bar flags for TP2 detection (only after bar is confirmed)
+if barstate.isconfirmed
+    Buy_TP1_Hit_Previous := Buy_TP1_Hit
+    Sell_TP1_Hit_Previous := Sell_TP1_Hit
+
+if Time_Exit()
+    strategy.close( "Buy",  comment        = 'Buy_EoD')
+    strategy.close( "Sell", comment        = 'Sell_EoD')
+
+if Buy_Exit 
+    strategy.close( "Buy",  comment        = 'Buy_Close')
+    // Fire Buy Exit Alert
+    if iAlgo_Buy_Exit_Syntax != ''
+        Alert_Message = Algo_Buy_Exit_Syntax('OFF', Price = close, Strike = Buy_EP_Price, SL_Price = Buy_SL_Price, TP_Price = Buy_TP1_Price)
+        alert(Alert_Message, alert.freq_once_per_bar_close)
+        
+if Sell_Exit
+    strategy.close( "Sell", comment        = 'Sell_Close')
+    // Fire Sell Exit Alert
+    if iAlgo_Sell_Exit_Syntax != ''
+        Alert_Message = Algo_Sell_Exit_Syntax('OFF', Price = close, Strike = Sell_EP_Price, SL_Price = Sell_SL_Price, TP_Price = Sell_TP1_Price)
+        alert(Alert_Message, alert.freq_once_per_bar_close)
+
+
+if Buy_Time
+    strategy.entry("Buy",  strategy.long    )  
+if Sell_Time
+    strategy.entry("Sell", strategy.short   ) 
+
+
+// Fire Buy Trail SL Alert
+if Want_Trailing_SL and strategy.position_size > 0 and Buy_Trail_SL_Updated
+    Buy_Trail_SL_Updated := false
+    if iAlgo_Buy_Trail_SL_Syntax != ''
+        Alert_Message = Algo_Buy_SL_Trail_Syntax('OFF', Price = close, Strike = Buy_EP_Price, SL_Price = Buy_SL_Price, TP_Price = Buy_TP1_Hit ? Buy_TP2_Price : Buy_TP1_Price)
+        alert(Alert_Message, alert.freq_once_per_bar_close)
+
+// Fire Sell Trail SL Alert
+if Want_Trailing_SL and strategy.position_size < 0 and Sell_Trail_SL_Updated
+    Sell_Trail_SL_Updated := false
+    if iAlgo_Sell_Trail_SL_Syntax != ''
+        Alert_Message = Algo_Sell_SL_Trail_Syntax('OFF', Price = close, Strike = Sell_EP_Price, SL_Price = Sell_SL_Price, TP_Price = Sell_TP1_Hit ? Sell_TP2_Price : Sell_TP1_Price)
+        alert(Alert_Message, alert.freq_once_per_bar_close)
+
+// strategy.exit("Buy_Exit",  "Buy",  
+//                                  limit         = Buy_TP_Price,  
+//                                  stop          = Buy_SL_Price)
+// strategy.exit("Sell_Exit", "Sell", 
+//                                  limit         =  Sell_TP_Price,  
+//                                  stop          =  Sell_SL_Price)
+
+// }
+
+
+
+// }
+
+   
+// ****************** Display                   { 
+Display_TP_SL = input.bool(true,    "Display TP/SL on Chart")
+Plot_TS = strategy.position_size > 0 ?  Buy_Trail_Start_Price : strategy.position_size < 0 ?  Sell_Trail_Start_Price : na  
+Plot_TP = strategy.position_size > 0 ?  (Buy_TP1_Hit ? Buy_TP2_Price : Buy_TP1_Price) : strategy.position_size < 0 ? (Sell_TP1_Hit ? Sell_TP2_Price : Sell_TP1_Price) : na  
+Plot_TP1 = strategy.position_size > 0 ? Buy_TP1_Price : strategy.position_size < 0 ? Sell_TP1_Price : na
+Plot_TP2 = strategy.position_size > 0 ? Buy_TP2_Price : strategy.position_size < 0 ? Sell_TP2_Price : na
+Plot_SL = strategy.position_size > 0 ?  Buy_SL_Price          : strategy.position_size < 0 ?  Sell_SL_Price          : na 
+
+
+Pp0 = plot( Display_TP_SL ? strategy.position_avg_price : na, title = "Entry_Price ",  style = plot.style_linebr, color=color.gray  )
+plot(       Display_TP_SL ? Plot_TS                     : na, title = "Trail_Start ",  style = plot.style_linebr, color=color.olive )
+Pp1 = plot( Display_TP_SL ? Plot_TP1                    : na, title = "TP1",           style = plot.style_linebr, color=color.green, linewidth=1 )
+Pp1b = plot( Display_TP_SL and (Buy_TP1_Hit or Sell_TP1_Hit) ? Plot_TP2 : na, title = "TP2", style = plot.style_linebr, color=color.lime, linewidth=1 )
+Pp2 = plot( Display_TP_SL ? Plot_SL                      : na, title = "Stop_Loss",    style = plot.style_linebr, color=color.red   )
+
+fill(Pp0, Pp2, color = color.new(color.red,  91) )
+fill(Pp0, Pp1, color = color.new(color.green,91) )
+// Fill between TP1 and TP2 - will only show when both plots have values (i.e., when TP1 is hit)
+fill(Pp1, Pp1b, color = color.new(color.lime, 85) )
+    
+
+// ********** Display } ************
