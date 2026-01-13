@@ -553,9 +553,11 @@ if Buy_TP1_Hit_Condition and strategy.position_size > 0
     Qty1_Percent_Actual = math.min(Qty1_Percent, 100.0)  // Cap at 100%
     Exit_Qty_Percent = Qty1_Percent_Actual / 100.0
     
-    // Partial exit at TP1
+    // Partial exit at TP1 - Calculate actual quantity to close (more reliable than qty_percent)
     if Exit_Qty_Percent > 0 and Exit_Qty_Percent < 1.0
-        strategy.close("Buy", qty_percent = Exit_Qty_Percent * 100, comment = 'Buy_TP1')
+        Exit_Qty = math.floor(math.abs(strategy.position_size) * Exit_Qty_Percent)
+        if Exit_Qty > 0
+            strategy.close("Buy", qty = Exit_Qty, comment = 'Buy_TP1')
     else if Exit_Qty_Percent >= 1.0
         // If 100%, close entire position
         strategy.close("Buy", comment = 'Buy_TP1')
@@ -575,9 +577,11 @@ if Sell_TP1_Hit_Condition and strategy.position_size < 0
     Qty1_Percent_Actual = math.min(Qty1_Percent, 100.0)  // Cap at 100%
     Exit_Qty_Percent = Qty1_Percent_Actual / 100.0
     
-    // Partial exit at TP1
+    // Partial exit at TP1 - Calculate actual quantity to close (more reliable than qty_percent)
     if Exit_Qty_Percent > 0 and Exit_Qty_Percent < 1.0
-        strategy.close("Sell", qty_percent = Exit_Qty_Percent * 100, comment = 'Sell_TP1')
+        Exit_Qty = math.floor(math.abs(strategy.position_size) * Exit_Qty_Percent)
+        if Exit_Qty > 0
+            strategy.close("Sell", qty = Exit_Qty, comment = 'Sell_TP1')
     else if Exit_Qty_Percent >= 1.0
         // If 100%, close entire position
         strategy.close("Sell", comment = 'Sell_TP1')
