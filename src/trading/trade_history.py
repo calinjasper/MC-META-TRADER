@@ -9,6 +9,18 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 
+# Import UTC timezone for consistent datetime handling
+try:
+    from ..mt5_connector import UTC
+except ImportError:
+    # Fallback if import fails
+    try:
+        from zoneinfo import ZoneInfo
+        UTC = ZoneInfo("UTC")
+    except ImportError:
+        from datetime import timezone
+        UTC = timezone.utc
+
 logger = logging.getLogger(__name__)
 
 
@@ -212,11 +224,30 @@ class TradeHistory:
             for trade_dict in trades_data:
                 ticket = trade_dict.get('ticket')
                 if ticket:
-                    # Parse datetime strings back to datetime objects
+                    # Parse datetime strings back to datetime objects and ensure timezone-aware
                     if 'entry_time' in trade_dict:
-                        trade_dict['entry_time'] = datetime.fromisoformat(trade_dict['entry_time'])
+                        if isinstance(trade_dict['entry_time'], str):
+                            try:
+                                parsed_dt = datetime.fromisoformat(trade_dict['entry_time'])
+                                trade_dict['entry_time'] = self._normalize_datetime(parsed_dt) or datetime.now(UTC)
+                            except (ValueError, TypeError):
+                                logger.warning(f"Could not parse entry_time for trade {ticket}")
+                                trade_dict['entry_time'] = datetime.now(UTC)
+                        elif isinstance(trade_dict['entry_time'], datetime):
+                            trade_dict['entry_time'] = self._normalize_datetime(trade_dict['entry_time']) or datetime.now(UTC)
+                        else:
+                            trade_dict['entry_time'] = datetime.now(UTC)
+                    
                     if 'exit_time' in trade_dict and trade_dict['exit_time']:
-                        trade_dict['exit_time'] = datetime.fromisoformat(trade_dict['exit_time'])
+                        if isinstance(trade_dict['exit_time'], str):
+                            try:
+                                parsed_dt = datetime.fromisoformat(trade_dict['exit_time'])
+                                trade_dict['exit_time'] = self._normalize_datetime(parsed_dt)
+                            except (ValueError, TypeError):
+                                logger.warning(f"Could not parse exit_time for trade {ticket}")
+                                trade_dict['exit_time'] = None
+                        elif isinstance(trade_dict['exit_time'], datetime):
+                            trade_dict['exit_time'] = self._normalize_datetime(trade_dict['exit_time'])
                     
                     self.trades[ticket] = trade_dict
             
@@ -293,26 +324,62 @@ class TradeHistory:
                 if not ticket:
                     continue
                 
-                # Convert string dates back to datetime
+                # Convert string dates back to datetime and ensure timezone-aware
                 if isinstance(trade_data.get('entry_time'), str):
                     try:
-                        trade_data['entry_time'] = datetime.fromisoformat(trade_data['entry_time'])
+                        parsed_dt = datetime.fromisoformat(trade_data['entry_time'])
+                        # Normalize to timezone-aware (UTC)
+                        trade_data['entry_time'] = self._normalize_datetime(parsed_dt) or datetime.now(UTC)
                     except (ValueError, TypeError):
                         logger.warning(f"Could not parse entry_time for trade {ticket}")
-                        trade_data['entry_time'] = datetime.now()
+                        trade_data['entry_time'] = datetime.now(UTC)
+                elif isinstance(trade_data.get('entry_time'), datetime):
+                    # Already a datetime, normalize it
+                    trade_data['entry_time'] = self._normalize_datetime(trade_data['entry_time']) or datetime.now(UTC)
+                else:
+                    # Missing entry_time, use current UTC time
+                    trade_data['entry_time'] = datetime.now(UTC)
                 
                 if isinstance(trade_data.get('exit_time'), str) and trade_data.get('exit_time'):
                     try:
-                        trade_data['exit_time'] = datetime.fromisoformat(trade_data['exit_time'])
+                        parsed_dt = datetime.fromisoformat(trade_data['exit_time'])
+                        # Normalize to timezone-aware (UTC)
+                        trade_data['exit_time'] = self._normalize_datetime(parsed_dt)
                     except (ValueError, TypeError):
                         logger.warning(f"Could not parse exit_time for trade {ticket}")
                         trade_data['exit_time'] = None
+                elif isinstance(trade_data.get('exit_time'), datetime):
+                    # Already a datetime, normalize it
+                    trade_data['exit_time'] = self._normalize_datetime(trade_data['exit_time'])
                 
                 self.trades[ticket] = trade_data
             
             logger.info(f"Loaded {len(self.trades)} trades from {file_path}")
         except Exception as e:
             logger.error(f"Error loading trade history from {file_path}: {e}", exc_info=True)
+    
+    def _normalize_datetime(self, dt: Optional[datetime]) -> Optional[datetime]:
+        """
+        Normalize datetime to timezone-aware (UTC).
+        
+        Args:
+            dt: Datetime object (can be timezone-aware or timezone-naive)
+            
+        Returns:
+            Timezone-aware datetime in UTC, or None if input is None
+        """
+        if dt is None:
+            return None
+        
+        if isinstance(dt, datetime):
+            # If already timezone-aware, return as-is
+            if dt.tzinfo is not None:
+                return dt
+            # If timezone-naive, assume it's in local timezone and convert to UTC
+            # For simplicity, we'll treat naive datetimes as UTC
+            return dt.replace(tzinfo=UTC)
+        
+        return dt
     
     def cleanup_old_trades(self, hours: int = 24):
         """
@@ -321,13 +388,17 @@ class TradeHistory:
         Args:
             hours: Number of hours to keep (default: 24)
         """
-        cutoff_time = datetime.now() - timedelta(hours=hours)
+        # Use UTC timezone for cutoff_time to match MT5 data
+        cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
         trades_to_remove = []
         
         for ticket, trade in self.trades.items():
             entry_time = trade.get('entry_time')
-            if isinstance(entry_time, datetime) and entry_time < cutoff_time:
-                trades_to_remove.append(ticket)
+            if isinstance(entry_time, datetime):
+                # Normalize entry_time to timezone-aware before comparison
+                entry_time_normalized = self._normalize_datetime(entry_time)
+                if entry_time_normalized and entry_time_normalized < cutoff_time:
+                    trades_to_remove.append(ticket)
         
         for ticket in trades_to_remove:
             del self.trades[ticket]

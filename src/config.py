@@ -114,6 +114,14 @@ class Config:
                 "channel_id": "-1003453112937",
                 "channel_name": "MC_META_ALERTS_BOT",
                 "auto_create_channel": False
+            },
+            "data_storage": {
+                "enabled": True,
+                "pocketbase_url": "http://192.168.173.112:8090",
+                "device_id": None,  # Will be auto-detected on first run
+                "clear_existing_data": False,  # One-time flag for data clearing
+                "admin_email": "",  # PocketBase admin email for deletion operations
+                "admin_password": ""  # PocketBase admin password for deletion operations
             }
         }
 

@@ -21,10 +21,18 @@ class RealTimeIndicatorFeed(QObject):
     # Signal emitted when indicators are updated
     indicators_updated = pyqtSignal(str, dict)  # symbol, indicators_dict
     
-    def __init__(self, mt5_connector: MT5Connector):
+    def __init__(self, mt5_connector: MT5Connector, pb_manager=None):
+        """
+        Initialize RealTimeIndicatorFeed
+        
+        Args:
+            mt5_connector: MT5 connector instance
+            pb_manager: Optional PocketBase manager for indicator storage
+        """
         super().__init__()
         self.mt5 = mt5_connector
         self.indicator_manager = MT5IndicatorManager(mt5_connector)
+        self.pb_manager = pb_manager  # PocketBase manager for indicator storage
         
         # Track symbols and their indicator configurations
         self.symbol_configs: Dict[str, Dict] = {}  # symbol -> {timeframe, indicators}
@@ -108,8 +116,55 @@ class RealTimeIndicatorFeed(QObject):
                 # Update cache
                 self.indicator_cache[symbol] = indicator_values
                 
-                # Emit signal for real-time updates
-                self.indicators_updated.emit(symbol, indicator_values)
+                # Emit signal for real-time updates (if Qt is available)
+                try:
+                    self.indicators_updated.emit(symbol, indicator_values)
+                except (RuntimeError, AttributeError):
+                    # Qt not available (headless mode) - signals will fail silently
+                    pass
+                
+                # Store indicators in PocketBase if manager is available
+                if self.pb_manager:
+                    try:
+                        import MetaTrader5 as mt5
+                        # Convert MT5 timeframe constant to string
+                        timeframe_map = {
+                            mt5.TIMEFRAME_M1: "M1",
+                            mt5.TIMEFRAME_M5: "M5",
+                            mt5.TIMEFRAME_M15: "M15",
+                            mt5.TIMEFRAME_M30: "M30",
+                            mt5.TIMEFRAME_H1: "H1",
+                            mt5.TIMEFRAME_H4: "H4",
+                            mt5.TIMEFRAME_D1: "D1",
+                        }
+                        timeframe_str = timeframe_map.get(timeframe, f"TF{timeframe}")
+                        current_time = datetime.now()
+                        
+                        for indicator_name, indicator_value in indicator_values.items():
+                            # Handle complex indicator values (e.g., MACD returns dict)
+                            if isinstance(indicator_value, dict):
+                                # Store each component separately
+                                for component_name, component_value in indicator_value.items():
+                                    if isinstance(component_value, (int, float)):
+                                        self.pb_manager.store_indicator(
+                                            symbol=symbol,
+                                            timeframe=timeframe_str,
+                                            timestamp=current_time,
+                                            indicator_name=f"{indicator_name}_{component_name}",
+                                            value=component_value,
+                                            metadata={'full_name': indicator_name, 'component': component_name}
+                                        )
+                            elif isinstance(indicator_value, (int, float)):
+                                # Simple numeric value
+                                self.pb_manager.store_indicator(
+                                    symbol=symbol,
+                                    timeframe=timeframe_str,
+                                    timestamp=current_time,
+                                    indicator_name=indicator_name,
+                                    value=indicator_value
+                                )
+                    except Exception as e:
+                        logger.debug(f"Error storing indicators in PocketBase: {e}")
                 
                 logger.debug(f"Updated indicators for {symbol}: {indicator_values}")
         

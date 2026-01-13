@@ -14,10 +14,21 @@ logger = logging.getLogger(__name__)
 class StrategyManager:
     """Manages multiple trading strategies"""
     
-    def __init__(self, position_tracker=None):
+    def __init__(self, position_tracker=None, signal_callback=None, pb_manager=None):
+        """
+        Initialize StrategyManager
+        
+        Args:
+            position_tracker: Optional position tracker for position checks
+            signal_callback: Optional callback function for signal storage (headless mode)
+                            Called as: callback(strategy_name, signal, symbol, price, timestamp)
+            pb_manager: Optional PocketBase manager for direct signal storage
+        """
         self.strategies: Dict[str, BaseStrategy] = {}  # name -> strategy
         self.lock = Lock()
         self.position_tracker = position_tracker  # Optional position tracker for position checks
+        self.signal_callback = signal_callback  # Callback for signal storage (headless mode)
+        self.pb_manager = pb_manager  # PocketBase manager for direct storage
     
     def add_strategy(self, strategy: BaseStrategy) -> bool:
         """Add a strategy to the manager"""
@@ -110,6 +121,34 @@ class StrategyManager:
                     signal = strategy.update(market_data[matching_symbol])
                     logger.debug(f"Strategy {name}: update() returned signal={signal}")
                     signals[name] = signal
+                    
+                    # Call signal callback if provided (for headless mode storage)
+                    if signal and (self.signal_callback or self.pb_manager):
+                        try:
+                            market_data_for_symbol = market_data[matching_symbol]
+                            # Get current price from tick or market data
+                            tick = market_data_for_symbol.get('tick', {})
+                            price = tick.get('bid', 0.0) or tick.get('ask', 0.0) or market_data_for_symbol.get('close', 0.0)
+                            
+                            from datetime import datetime
+                            timestamp = datetime.now()
+                            
+                            # Call callback if provided
+                            if self.signal_callback:
+                                self.signal_callback(name, signal, matching_symbol, price, timestamp)
+                            
+                            # Or store directly via pb_manager if no callback
+                            elif self.pb_manager:
+                                signal_data = {
+                                    'symbol': matching_symbol,
+                                    'timestamp': timestamp.isoformat(),
+                                    'signal_type': signal,
+                                    'strategy_name': name,
+                                    'price': price
+                                }
+                                self.pb_manager.store_signal(signal_data)
+                        except Exception as e:
+                            logger.error(f"Error in signal callback/storage for {name}: {e}")
                 else:
                     logger.debug(f"Strategy {name}: Symbol {symbol} not found in market_data. Available: {list(market_data.keys())}")
                     signals[name] = None

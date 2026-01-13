@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}Backtester - Trading Strategy Backtesting{% endblock %}
+
+{% block extra_head %}
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<link rel="stylesheet" href="/static/css/backtest.css">
+{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <h2>Strategy Backtester</h2>
+    
+    <!-- Filters Section -->
+    <div class="filters">
+        <div class="filter-group" id="symbol-filter-group">
+            <label for="symbol-select">Symbol:</label>
+            <select id="symbol-select" title="Select a symbol">
+                <option value="">Loading symbols...</option>
+            </select>
+        </div>
+        
+        <div class="filter-group">
+            <label for="start-date">Start Date:</label>
+            <input type="datetime-local" id="start-date">
+        </div>
+        
+        <div class="filter-group">
+            <label for="end-date">End Date:</label>
+            <input type="datetime-local" id="end-date">
+        </div>
+        
+        <div class="filter-group">
+            <label for="indicator-select">Indicator:</label>
+            <select id="indicator-select">
+                <option value="">Loading indicators...</option>
+            </select>
+        </div>
+    </div>
+    
+    <!-- Indicator Settings Panel -->
+    <div id="indicator-settings-panel" class="indicator-settings-panel" style="display: none;">
+        <h3>Indicator Settings</h3>
+        <div id="indicator-settings-form" class="settings-form">
+            <!-- Basic settings dynamically generated -->
+        </div>
+        
+        <!-- Condition Builder (for strategies that support conditions) -->
+        <div id="condition-builder-section" class="condition-builder-section" style="display: none;">
+            <h4>Buy Conditions</h4>
+            <div id="buy-conditions-container" class="conditions-container">
+                <!-- Conditions will be added here -->
+            </div>
+            <button type="button" id="add-buy-condition-btn" class="btn btn-secondary btn-sm">+ Add Buy Condition</button>
+            
+            <h4 style="margin-top: 30px;">Sell Conditions</h4>
+            <div id="sell-conditions-container" class="conditions-container">
+                <!-- Conditions will be added here -->
+            </div>
+            <button type="button" id="add-sell-condition-btn" class="btn btn-secondary btn-sm">+ Add Sell Condition</button>
+        </div>
+        
+        <!-- SL/TP and Risk Management Configuration -->
+        <div id="risk-management-section" class="risk-management-section" style="display: none;">
+            <h4>Stop Loss & Take Profit</h4>
+            <div class="risk-management-grid">
+                <div class="risk-group">
+                    <label>
+                        <input type="checkbox" id="sl-enabled" checked> Enable Stop Loss
+                    </label>
+                </div>
+                <div class="risk-group">
+                    <label for="sl-type">SL Type:</label>
+                    <select id="sl-type">
+                        <option value="Price (Pips)">Price (Pips)</option>
+                        <option value="Price (Points)">Price (Points)</option>
+                        <option value="Percentage">Percentage</option>
+                    </select>
+                </div>
+                <div class="risk-group">
+                    <label for="sl-value">SL Value:</label>
+                    <input type="number" id="sl-value" step="0.1" min="0" value="20">
+                </div>
+                <div class="risk-group">
+                    <label>
+                        <input type="checkbox" id="tp-enabled" checked> Enable Take Profit
+                    </label>
+                </div>
+                <div class="risk-group">
+                    <label>
+                        <input type="checkbox" id="use-ratio" checked> Use 1:2 Ratio (TP = 2x SL)
+                    </label>
+                </div>
+                <div class="risk-group">
+                    <label for="tp-value">TP Value (if not using ratio):</label>
+                    <input type="number" id="tp-value" step="0.1" min="0" value="40">
+                </div>
+            </div>
+            
+            <h4 style="margin-top: 30px;">Advanced Risk Management</h4>
+            <div class="risk-management-grid">
+                <div class="risk-group">
+                    <label>
+                        <input type="checkbox" id="enable-trailing-sl"> Enable Trailing Stop Loss
+                    </label>
+                </div>
+                <div class="risk-group">
+                    <label for="trailing-sl-gap">Trailing SL Gap (points):</label>
+                    <input type="number" id="trailing-sl-gap" step="0.0001" min="0" value="0.001">
+                </div>
+                <div class="risk-group">
+                    <label>
+                        <input type="checkbox" id="enable-profit-lock"> Enable Profit Lock
+                    </label>
+                </div>
+                <div class="risk-group">
+                    <label for="profit-lock-trigger">Profit Lock Trigger ($):</label>
+                    <input type="number" id="profit-lock-trigger" step="1" min="0" value="100">
+                </div>
+                <div class="risk-group">
+                    <label for="profit-lock-value">Profit Lock Value ($):</label>
+                    <input type="number" id="profit-lock-value" step="1" min="0" value="50">
+                </div>
+                <div class="risk-group">
+                    <label for="profit-trail-step">Profit Trail Step ($):</label>
+                    <input type="number" id="profit-trail-step" step="1" min="0" value="100">
+                </div>
+                <div class="risk-group">
+                    <label for="profit-trail-amount">Profit Trail Amount ($):</label>
+                    <input type="number" id="profit-trail-amount" step="1" min="0" value="50">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Backtest Configuration -->
+    <div class="backtest-config">
+        <h3>Backtest Configuration</h3>
+        <div class="config-grid">
+            <div class="config-group">
+                <label for="position-sizing-type">Position Sizing:</label>
+                <select id="position-sizing-type">
+                    <option value="fixed">Fixed Lot Size</option>
+                    <option value="percentage">Percentage of Capital</option>
+                </select>
+            </div>
+            
+            <div class="config-group">
+                <label for="position-size">Position Size:</label>
+                <input type="number" id="position-size" step="0.01" min="0.01" value="0.01">
+                <span id="position-size-label">Lot Size</span>
+            </div>
+            
+            <div class="config-group">
+                <label for="initial-capital">Initial Capital:</label>
+                <input type="number" id="initial-capital" step="100" min="100" value="10000">
+            </div>
+            
+            <div class="config-group">
+                <label for="commission">Commission per Trade:</label>
+                <input type="number" id="commission" step="0.01" min="0" value="0">
+            </div>
+            
+            <div class="config-group">
+                <label for="slippage">Slippage (Points):</label>
+                <input type="number" id="slippage" step="0.1" min="0" value="0">
+            </div>
+        </div>
+        
+        <div class="config-actions">
+            <button id="run-backtest-btn" class="btn btn-primary">Run Backtest</button>
+        </div>
+    </div>
+    
+    <!-- Loading Indicator -->
+    <div id="loading-indicator" class="loading" style="display: none;">
+        <p>Running backtest...</p>
+    </div>
+    
+    <!-- Error Message -->
+    <div id="error-message" class="error" style="display: none;"></div>
+    
+    <!-- Results Section -->
+    <div id="results-section" class="results-section" style="display: none;">
+        <h3>Backtest Results</h3>
+        
+        <!-- Metrics Cards -->
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Total P/L</div>
+                <div class="metric-value" id="metric-total-pnl">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Win Rate</div>
+                <div class="metric-value" id="metric-win-rate">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Total Trades</div>
+                <div class="metric-value" id="metric-total-trades">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Profit Factor</div>
+                <div class="metric-value" id="metric-profit-factor">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Sharpe Ratio</div>
+                <div class="metric-value" id="metric-sharpe">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Max Drawdown</div>
+                <div class="metric-value" id="metric-drawdown">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">ROI</div>
+                <div class="metric-value" id="metric-roi">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Average Win</div>
+                <div class="metric-value" id="metric-avg-win">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Average Loss</div>
+                <div class="metric-value" id="metric-avg-loss">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Largest Win</div>
+                <div class="metric-value" id="metric-largest-win">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Largest Loss</div>
+                <div class="metric-value" id="metric-largest-loss">-</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Expectancy</div>
+                <div class="metric-value" id="metric-expectancy">-</div>
+            </div>
+        </div>
+        
+        <!-- Equity Curve Chart -->
+        <div class="chart-section">
+            <h4>Equity Curve</h4>
+            <div id="equity-chart-container" class="chart-container">
+                <div id="equity-chart" style="width:100%;height:400px;"></div>
+            </div>
+        </div>
+        
+        <!-- Trade History Table -->
+        <div class="trades-section">
+            <h4>Trade History</h4>
+            <div class="table-wrapper">
+                <table id="trades-table" class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Entry Time</th>
+                            <th>Exit Time</th>
+                            <th>Direction</th>
+                            <th>Entry Price</th>
+                            <th>Exit Price</th>
+                            <th>SL Price</th>
+                            <th>TP Price</th>
+                            <th>Lot Size</th>
+                            <th>P/L</th>
+                            <th>P/L %</th>
+                            <th>Duration</th>
+                            <th>Entry Condition</th>
+                            <th>Exit Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trades-table-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/backtest.js"></script>
+{% endblock %}
+

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}PocketBase Data Viewer - Dashboard{% endblock %}
+
+{% block extra_head %}
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <h2>Data Viewer Dashboard</h2>
+    
+    <!-- Filters Section -->
+    <div class="filters">
+        <div class="filter-group">
+            <label for="collection-select">Collection:</label>
+            <select id="collection-select">
+                <option value="">Loading collections...</option>
+            </select>
+        </div>
+        
+        <div class="filter-group" id="symbol-filter-group" style="display: none;">
+            <label for="symbol-select">Symbol:</label>
+            <select id="symbol-select" title="Select a symbol to filter data">
+                <option value="">All Symbols</option>
+            </select>
+        </div>
+        
+        <div class="filter-group">
+            <label for="start-date">Start Date:</label>
+            <input type="datetime-local" id="start-date">
+        </div>
+        
+        <div class="filter-group">
+            <label for="end-date">End Date:</label>
+            <input type="datetime-local" id="end-date">
+        </div>
+        
+        <div class="filter-group">
+            <button id="load-data-btn" class="btn btn-primary">Load Data</button>
+            <button id="download-csv-btn" class="btn btn-secondary" disabled>Download CSV</button>
+        </div>
+    </div>
+    
+    <!-- Loading Indicator -->
+    <div id="loading-indicator" class="loading" style="display: none;">
+        <p>Loading data...</p>
+    </div>
+    
+    <!-- Error Message -->
+    <div id="error-message" class="error" style="display: none;"></div>
+    
+    <!-- Chart Container -->
+    <div id="chart-container" class="chart-container" style="display: none;">
+        <div id="tradingview-chart" style="width:100%;height:600px;position: relative;"></div>
+        <!-- Candle Info Panel (floating tooltip near cursor) -->
+        <div id="candle-info-panel" class="candle-info-panel" style="display: none;">
+        <div class="candle-info-content">
+            <h4>Candle Details</h4>
+            <div class="candle-info-grid">
+                <div class="candle-info-item">
+                    <span class="candle-info-label">Time:</span>
+                    <span id="candle-time" class="candle-info-value">-</span>
+                </div>
+                <div class="candle-info-item">
+                    <span class="candle-info-label">Open:</span>
+                    <span id="candle-open" class="candle-info-value">-</span>
+                </div>
+                <div class="candle-info-item">
+                    <span class="candle-info-label">High:</span>
+                    <span id="candle-high" class="candle-info-value">-</span>
+                </div>
+                <div class="candle-info-item">
+                    <span class="candle-info-label">Low:</span>
+                    <span id="candle-low" class="candle-info-value">-</span>
+                </div>
+                <div class="candle-info-item">
+                    <span class="candle-info-label">Close:</span>
+                    <span id="candle-close" class="candle-info-value">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Data Table Container -->
+    <div id="table-container" class="table-container" style="display: none;">
+        <h3>Data Table</h3>
+        <div class="table-wrapper">
+            <table id="data-table" class="data-table">
+                <thead id="table-head"></thead>
+                <tbody id="table-body"></tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Info Section -->
+    <div id="info-section" class="info-section" style="display: none;">
+        <p id="record-count"></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/app.js"></script>
+<script src="/static/js/charts.js"></script>
+{% endblock %}
+

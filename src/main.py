@@ -16,6 +16,8 @@ from PyQt6.QtCore import Qt
 
 from src.gui.main_window import MainWindow
 from src.data.pocketbase_manager import PocketBaseManager
+from src.config import Config
+from src.utils.device_utils import get_local_ip_address
 
 # Configure logging to both console and file
 log_dir = project_root / "logs"
@@ -78,25 +80,91 @@ def main():
     # Set application style
     app.setStyle('Fusion')
     
+    # Load configuration
+    config = Config()
+    
+    # Check if data storage is enabled
+    data_storage_enabled = config.get('data_storage.enabled', True)
+    pocketbase_url = config.get('data_storage.pocketbase_url', 'http://192.168.173.112:8090')
+    
+    # Get or detect device ID
+    device_id = config.get('data_storage.device_id')
+    if not device_id:
+        device_id = get_local_ip_address()
+        if device_id:
+            config.set('data_storage.device_id', device_id)
+            config.save()
+            logging.info(f"Auto-detected and saved device_id: {device_id}")
+        else:
+            logging.warning("Could not detect device ID")
+            device_id = 'unknown'
+    else:
+        logging.info(f"Using configured device_id: {device_id}")
+    
+    # Create MainWindow first (needed for telegram_bot)
+    window = MainWindow()
+    
     # Initialize PocketBase Manager (optional - won't fail if server not running)
     pb_manager = None
-    try:
-        pb_manager = PocketBaseManager('http://192.168.173.112:8090')
-        if pb_manager.health_check():
-            logging.info("PocketBase connection successful")
-        else:
-            logging.warning("PocketBase server not reachable - data storage disabled")
+    if data_storage_enabled:
+        try:
+            # Get admin credentials for deletion operations
+            admin_email = config.get('data_storage.admin_email', '')
+            admin_password = config.get('data_storage.admin_password', '')
+            
+            # Initialize PocketBase with device_id, telegram_bot, and admin credentials
+            pb_manager = PocketBaseManager(
+                base_url=pocketbase_url,
+                device_id=device_id,
+                telegram_bot=window.telegram_bot if hasattr(window, 'telegram_bot') else None,
+                admin_email=admin_email if admin_email else None,
+                admin_password=admin_password if admin_password else None
+            )
+            
+            if pb_manager.health_check():
+                logging.info("PocketBase connection successful")
+                
+                # Check if we need to clear existing data (one-time)
+                clear_existing = config.get('data_storage.clear_existing_data', False)
+                logging.info(f"Data clearing flag status: clear_existing_data = {clear_existing}")
+                if clear_existing:
+                    logging.warning("=" * 60)
+                    logging.warning("CLEARING ALL EXISTING DATA FROM POCKETBASE (ONE-TIME OPERATION)")
+                    logging.warning("=" * 60)
+                    collections_to_clear = ['ticks', 'ohlc', 'signals', 'indicators']
+                    logging.info(f"Collections to clear: {collections_to_clear}")
+                    if pb_manager.clear_all_data(collections_to_clear):
+                        logging.info("=" * 60)
+                        logging.info("DATA CLEARING COMPLETED SUCCESSFULLY")
+                        logging.info("=" * 60)
+                    else:
+                        logging.error("=" * 60)
+                        logging.error("DATA CLEARING FAILED - CHECK LOGS ABOVE FOR DETAILS")
+                        logging.error("=" * 60)
+                    
+                    # Mark as done
+                    config.set('data_storage.clear_existing_data', False)
+                    config.save()
+                    logging.info("Data clearing flag set to False - will not clear again on next run")
+                else:
+                    logging.info("Data clearing skipped - clear_existing_data flag is False")
+                    logging.info("To clear data again, set 'data_storage.clear_existing_data' to true in config.json")
+            else:
+                logging.warning("PocketBase server not reachable - data storage disabled")
+                pb_manager = None
+        except Exception as e:
+            logging.warning(f"PocketBase initialization failed: {e} - continuing without database storage")
             pb_manager = None
-    except Exception as e:
-        logging.warning(f"PocketBase initialization failed: {e} - continuing without database storage")
-        pb_manager = None
-    
-    # Create and show main window
-    window = MainWindow()
+    else:
+        logging.info("Data storage disabled in configuration - PocketBase not initialized")
     
     # Pass PocketBase manager to components that need it
     if pb_manager:
         try:
+            # Update telegram_bot reference in case it was initialized after PocketBase
+            if hasattr(window, 'telegram_bot') and window.telegram_bot:
+                pb_manager.telegram_bot = window.telegram_bot
+            
             # Pass to data feed (for tick and OHLC storage)
             if hasattr(window, 'data_feed'):
                 window.data_feed.pb_manager = pb_manager

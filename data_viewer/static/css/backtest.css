@@ -1,0 +1,409 @@
+/* Backtester Styles */
+
+.indicator-settings-panel {
+    margin: 20px 0;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+}
+
+.indicator-settings-panel h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+}
+
+.settings-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+}
+
+.settings-form .form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-form label {
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #555;
+}
+
+.settings-form input,
+.settings-form select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.backtest-config {
+    margin: 20px 0;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+}
+
+.backtest-config h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+}
+
+.config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.config-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.config-group label {
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #555;
+}
+
+.config-group input,
+.config-group select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.config-group input[type="number"] {
+    width: 100%;
+}
+
+.config-actions {
+    margin-top: 20px;
+}
+
+.results-section {
+    margin-top: 30px;
+}
+
+.results-section h3 {
+    margin-bottom: 20px;
+    color: #2c3e50;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 10px;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.metric-card {
+    background: white;
+    padding: 20px;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border-left: 4px solid #3498db;
+}
+
+.metric-label {
+    font-size: 12px;
+    color: #7f8c8d;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.metric-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #2c3e50;
+}
+
+.metric-card.positive .metric-value {
+    color: #27ae60;
+}
+
+.metric-card.negative .metric-value {
+    color: #e74c3c;
+}
+
+.chart-section {
+    margin: 30px 0;
+    padding: 20px;
+    background-color: #fafafa;
+    border-radius: 6px;
+}
+
+.chart-section h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+}
+
+.trades-section {
+    margin: 30px 0;
+}
+
+.trades-section h4 {
+    margin-bottom: 15px;
+    color: #2c3e50;
+}
+
+#trades-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+#trades-table thead {
+    background-color: #34495e;
+    color: white;
+}
+
+#trades-table th,
+#trades-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+#trades-table th {
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+}
+
+#trades-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+#trades-table tbody tr.win {
+    background-color: #d4edda;
+}
+
+#trades-table tbody tr.loss {
+    background-color: #f8d7da;
+}
+
+#trades-table .positive {
+    color: #27ae60;
+    font-weight: 600;
+}
+
+#trades-table .negative {
+    color: #e74c3c;
+    font-weight: 600;
+}
+
+/* Exit Reason Color Coding */
+#trades-table .exit-sl {
+    color: #e74c3c;
+    font-weight: 600;
+}
+
+#trades-table .exit-tp {
+    color: #27ae60;
+    font-weight: 600;
+}
+
+#trades-table .exit-signal {
+    color: #3498db;
+    font-weight: 500;
+}
+
+#trades-table .exit-other {
+    color: #7f8c8d;
+    font-weight: 500;
+}
+
+/* Risk Management Section Styles */
+.risk-management-section {
+    margin-top: 30px;
+    padding: 20px;
+    background-color: #f0f0f0;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+}
+
+.risk-management-section h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+    font-size: 18px;
+}
+
+.risk-management-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.risk-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.risk-group label {
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #555;
+    font-size: 13px;
+}
+
+.risk-group input[type="checkbox"] {
+    margin-right: 5px;
+}
+
+.risk-group input[type="number"],
+.risk-group select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+/* EMA Periods Grid */
+.ema-periods-group {
+    grid-column: 1 / -1; /* Span full width */
+}
+
+.ema-periods-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.ema-period-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.ema-period-field label {
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #555;
+    font-size: 13px;
+}
+
+.ema-period-field input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+/* Condition Builder Styles */
+.condition-builder-section {
+    margin-top: 30px;
+    padding: 20px;
+    background-color: #f0f0f0;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+}
+
+.condition-builder-section h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+    font-size: 18px;
+}
+
+.conditions-container {
+    margin-bottom: 15px;
+}
+
+.condition-item {
+    margin-bottom: 15px;
+    padding: 15px;
+    background-color: white;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+}
+
+.condition-form {
+    display: flex;
+    flex-direction: column;
+}
+
+.condition-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.condition-header span {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.btn-remove-condition {
+    padding: 5px 10px;
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.btn-remove-condition:hover {
+    background-color: #c0392b;
+}
+
+.condition-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.condition-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.condition-field label {
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #555;
+    font-size: 13px;
+}
+
+.condition-field select,
+.condition-field input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.btn-sm {
+    padding: 8px 16px;
+    font-size: 14px;
+}
+
+.btn-secondary {
+    background-color: #95a5a6;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.btn-secondary:hover {
+    background-color: #7f8c8d;
+}
+

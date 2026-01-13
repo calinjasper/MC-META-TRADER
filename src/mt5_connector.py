@@ -372,20 +372,62 @@ class MT5Connector:
             logger.warning(f"Could not retrieve rates for {symbol} (timeframe: {timeframe})")
             return None
         
+        # Diagnostic logging: Verify MT5 data structure
+        if len(rates) > 0:
+            sample_rate = rates[0]
+            logger.debug(f"MT5 get_rates for {symbol} (TF={timeframe}): "
+                        f"Sample rate type={type(sample_rate)}, "
+                        f"Length={len(sample_rate) if hasattr(sample_rate, '__len__') else 'N/A'}, "
+                        f"First 8 values={[sample_rate[i] for i in range(min(8, len(sample_rate)))] if hasattr(sample_rate, '__len__') else 'N/A'}")
+            
+            # Log raw OHLC values from MT5
+            if len(sample_rate) >= 5:
+                raw_open = sample_rate[1] if hasattr(sample_rate, '__getitem__') else getattr(sample_rate, 'open', None)
+                raw_high = sample_rate[2] if hasattr(sample_rate, '__getitem__') else getattr(sample_rate, 'high', None)
+                raw_low = sample_rate[3] if hasattr(sample_rate, '__getitem__') else getattr(sample_rate, 'low', None)
+                raw_close = sample_rate[4] if hasattr(sample_rate, '__getitem__') else getattr(sample_rate, 'close', None)
+                
+                logger.debug(f"MT5 raw OHLC for {symbol} (first bar): "
+                           f"O={raw_open}, H={raw_high}, L={raw_low}, C={raw_close}")
+                
+                # Check if raw values are identical (MT5 data issue)
+                if raw_open == raw_high == raw_low == raw_close:
+                    logger.warning(f"MT5 returned IDENTICAL OHLC values for {symbol}: "
+                                 f"O={raw_open}, H={raw_high}, L={raw_low}, C={raw_close}. "
+                                 f"This may be legitimate (no price movement) or a broker data issue.")
+        
         # Convert to list of dicts
         result = []
-        for rate in rates:
-            # MT5 timestamps are in UTC, create UTC-aware datetime
-            result.append({
-                'time': datetime.fromtimestamp(rate[0], tz=UTC),
-                'open': rate[1],
-                'high': rate[2],
-                'low': rate[3],
-                'close': rate[4],
-                'tick_volume': rate[5],
-                'spread': rate[6],
-                'real_volume': rate[7] if len(rate) > 7 else 0,
-            })
+        for idx, rate in enumerate(rates):
+            try:
+                # MT5 timestamps are in UTC, create UTC-aware datetime
+                rate_time = datetime.fromtimestamp(rate[0], tz=UTC)
+                rate_open = float(rate[1])
+                rate_high = float(rate[2])
+                rate_low = float(rate[3])
+                rate_close = float(rate[4])
+                rate_tick_vol = int(rate[5]) if len(rate) > 5 else 0
+                rate_spread = float(rate[6]) if len(rate) > 6 else 0.0
+                rate_real_vol = int(rate[7]) if len(rate) > 7 else 0
+                
+                # Log first bar conversion for debugging
+                if idx == 0:
+                    logger.debug(f"Converting MT5 rate to dict for {symbol}: "
+                               f"time={rate_time}, O={rate_open}, H={rate_high}, L={rate_low}, C={rate_close}")
+                
+                result.append({
+                    'time': rate_time,
+                    'open': rate_open,
+                    'high': rate_high,
+                    'low': rate_low,
+                    'close': rate_close,
+                    'tick_volume': rate_tick_vol,
+                    'spread': rate_spread,
+                    'real_volume': rate_real_vol,
+                })
+            except (IndexError, TypeError, ValueError) as e:
+                logger.error(f"Error converting rate {idx} for {symbol}: {e}. Rate structure: {rate}")
+                continue
         
         return result
     
