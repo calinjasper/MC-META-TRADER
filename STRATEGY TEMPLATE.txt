@@ -555,8 +555,11 @@ if Buy_TP1_Hit_Condition and strategy.position_size > 0
     
     // Partial exit at TP1 - Calculate actual quantity to close (more reliable than qty_percent)
     if Exit_Qty_Percent > 0 and Exit_Qty_Percent < 1.0
-        Exit_Qty = math.floor(math.abs(strategy.position_size) * Exit_Qty_Percent)
-        if Exit_Qty > 0
+        Current_Position_Size = math.abs(strategy.position_size)
+        Exit_Qty = math.max(1, math.round(Current_Position_Size * Exit_Qty_Percent))
+        // Ensure we don't close more than the current position
+        Exit_Qty := math.min(Exit_Qty, Current_Position_Size)
+        if Exit_Qty > 0 and Exit_Qty <= Current_Position_Size
             strategy.close("Buy", qty = Exit_Qty, comment = 'Buy_TP1')
     else if Exit_Qty_Percent >= 1.0
         // If 100%, close entire position
@@ -579,8 +582,11 @@ if Sell_TP1_Hit_Condition and strategy.position_size < 0
     
     // Partial exit at TP1 - Calculate actual quantity to close (more reliable than qty_percent)
     if Exit_Qty_Percent > 0 and Exit_Qty_Percent < 1.0
-        Exit_Qty = math.floor(math.abs(strategy.position_size) * Exit_Qty_Percent)
-        if Exit_Qty > 0
+        Current_Position_Size = math.abs(strategy.position_size)
+        Exit_Qty = math.max(1, math.round(Current_Position_Size * Exit_Qty_Percent))
+        // Ensure we don't close more than the current position
+        Exit_Qty := math.min(Exit_Qty, Current_Position_Size)
+        if Exit_Qty > 0 and Exit_Qty <= Current_Position_Size
             strategy.close("Sell", qty = Exit_Qty, comment = 'Sell_TP1')
     else if Exit_Qty_Percent >= 1.0
         // If 100%, close entire position
