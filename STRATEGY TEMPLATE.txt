@@ -551,16 +551,12 @@ if Sell_Time
 if Buy_TP1_Hit_Condition and strategy.position_size > 0
     Buy_TP1_Hit := true
     Qty1_Percent_Actual = math.min(Qty1_Percent, 100.0)  // Cap at 100%
-    Exit_Qty_Percent = Qty1_Percent_Actual / 100.0
     
-    // Partial exit at TP1 - Calculate actual quantity to close (more reliable than qty_percent)
-    if Exit_Qty_Percent > 0 and Exit_Qty_Percent < 1.0
-        Current_Position_Size = math.abs(strategy.position_size)
-        // Calculate exit quantity: round the percentage, ensure at least 1, and don't exceed position size
-        Exit_Qty = math.min(Current_Position_Size, math.max(1, math.round(Current_Position_Size * Exit_Qty_Percent)))
-        if Exit_Qty > 0 and Exit_Qty <= Current_Position_Size
-            strategy.close("Buy", qty = Exit_Qty, comment = 'Buy_TP1')
-    else if Exit_Qty_Percent >= 1.0
+    // Partial exit at TP1 - Use qty_percent for better compatibility with forex/metals
+    if Qty1_Percent_Actual > 0 and Qty1_Percent_Actual < 100.0
+        // Use qty_percent parameter (0-100) which works better for forex/metals like EURUSDm and XAUUSDm
+        strategy.close("Buy", qty_percent = Qty1_Percent_Actual, comment = 'Buy_TP1')
+    else if Qty1_Percent_Actual >= 100.0
         // If 100%, close entire position
         strategy.close("Buy", comment = 'Buy_TP1')
     
@@ -577,16 +573,12 @@ if Buy_TP1_Hit_Condition and strategy.position_size > 0
 if Sell_TP1_Hit_Condition and strategy.position_size < 0
     Sell_TP1_Hit := true
     Qty1_Percent_Actual = math.min(Qty1_Percent, 100.0)  // Cap at 100%
-    Exit_Qty_Percent = Qty1_Percent_Actual / 100.0
     
-    // Partial exit at TP1 - Calculate actual quantity to close (more reliable than qty_percent)
-    if Exit_Qty_Percent > 0 and Exit_Qty_Percent < 1.0
-        Current_Position_Size = math.abs(strategy.position_size)
-        // Calculate exit quantity: round the percentage, ensure at least 1, and don't exceed position size
-        Exit_Qty = math.min(Current_Position_Size, math.max(1, math.round(Current_Position_Size * Exit_Qty_Percent)))
-        if Exit_Qty > 0 and Exit_Qty <= Current_Position_Size
-            strategy.close("Sell", qty = Exit_Qty, comment = 'Sell_TP1')
-    else if Exit_Qty_Percent >= 1.0
+    // Partial exit at TP1 - Use qty_percent for better compatibility with forex/metals
+    if Qty1_Percent_Actual > 0 and Qty1_Percent_Actual < 100.0
+        // Use qty_percent parameter (0-100) which works better for forex/metals like EURUSDm and XAUUSDm
+        strategy.close("Sell", qty_percent = Qty1_Percent_Actual, comment = 'Sell_TP1')
+    else if Qty1_Percent_Actual >= 100.0
         // If 100%, close entire position
         strategy.close("Sell", comment = 'Sell_TP1')
     
