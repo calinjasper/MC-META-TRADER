@@ -7,6 +7,8 @@ from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel
 from PyQt6.QtCore import Qt
 import logging
 
+from ..utils.font_utils import get_stylesheet_font_string
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,36 +31,38 @@ class ChartStatusBar(QWidget):
         layout.setSpacing(15)
         
         # Current Price
+        price_font_style = get_stylesheet_font_string('normal', 'semi_bold')
         self.price_label = QLabel("Price: --")
-        self.price_label.setStyleSheet("color: #ffffff; font-weight: bold;")
+        self.price_label.setStyleSheet(f"{price_font_style} color: #ffffff;")
         layout.addWidget(self.price_label)
         
         layout.addWidget(self._create_separator())
         
         # OHLC
+        ohlc_font_style = get_stylesheet_font_string('normal', 'regular')
         self.ohlc_label = QLabel("O: --  H: --  L: --  C: --")
-        self.ohlc_label.setStyleSheet("color: #cccccc;")
+        self.ohlc_label.setStyleSheet(f"{ohlc_font_style} color: #cccccc;")
         layout.addWidget(self.ohlc_label)
         
         layout.addWidget(self._create_separator())
         
         # Price Change
         self.change_label = QLabel("Change: --")
-        self.change_label.setStyleSheet("color: #cccccc;")
+        self.change_label.setStyleSheet(f"{ohlc_font_style} color: #cccccc;")
         layout.addWidget(self.change_label)
         
         layout.addWidget(self._create_separator())
         
         # Volume
         self.volume_label = QLabel("Volume: --")
-        self.volume_label.setStyleSheet("color: #cccccc;")
+        self.volume_label.setStyleSheet(f"{ohlc_font_style} color: #cccccc;")
         layout.addWidget(self.volume_label)
         
         layout.addWidget(self._create_separator())
         
         # Spread
         self.spread_label = QLabel("Spread: --")
-        self.spread_label.setStyleSheet("color: #cccccc;")
+        self.spread_label.setStyleSheet(f"{ohlc_font_style} color: #cccccc;")
         layout.addWidget(self.spread_label)
         
         layout.addStretch()
@@ -66,7 +70,8 @@ class ChartStatusBar(QWidget):
     def _create_separator(self) -> QLabel:
         """Create a vertical separator"""
         separator = QLabel("|")
-        separator.setStyleSheet("color: #666666;")
+        separator_font_style = get_stylesheet_font_string('normal', 'regular')
+        separator.setStyleSheet(f"{separator_font_style} color: #666666;")
         return separator
     
     def update_price(self, bid: float = None, ask: float = None, price: float = None):

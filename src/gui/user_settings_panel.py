@@ -27,6 +27,7 @@ except ImportError:
 
 from ..mt5_connector import MT5Connector
 from ..config import Config
+from ..utils.font_utils import get_stylesheet_font_string, apply_font_to_widget, FontSize, FontWeight
 
 logger = logging.getLogger(__name__)
 
@@ -389,26 +390,42 @@ class UserSettingsPanel(QWidget):
         
         self.account_id_input = QLineEdit()
         self.account_id_input.setPlaceholderText("Enter Account ID (Login)")
+        apply_font_to_widget(self.account_id_input, 'normal', 'regular')
         account_layout.addRow("Account ID:", self.account_id_input)
         
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_input.setPlaceholderText("Enter Password")
+        apply_font_to_widget(self.password_input, 'normal', 'regular')
         account_layout.addRow("Password:", self.password_input)
         
         self.server_input = QLineEdit()
         self.server_input.setPlaceholderText("Enter Server Name")
+        apply_font_to_widget(self.server_input, 'normal', 'regular')
         account_layout.addRow("Server:", self.server_input)
         
         # Buttons
         button_layout = QHBoxLayout()
         save_btn = QPushButton("Save Settings")
-        save_btn.setStyleSheet("background-color: #2196F3; color: white; font-weight: bold; padding: 8px;")
+        button_font_style = get_stylesheet_font_string('medium', 'semi_bold')
+        save_btn.setStyleSheet(f"""
+            {button_font_style}
+            background-color: #2196F3; 
+            color: white; 
+            padding: 8px;
+            border-radius: 4px;
+        """)
         save_btn.clicked.connect(self.save_settings)
         button_layout.addWidget(save_btn)
         
         self.verify_btn = QPushButton("Verify Account")
-        self.verify_btn.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; padding: 8px;")
+        self.verify_btn.setStyleSheet(f"""
+            {button_font_style}
+            background-color: #4CAF50; 
+            color: white; 
+            padding: 8px;
+            border-radius: 4px;
+        """)
         self.verify_btn.clicked.connect(self.verify_account)
         button_layout.addWidget(self.verify_btn)
         
@@ -424,11 +441,13 @@ class UserSettingsPanel(QWidget):
         status_layout = QVBoxLayout()
         
         self.status_label = QLabel("Not Verified")
-        self.status_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #888;")
+        status_font_style = get_stylesheet_font_string('medium', 'semi_bold')
+        self.status_label.setStyleSheet(f"{status_font_style} color: #888;")
         status_layout.addWidget(self.status_label)
         
         self.account_details_label = QLabel("")
-        self.account_details_label.setStyleSheet("color: #ccc;")
+        details_font_style = get_stylesheet_font_string('normal', 'regular')
+        self.account_details_label.setStyleSheet(f"{details_font_style} color: #ccc;")
         self.account_details_label.setWordWrap(True)
         status_layout.addWidget(self.account_details_label)
         
@@ -539,22 +558,22 @@ class UserSettingsPanel(QWidget):
     
     def _get_group_style(self) -> str:
         """Get consistent group box styling"""
-        return """
-            QGroupBox {
-                font-weight: bold;
-                font-size: 12px;
+        group_font_style = get_stylesheet_font_string('normal', 'semi_bold')
+        return f"""
+            QGroupBox {{
+                {group_font_style}
                 border: 2px solid #555;
                 border-radius: 5px;
                 margin-top: 10px;
                 padding-top: 15px;
                 background-color: #252525;
-            }
-            QGroupBox::title {
+            }}
+            QGroupBox::title {{
                 subcontrol-origin: margin;
                 left: 10px;
                 padding: 0 5px;
                 color: #fff;
-            }
+            }}
         """
     
     def load_settings(self):
@@ -565,7 +584,7 @@ class UserSettingsPanel(QWidget):
         self.server_input.setText(mt5_config.get('server', ''))
     
     def save_settings(self):
-        """Save settings to config"""
+        """Save settings to config and automatically fetch account details"""
         try:
             account_id = self.account_id_input.text().strip()
             password = self.password_input.text().strip()
@@ -587,10 +606,63 @@ class UserSettingsPanel(QWidget):
             self.config.set('mt5.server', server)
             self.config.save()
             
-            QMessageBox.information(self, "Success", "Settings saved successfully")
+            # Automatically attempt to connect to MT5 and fetch account details
+            mt5_path = self.config.get('mt5.path', '')
+            timeout = self.config.get('mt5.timeout', 10000)
+            
+            # Attempt connection
+            if self.mt5.initialize(path=mt5_path, login=login, password=password, server=server, timeout=timeout):
+                logger.info(f"Successfully connected to MT5 account {login} after saving settings")
+                
+                # Fetch account information
+                account_info = self.mt5.get_account_info()
+                if account_info:
+                    # Get terminal info for trading permissions
+                    import MetaTrader5 as mt5
+                    terminal_info = mt5.terminal_info()
+                    
+                    # Display account details
+                    self.display_account_details(account_info, terminal_info)
+                    
+                    # Update status
+                    trade_allowed = terminal_info.trade_allowed if terminal_info else False
+                    trade_mode = account_info.get('trade_mode', 0)
+                    
+                    if trade_allowed:
+                        self.status_label.setText("✓ Settings Saved & Account Connected - Ready for Trading")
+                        self.status_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #4CAF50;")
+                    else:
+                        self.status_label.setText("⚠ Settings Saved & Account Connected - AutoTrading Disabled")
+                        self.status_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #ff9800;")
+                    
+                    QMessageBox.information(
+                        self, 
+                        "Success", 
+                        f"Settings saved successfully!\n\nAccount details fetched:\n"
+                        f"Account: {account_info.get('login', 'N/A')}\n"
+                        f"Balance: {account_info.get('balance', 0):.2f} {account_info.get('currency', 'USD')}\n"
+                        f"Equity: {account_info.get('equity', 0):.2f} {account_info.get('currency', 'USD')}"
+                    )
+                else:
+                    QMessageBox.warning(
+                        self, 
+                        "Settings Saved", 
+                        "Settings saved successfully, but could not fetch account details.\n"
+                        "You can verify the account manually using the 'Verify Account' button."
+                    )
+            else:
+                # Settings saved but connection failed
+                error_msg = self.mt5.get_last_error() or 'Unknown error'
+                logger.warning(f"Settings saved but MT5 connection failed: {error_msg}")
+                QMessageBox.warning(
+                    self, 
+                    "Settings Saved", 
+                    f"Settings saved successfully, but could not connect to MT5:\n\n{error_msg}\n\n"
+                    f"You can verify the account manually using the 'Verify Account' button."
+                )
             
         except Exception as e:
-            logger.error(f"Error saving settings: {e}")
+            logger.error(f"Error saving settings: {e}", exc_info=True)
             QMessageBox.critical(self, "Error", f"Failed to save settings: {str(e)}")
     
     def verify_account(self):
@@ -689,25 +761,18 @@ class UserSettingsPanel(QWidget):
                 self.status_label.setText("⚠ Account Not Ready (AutoTrading Disabled, MT5 Not Connected)")
             self.status_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #ff9800;")
         
-        # Update account details with proper alignment
-        currency = account_info.get('currency', 'USD')
-        mt5_status = "Connected" if mt5_connected else "Not Connected"
-        mt5_status_color = "#4CAF50" if mt5_connected else "#f44336"
-        details = f"""
-        <table style="width: 100%; border-collapse: collapse;">
-        <tr><td style="padding: 2px 10px 2px 0; text-align: left; width: 40%;"><b>Account:</b></td><td style="padding: 2px 0; text-align: left;">{account_info.get('login', 'N/A')}</td></tr>
-        <tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Balance:</b></td><td style="padding: 2px 0; text-align: left;">{account_info.get('balance', 0):.2f} {currency}</td></tr>
-        <tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Equity:</b></td><td style="padding: 2px 0; text-align: left;">{account_info.get('equity', 0):.2f} {currency}</td></tr>
-        <tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Margin:</b></td><td style="padding: 2px 0; text-align: left;">{account_info.get('margin', 0):.2f} {currency}</td></tr>
-        <tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Free Margin:</b></td><td style="padding: 2px 0; text-align: left;">{account_info.get('free_margin', 0):.2f} {currency}</td></tr>
-        <tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Leverage:</b></td><td style="padding: 2px 0; text-align: left;">1:{account_info.get('leverage', 0)}</td></tr>
-        <tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Server:</b></td><td style="padding: 2px 0; text-align: left;">{account_info.get('server', 'N/A')}</td></tr>
-        <tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>MT5 Connection:</b></td><td style="padding: 2px 0; text-align: left;"><span style="color: {mt5_status_color};">{mt5_status}</span></td></tr>
-        <tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>AutoTrading:</b></td><td style="padding: 2px 0; text-align: left;">{'Enabled' if trade_allowed else 'Disabled'}</td></tr>
-        <tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Trade Mode:</b></td><td style="padding: 2px 0; text-align: left;">{trade_mode} {'(Enabled)' if trade_mode > 0 else '(Disabled)'}</td></tr>
-        </table>
-        """
-        self.account_details_label.setText(details)
+        # Display all account details using the comprehensive display method
+        # Get full account info from MT5 if connected
+        full_account_info = None
+        if mt5_connected:
+            full_account_info = self.mt5.get_account_info()
+        
+        # Use full account info if available, otherwise use verification result
+        if full_account_info:
+            self.display_account_details(full_account_info, terminal_info)
+        else:
+            # Fallback to verification result account_info
+            self.display_account_details(account_info, terminal_info)
         
         # Update P&L display
         currency = account_info.get('currency', 'USD')
@@ -745,6 +810,148 @@ class UserSettingsPanel(QWidget):
         # Re-enable verify button
         self.verify_btn.setEnabled(True)
         self.verify_btn.setText("Verify Account")
+    
+    def display_account_details(self, account_info: Dict, terminal_info=None):
+        """
+        Display all MT5 account details in organized sections
+        
+        Args:
+            account_info: Dictionary containing all account information
+            terminal_info: Terminal info object (optional)
+        """
+        currency = account_info.get('currency', 'USD')
+        mt5_connected = self.mt5.is_connected()
+        mt5_status = "Connected" if mt5_connected else "Not Connected"
+        mt5_status_color = "#4CAF50" if mt5_connected else "#f44336"
+        
+        trade_allowed = False
+        if terminal_info:
+            trade_allowed = getattr(terminal_info, 'trade_allowed', False)
+        elif account_info:
+            trade_allowed = account_info.get('trade_allowed', False)
+        
+        # Format helper function
+        def format_value(value, value_type='currency'):
+            """Format value based on type"""
+            if value is None:
+                return 'N/A'
+            if value_type == 'currency':
+                return f"{float(value):.2f} {currency}"
+            elif value_type == 'percentage':
+                return f"{float(value):.2f}%"
+            elif value_type == 'leverage':
+                return f"1:{int(value)}"
+            elif value_type == 'boolean':
+                return 'Yes' if value else 'No'
+            elif value_type == 'integer':
+                return str(int(value))
+            else:
+                return str(value)
+        
+        # Build comprehensive account details display
+        details = """
+        <table style="width: 100%; border-collapse: collapse;">
+        """
+        
+        # Account Information Section
+        details += """
+        <tr><td colspan="2" style="padding: 5px 0; font-weight: bold; color: #4CAF50; border-top: 1px solid #555;">Account Information</td></tr>
+        """
+        if account_info.get('login'):
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left; width: 40%;"><b>Account ID:</b></td><td style="padding: 2px 0; text-align: left;">{account_info.get("login", "N/A")}</td></tr>\n'
+        if account_info.get('name'):
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Account Name:</b></td><td style="padding: 2px 0; text-align: left;">{account_info.get("name", "N/A")}</td></tr>\n'
+        if account_info.get('company'):
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Company/Broker:</b></td><td style="padding: 2px 0; text-align: left;">{account_info.get("company", "N/A")}</td></tr>\n'
+        if account_info.get('server'):
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Server:</b></td><td style="padding: 2px 0; text-align: left;">{account_info.get("server", "N/A")}</td></tr>\n'
+        if account_info.get('account_number'):
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Account Number:</b></td><td style="padding: 2px 0; text-align: left;">{account_info.get("account_number", "N/A")}</td></tr>\n'
+        
+        # Financial Status Section
+        details += """
+        <tr><td colspan="2" style="padding: 5px 0; font-weight: bold; color: #4CAF50; border-top: 1px solid #555;">Financial Status</td></tr>
+        """
+        if account_info.get('balance') is not None:
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Balance:</b></td><td style="padding: 2px 0; text-align: left;">{format_value(account_info.get("balance", 0), "currency")}</td></tr>\n'
+        if account_info.get('equity') is not None:
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Equity:</b></td><td style="padding: 2px 0; text-align: left;">{format_value(account_info.get("equity", 0), "currency")}</td></tr>\n'
+        if account_info.get('profit') is not None:
+            profit = account_info.get('profit', 0)
+            profit_color = "#4CAF50" if profit >= 0 else "#f44336"
+            sign = "+" if profit >= 0 else ""
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Floating P&L:</b></td><td style="padding: 2px 0; text-align: left;"><span style="color: {profit_color};">{sign}{format_value(profit, "currency")}</span></td></tr>\n'
+        if account_info.get('margin') is not None:
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Margin Used:</b></td><td style="padding: 2px 0; text-align: left;">{format_value(account_info.get("margin", 0), "currency")}</td></tr>\n'
+        if account_info.get('free_margin') is not None:
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Free Margin:</b></td><td style="padding: 2px 0; text-align: left;">{format_value(account_info.get("free_margin", 0), "currency")}</td></tr>\n'
+        if account_info.get('margin_level') is not None:
+            margin_level = account_info.get('margin_level', 0)
+            margin_color = "#4CAF50" if margin_level > 200 else "#ff9800" if margin_level > 100 else "#f44336"
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Margin Level:</b></td><td style="padding: 2px 0; text-align: left;"><span style="color: {margin_color};">{format_value(margin_level, "percentage")}</span></td></tr>\n'
+        if account_info.get('credit') is not None and account_info.get('credit', 0) != 0:
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Credit:</b></td><td style="padding: 2px 0; text-align: left;">{format_value(account_info.get("credit", 0), "currency")}</td></tr>\n'
+        if account_info.get('assets') is not None and account_info.get('assets', 0) != 0:
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Assets:</b></td><td style="padding: 2px 0; text-align: left;">{format_value(account_info.get("assets", 0), "currency")}</td></tr>\n'
+        if account_info.get('liabilities') is not None and account_info.get('liabilities', 0) != 0:
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Liabilities:</b></td><td style="padding: 2px 0; text-align: left;">{format_value(account_info.get("liabilities", 0), "currency")}</td></tr>\n'
+        
+        # Trading Settings Section
+        details += """
+        <tr><td colspan="2" style="padding: 5px 0; font-weight: bold; color: #4CAF50; border-top: 1px solid #555;">Trading Settings</td></tr>
+        """
+        if account_info.get('leverage') is not None:
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Leverage:</b></td><td style="padding: 2px 0; text-align: left;">{format_value(account_info.get("leverage", 0), "leverage")}</td></tr>\n'
+        if account_info.get('trade_mode') is not None:
+            trade_mode = account_info.get('trade_mode', 0)
+            trade_mode_text = f"{trade_mode} ({'Enabled' if trade_mode > 0 else 'Disabled'})"
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Trade Mode:</b></td><td style="padding: 2px 0; text-align: left;">{trade_mode_text}</td></tr>\n'
+        details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>AutoTrading:</b></td><td style="padding: 2px 0; text-align: left;">{"Enabled" if trade_allowed else "Disabled"}</td></tr>\n'
+        if account_info.get('trade_expert') is not None:
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Expert Trading:</b></td><td style="padding: 2px 0; text-align: left;">{format_value(account_info.get("trade_expert", False), "boolean")}</td></tr>\n'
+        if account_info.get('limit_orders') is not None:
+            details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Limit Orders:</b></td><td style="padding: 2px 0; text-align: left;">{format_value(account_info.get("limit_orders", 0), "integer")}</td></tr>\n'
+        
+        # Margin Stop Out Settings Section
+        if account_info.get('margin_so_mode') is not None or account_info.get('margin_so_call') is not None:
+            details += """
+            <tr><td colspan="2" style="padding: 5px 0; font-weight: bold; color: #4CAF50; border-top: 1px solid #555;">Margin Stop Out Settings</td></tr>
+            """
+            if account_info.get('margin_so_mode') is not None:
+                so_mode = account_info.get('margin_so_mode', 0)
+                so_mode_text = {0: "Percent", 1: "Money"}.get(so_mode, f"Mode {so_mode}")
+                details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Stop Out Mode:</b></td><td style="padding: 2px 0; text-align: left;">{so_mode_text}</td></tr>\n'
+            if account_info.get('margin_so_call') is not None:
+                details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Margin Call Level:</b></td><td style="padding: 2px 0; text-align: left;">{format_value(account_info.get("margin_so_call", 0), "percentage")}</td></tr>\n'
+            if account_info.get('margin_so_so') is not None:
+                details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Stop Out Level:</b></td><td style="padding: 2px 0; text-align: left;">{format_value(account_info.get("margin_so_so", 0), "percentage")}</td></tr>\n'
+            if account_info.get('margin_initial') is not None and account_info.get('margin_initial', 0) != 0:
+                details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Initial Margin:</b></td><td style="padding: 2px 0; text-align: left;">{format_value(account_info.get("margin_initial", 0), "currency")}</td></tr>\n'
+            if account_info.get('margin_maintenance') is not None and account_info.get('margin_maintenance', 0) != 0:
+                details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Maintenance Margin:</b></td><td style="padding: 2px 0; text-align: left;">{format_value(account_info.get("margin_maintenance", 0), "currency")}</td></tr>\n'
+        
+        # Commission Details Section
+        if (account_info.get('commission_agent') is not None and account_info.get('commission_agent', 0) != 0) or \
+           (account_info.get('commission_agent_lot') is not None and account_info.get('commission_agent_lot', 0) != 0):
+            details += """
+            <tr><td colspan="2" style="padding: 5px 0; font-weight: bold; color: #4CAF50; border-top: 1px solid #555;">Commission Details</td></tr>
+            """
+            if account_info.get('commission_agent') is not None and account_info.get('commission_agent', 0) != 0:
+                details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Commission Agent:</b></td><td style="padding: 2px 0; text-align: left;">{format_value(account_info.get("commission_agent", 0), "currency")}</td></tr>\n'
+            if account_info.get('commission_agent_lot') is not None and account_info.get('commission_agent_lot', 0) != 0:
+                details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>Commission Agent (per lot):</b></td><td style="padding: 2px 0; text-align: left;">{format_value(account_info.get("commission_agent_lot", 0), "currency")}</td></tr>\n'
+        
+        # Connection Status
+        details += """
+        <tr><td colspan="2" style="padding: 5px 0; font-weight: bold; color: #4CAF50; border-top: 1px solid #555;">Connection Status</td></tr>
+        """
+        details += f'<tr><td style="padding: 2px 10px 2px 0; text-align: left;"><b>MT5 Connection:</b></td><td style="padding: 2px 0; text-align: left;"><span style="color: {mt5_status_color};">{mt5_status}</span></td></tr>\n'
+        
+        details += """
+        </table>
+        """
+        
+        self.account_details_label.setText(details)
     
     def on_verification_error(self, error_msg: str):
         """Handle verification error"""

@@ -16,6 +16,7 @@ from PyQt6.QtCore import Qt
 
 from src.gui.main_window import MainWindow
 from src.data.pocketbase_manager import PocketBaseManager
+from src.utils.font_utils import create_font, FontSize, FontWeight
 
 # Configure logging to both console and file
 log_dir = project_root / "logs"
@@ -77,6 +78,11 @@ def main():
     
     # Set application style
     app.setStyle('Fusion')
+    
+    # Set default application font with stylish fonts
+    default_font = create_font(FontSize.NORMAL, FontWeight.REGULAR)
+    app.setFont(default_font)
+    logging.info(f"Application font set: {default_font.family()}, size: {default_font.pointSize()}pt")
     
     # Initialize PocketBase Manager (optional - won't fail if server not running)
     pb_manager = None

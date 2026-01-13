@@ -110,7 +110,7 @@ class MT5Connector:
         return self.last_error
     
     def get_account_info(self) -> Optional[Dict]:
-        """Get account information"""
+        """Get account information - returns all available MT5 account_info fields"""
         if not self.is_connected():
             return None
         
@@ -118,18 +118,53 @@ class MT5Connector:
         if account is None:
             return None
         
-        return {
+        # Return all available account_info fields
+        account_dict = {
+            # Basic account information
             'login': account.login,
+            'name': getattr(account, 'name', ''),
+            'company': getattr(account, 'company', ''),
+            'account_number': getattr(account, 'account_number', 0),
+            'server': account.server,
+            'currency': account.currency,
+            
+            # Financial status
             'balance': account.balance,
             'equity': account.equity,
             'margin': account.margin,
             'free_margin': account.margin_free,
             'margin_level': account.margin_level,
             'profit': account.profit,
-            'currency': account.currency,
-            'server': account.server,
+            'credit': getattr(account, 'credit', 0.0),
+            'assets': getattr(account, 'assets', 0.0),
+            'liabilities': getattr(account, 'liabilities', 0.0),
+            
+            # Trading settings
             'leverage': account.leverage,
+            'trade_mode': account.trade_mode,
+            'trade_allowed': getattr(account, 'trade_allowed', False),
+            'trade_expert': getattr(account, 'trade_expert', False),
+            
+            # Margin stop out settings
+            'margin_so_mode': getattr(account, 'margin_so_mode', 0),
+            'margin_so_call': getattr(account, 'margin_so_call', 0.0),
+            'margin_so_so': getattr(account, 'margin_so_so', 0.0),
+            'margin_initial': getattr(account, 'margin_initial', 0.0),
+            'margin_maintenance': getattr(account, 'margin_maintenance', 0.0),
+            'margin_initial_so': getattr(account, 'margin_initial_so', 0.0),
+            'margin_maintenance_so': getattr(account, 'margin_maintenance_so', 0.0),
+            
+            # Commission details
+            'commission_agent': getattr(account, 'commission_agent', 0.0),
+            'commission_agent_lot': getattr(account, 'commission_agent_lot', 0.0),
+            
+            # Additional fields
+            'limit_orders': getattr(account, 'limit_orders', 0),
+            'margin_so_type': getattr(account, 'margin_so_type', 0),
+            'margin_free_limit': getattr(account, 'margin_free_limit', 0.0),
         }
+        
+        return account_dict
     
     def get_symbol_info(self, symbol: str) -> Optional[Dict]:
         """Get symbol information (case-insensitive)"""
@@ -260,6 +295,23 @@ class MT5Connector:
             logger.error(f"Error getting tick for {symbol}: {e}")
             return None
     
+    def get_symbol_info_tick(self, symbol: str) -> Optional[Dict]:
+        """Get current tick (bid/ask) for a symbol"""
+        if not self.is_connected():
+            return None
+        try:
+            tick = mt5.symbol_info_tick(symbol)
+            if tick is None:
+                return None
+            return {
+                'bid': tick.bid,
+                'ask': tick.ask,
+                'time': datetime.fromtimestamp(tick.time, tz=UTC)
+            }
+        except Exception as e:
+            logger.error(f"Error getting symbol info tick for {symbol}: {e}")
+            return None
+    
     def _get_m1_bar_volume(self, symbol: str, tick_time: datetime) -> int:
         """
         Get tick volume from the most recent M1 bar for the given symbol.
@@ -352,11 +404,13 @@ class MT5Connector:
         # Try copy_rates_from_pos first (most efficient)
         rates = mt5.copy_rates_from_pos(symbol, timeframe, start_pos, count)
         
-        # Fallback: try copy_rates_from with date range
-        if rates is None or len(rates) == 0:
+        # If we got less than requested, or no data, try fallback with date range
+        # This ensures we get enough history for indicators that need multi-day data (e.g., session first candle)
+        initial_count = len(rates) if rates is not None else 0
+        if rates is None or len(rates) == 0 or (len(rates) < count * 0.9):  # If we got less than 90% of requested, try fallback
             # Calculate days needed based on timeframe
             timeframe_days = {
-                mt5.TIMEFRAME_M1: 1,
+                mt5.TIMEFRAME_M1: 3,  # 3 days for M1 to ensure we get enough history for session detection
                 mt5.TIMEFRAME_M5: 2,
                 mt5.TIMEFRAME_M15: 5,
                 mt5.TIMEFRAME_M30: 10,
@@ -366,7 +420,11 @@ class MT5Connector:
             }
             days = timeframe_days.get(timeframe, 20)
             start_date = datetime.now() - timedelta(days=days)
-            rates = mt5.copy_rates_from(symbol, timeframe, start_date, count)
+            rates_from_date = mt5.copy_rates_from(symbol, timeframe, start_date, count)
+            # Use the fallback result if it has more bars than the original
+            if rates_from_date is not None and len(rates_from_date) > 0:
+                if rates is None or len(rates_from_date) > len(rates):
+                    rates = rates_from_date
         
         if rates is None or len(rates) == 0:
             logger.warning(f"Could not retrieve rates for {symbol} (timeframe: {timeframe})")

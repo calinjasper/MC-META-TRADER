@@ -85,3 +85,16 @@ See individual example files for each platform:
 - `excel_example.vba` - Excel VBA code
 - `tradingview_webhook.md` - TradingView webhook setup
 
+## MT5 SMC Indicator
+
+**Visual Monitoring Tool**: `smc_indicator.mq5`
+
+Plot SMC (Smart Money Concepts) indicators directly on your MT5 charts for visual monitoring and verification:
+- Pivot Highs and Lows
+- BOS (Break of Structure) events
+- CHoCH (Change of Character) events
+- Market Bias display
+- Structure Levels
+
+**See**: `SMC_INDICATOR_GUIDE.md` for complete installation and usage instructions.
+

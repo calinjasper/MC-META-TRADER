@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QColor
 import csv
 from datetime import datetime
+from pathlib import Path
 
 from .system_log_service import system_log_service, SystemLogEntry
 
@@ -37,11 +38,77 @@ class SystemLogsPanel(QWidget):
         self._connect()
 
     def setup_ui(self):
+        # Apply dark theme styling
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            QLabel {
+                color: #ffffff;
+            }
+            QLineEdit, QComboBox {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px;
+            }
+            QLineEdit:focus, QComboBox:focus {
+                border: 1px solid #2196F3;
+            }
+            QComboBox::drop-down {
+                border: none;
+                background-color: #2b2b2b;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                selection-background-color: #2196F3;
+                border: 1px solid #444;
+            }
+            QPushButton {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px 15px;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+            }
+            QPushButton:pressed {
+                background-color: #1a1a1a;
+            }
+            QTableWidget {
+                background-color: #1e1e1e;
+                alternate-background-color: #2b2b2b;
+                color: #ffffff;
+                gridline-color: #444;
+                border: 1px solid #444;
+            }
+            QTableWidget::item {
+                padding: 5px;
+            }
+            QTableWidget::item:selected {
+                background-color: #2196F3;
+                color: #ffffff;
+            }
+            QHeaderView::section {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                padding: 8px;
+                border: 1px solid #444;
+                font-weight: bold;
+            }
+        """)
+        
         layout = QVBoxLayout(self)
 
         header_layout = QHBoxLayout()
         title = QLabel("System Logs")
-        title.setStyleSheet("font-weight: bold; font-size: 16px;")
+        title.setStyleSheet("font-weight: bold; font-size: 16px; color: #ffffff;")
         header_layout.addWidget(title)
 
         self.count_label = QLabel("0")
@@ -52,7 +119,7 @@ class SystemLogsPanel(QWidget):
 
         header_layout.addWidget(QLabel("Type:"))
         self.type_filter = QComboBox()
-        self.type_filter.addItems(["ALL", "TRADING", "MESSAGE", "WARNING", "ERROR", "ATTENTION"])
+        self.type_filter.addItems(["ALL", "TRADING", "MESSAGE", "WARNING", "ERROR", "ATTENTION", "ALERTS"])
         self.type_filter.currentTextChanged.connect(self._apply_filters)
         header_layout.addWidget(self.type_filter)
 
@@ -212,6 +279,8 @@ class SystemLogsPanel(QWidget):
                 item.setForeground(QColor("#4ec9b0"))
             elif entry.log_type == "ATTENTION":
                 item.setForeground(QColor("#c586c0"))
+            elif entry.log_type == "ALERTS":
+                item.setForeground(QColor("#ffa500"))  # Orange color for alerts
             else:
                 item.setForeground(QColor("#d4d4d4"))
 

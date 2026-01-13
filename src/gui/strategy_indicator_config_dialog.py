@@ -47,6 +47,65 @@ class StrategyIndicatorConfigDialog(QDialog):
     
     def setup_ui(self):
         """Setup the UI"""
+        # Apply dark theme styling
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            QLabel {
+                color: #ffffff;
+            }
+            QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px;
+            }
+            QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {
+                border: 1px solid #2196F3;
+            }
+            QComboBox::drop-down {
+                border: none;
+                background-color: #2b2b2b;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                selection-background-color: #2196F3;
+                border: 1px solid #444;
+            }
+            QPushButton {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px 15px;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+            }
+            QPushButton:pressed {
+                background-color: #1a1a1a;
+            }
+            QCheckBox {
+                color: #ffffff;
+            }
+            QCheckBox::indicator {
+                background-color: #2b2b2b;
+                border: 1px solid #444;
+                border-radius: 3px;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #2196F3;
+            }
+            QDialogButtonBox QPushButton {
+                min-width: 80px;
+            }
+        """)
+        
         layout = QVBoxLayout(self)
         
         # Configuration widget

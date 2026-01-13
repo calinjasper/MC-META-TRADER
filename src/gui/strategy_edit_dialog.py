@@ -37,6 +37,78 @@ class StrategyEditDialog(QDialog):
     
     def setup_ui(self):
         """Setup the dialog UI"""
+        # Apply dark theme styling
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            QLabel {
+                color: #ffffff;
+            }
+            QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px;
+            }
+            QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {
+                border: 1px solid #2196F3;
+            }
+            QComboBox::drop-down {
+                border: none;
+                background-color: #2b2b2b;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                selection-background-color: #2196F3;
+                border: 1px solid #444;
+            }
+            QPushButton {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px 15px;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+            }
+            QPushButton:pressed {
+                background-color: #1a1a1a;
+            }
+            QListWidget {
+                background-color: #1e1e1e;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+            }
+            QListWidget::item {
+                padding: 5px;
+            }
+            QListWidget::item:selected {
+                background-color: #2196F3;
+                color: #ffffff;
+            }
+            QGroupBox {
+                border: 2px solid #555;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 15px;
+                background-color: #252525;
+                color: #ffffff;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+                color: #ffffff;
+            }
+        """)
+        
         layout = QVBoxLayout(self)
         
         # Scroll area for content
@@ -148,12 +220,14 @@ class StrategyEditDialog(QDialog):
         self.sl_type_combo.addItem("Price (Pips)", "Price (Pips)")
         self.sl_type_combo.addItem("Price (Points)", "Price (Points)")
         self.sl_type_combo.addItem("Percentage", "Percentage")
+        self.sl_type_combo.currentIndexChanged.connect(self._update_sl_tp_preview)
         sl_tp_layout.addRow("SL Type:", self.sl_type_combo)
         
         self.sl_value_spin = QDoubleSpinBox()
         self.sl_value_spin.setMinimum(0.0)
         self.sl_value_spin.setMaximum(100000.0)
         self.sl_value_spin.setDecimals(2)
+        self.sl_value_spin.valueChanged.connect(self._update_sl_tp_preview)
         sl_tp_layout.addRow("SL Value:", self.sl_value_spin)
         
         # Enable/Disable Take Profit
@@ -165,13 +239,24 @@ class StrategyEditDialog(QDialog):
         sl_tp_layout.addRow("Enable Take Profit:", self.enable_tp_check)
         
         self.use_ratio_check = QCheckBox("Use 1:2 Ratio")
+        self.use_ratio_check.stateChanged.connect(self._update_sl_tp_preview)
         sl_tp_layout.addRow("", self.use_ratio_check)
         
         self.tp_value_spin = QDoubleSpinBox()
         self.tp_value_spin.setMinimum(0.0)
         self.tp_value_spin.setMaximum(100000.0)
         self.tp_value_spin.setDecimals(2)
+        self.tp_value_spin.valueChanged.connect(self._update_sl_tp_preview)
         sl_tp_layout.addRow("TP Value:", self.tp_value_spin)
+        
+        # Add preview labels for SL/TP
+        self.sl_preview_label = QLabel("")
+        self.sl_preview_label.setStyleSheet("color: #888888; font-size: 10px;")
+        sl_tp_layout.addRow("", self.sl_preview_label)
+        
+        self.tp_preview_label = QLabel("")
+        self.tp_preview_label.setStyleSheet("color: #888888; font-size: 10px;")
+        sl_tp_layout.addRow("", self.tp_preview_label)
         
         sl_tp_group.setLayout(sl_tp_layout)
         content_layout.addWidget(sl_tp_group)
@@ -361,6 +446,112 @@ class StrategyEditDialog(QDialog):
         self.profit_lock_value_spin.setValue(getattr(self.strategy, 'profit_lock_value', 0.0))
         self.profit_trail_step_spin.setValue(getattr(self.strategy, 'profit_trail_step', 0.0))
         self.profit_trail_amount_spin.setValue(getattr(self.strategy, 'profit_trail_amount', 0.0))
+        
+        # Update preview after loading values
+        self._update_sl_tp_preview()
+    
+    def _update_sl_tp_preview(self):
+        """Update SL/TP preview labels showing actual price impact"""
+        if not hasattr(self, 'strategy') or not self.strategy:
+            return
+        
+        symbol = self.strategy.symbol
+        sl_type = self.sl_type_combo.currentData()
+        sl_value = self.sl_value_spin.value()
+        tp_value = self.tp_value_spin.value()
+        
+        # Get symbol info and current price
+        try:
+            from ..mt5_connector import MT5Connector
+            # Try to get MT5 connector from parent if available
+            mt5 = None
+            if hasattr(self.parent(), 'mt5'):
+                mt5 = self.parent().mt5
+            elif hasattr(self, 'mt5'):
+                mt5 = self.mt5
+            else:
+                mt5 = MT5Connector()
+            
+            if not mt5 or not mt5.is_connected():
+                if hasattr(self, 'sl_preview_label'):
+                    self.sl_preview_label.setText("(Connect to MT5 to see preview)")
+                if hasattr(self, 'tp_preview_label'):
+                    self.tp_preview_label.setText("(Connect to MT5 to see preview)")
+                return
+            
+            symbol_info = mt5.get_symbol_info(symbol)
+            if not symbol_info:
+                return
+            
+            point = symbol_info.get('point', 0.0001)
+            digits = symbol_info.get('digits', 5)
+            
+            # Get current price
+            tick = mt5.get_symbol_info_tick(symbol)
+            if not tick:
+                return
+            
+            current_price = (tick.get('bid', 0) + tick.get('ask', 0)) / 2.0
+            if current_price == 0:
+                return
+            
+            # Calculate SL preview
+            if "Points" in sl_type:
+                sl_distance = sl_value * point
+                sl_price_buy = current_price - sl_distance
+                sl_price_sell = current_price + sl_distance
+                if hasattr(self, 'sl_preview_label'):
+                    self.sl_preview_label.setText(
+                        f"{sl_value:.2f} points = {sl_distance:.{digits}f} price points | "
+                        f"BUY SL: {sl_price_buy:.{digits}f} | SELL SL: {sl_price_sell:.{digits}f}"
+                    )
+            elif "Pips" in sl_type:
+                pip_size = point * (10 if digits == 5 else 1)
+                sl_distance = sl_value * pip_size
+                sl_price_buy = current_price - sl_distance
+                sl_price_sell = current_price + sl_distance
+                if hasattr(self, 'sl_preview_label'):
+                    self.sl_preview_label.setText(
+                        f"{sl_value:.2f} pips = {sl_distance:.{digits}f} price points | "
+                        f"BUY SL: {sl_price_buy:.{digits}f} | SELL SL: {sl_price_sell:.{digits}f}"
+                    )
+            else:  # Percentage
+                sl_distance = current_price * (sl_value / 100.0)
+                sl_price_buy = current_price - sl_distance
+                sl_price_sell = current_price + sl_distance
+                if hasattr(self, 'sl_preview_label'):
+                    self.sl_preview_label.setText(
+                        f"{sl_value:.2f}% = {sl_distance:.{digits}f} price points | "
+                        f"BUY SL: {sl_price_buy:.{digits}f} | SELL SL: {sl_price_sell:.{digits}f}"
+                    )
+            
+            # Calculate TP preview
+            if self.use_ratio_check.isChecked():
+                tp_distance = sl_distance * 2.0
+            else:
+                if "Points" in sl_type:
+                    tp_distance = tp_value * point
+                elif "Pips" in sl_type:
+                    pip_size = point * (10 if digits == 5 else 1)
+                    tp_distance = tp_value * pip_size
+                else:
+                    tp_distance = current_price * (tp_value / 100.0)
+            
+            tp_price_buy = current_price + tp_distance
+            tp_price_sell = current_price - tp_distance
+            if hasattr(self, 'tp_preview_label'):
+                self.tp_preview_label.setText(
+                    f"TP distance: {tp_distance:.{digits}f} price points | "
+                    f"BUY TP: {tp_price_buy:.{digits}f} | SELL TP: {tp_price_sell:.{digits}f}"
+                )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Error updating SL/TP preview: {e}")
+            if hasattr(self, 'sl_preview_label'):
+                self.sl_preview_label.setText("(Preview unavailable)")
+            if hasattr(self, 'tp_preview_label'):
+                self.tp_preview_label.setText("(Preview unavailable)")
     
     def add_buy_condition_dialog(self):
         """Open dialog to add buy condition"""
@@ -523,7 +714,13 @@ class StrategyEditDialog(QDialog):
             
             if sl_enabled:
                 self.strategy.sl_type = self.sl_type_combo.currentData()
+                old_sl_value = getattr(self.strategy, 'sl_value', None)
                 self.strategy.sl_value = self.sl_value_spin.value()
+                # Log if value changed
+                if old_sl_value != self.strategy.sl_value:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.debug(f"Strategy {self.strategy.name} sl_value updated: {old_sl_value} -> {self.strategy.sl_value}")
             else:
                 self.strategy.sl_type = None
                 self.strategy.sl_value = 0.0
@@ -560,6 +757,30 @@ class StrategyEditDialog(QDialog):
             # Save to disk
             persistence = StrategyPersistence()
             persistence.save_strategy(self.strategy)
+            
+            # Log the updated values for verification
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Strategy {self.strategy.name} saved: sl_value={self.strategy.sl_value}, "
+                       f"sl_type={self.strategy.sl_type}, tp_value={self.strategy.tp_value}")
+            
+            # Reload strategy from JSON to ensure in-memory object matches disk
+            # This ensures any other code paths that might have stale references get updated
+            if self.strategy_manager:
+                # Get MT5 connector from parent if available
+                mt5_connector = None
+                if hasattr(self.parent(), 'mt5'):
+                    mt5_connector = self.parent().mt5
+                elif hasattr(self, 'mt5'):
+                    mt5_connector = self.mt5
+                
+                if self.strategy_manager.reload_strategy(self.strategy.name, mt5_connector=mt5_connector):
+                    logger.info(f"Strategy {self.strategy.name} reloaded from JSON after save")
+                    # Update self.strategy reference to the reloaded strategy
+                    self.strategy = self.strategy_manager.get_strategy(self.strategy.name)
+                else:
+                    logger.warning(f"Failed to reload strategy {self.strategy.name} after save - "
+                                 f"in-memory object may have stale data")
             
             QMessageBox.information(self, "Success", "Strategy saved successfully!")
             self.accept()

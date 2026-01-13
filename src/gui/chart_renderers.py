@@ -11,7 +11,7 @@ from PyQt6.QtCore import Qt
 
 from ..indicators.ema import EMA
 from ..strategy.supertrend_strategy import compute_supertrend
-from ..strategy.smc_strategy import _fractal_pivot_high, _fractal_pivot_low
+from ..strategy.smc_utils import fractal_pivot_high, fractal_pivot_low
 
 logger = logging.getLogger(__name__)
 
@@ -393,9 +393,9 @@ class SMCRenderer(IndicatorRenderer):
         pivot_high_idx = []
         pivot_low_idx = []
         for i in range(pivot_left, max(pivot_left, len(highs) - pivot_right)):
-            if _fractal_pivot_high(highs, i, pivot_left, pivot_right):
+            if fractal_pivot_high(highs, i, pivot_left, pivot_right):
                 pivot_high_idx.append(i)
-            if _fractal_pivot_low(lows, i, pivot_left, pivot_right):
+            if fractal_pivot_low(lows, i, pivot_left, pivot_right):
                 pivot_low_idx.append(i)
         
         # Plot pivot points

@@ -13,6 +13,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 import MetaTrader5 as mt5
 
 from .mt5_connector import MT5Connector
+from .indicators.smc_data_tracker import SMCDataTracker
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,17 @@ class DataFeed(QObject):
         self._m1_bar_cache: Dict[str, Optional[datetime]] = {}
         # Track last M1 check time to avoid checking too frequently (once per second)
         self._last_m1_check_time: float = 0.0
+        
+        # SMC Data Tracker for real-time pivot data
+        self.smc_tracker = SMCDataTracker(
+            pivot_left=2,
+            pivot_right=2,
+            emit_on="NONE",  # Track pivots by default
+            timeframe=5,  # M5 default
+            candle_buffer_size=200
+        )
+        # Track last SMC update time per symbol (update once per second, not every tick)
+        self._last_smc_update_time: Dict[str, float] = {}
     
     def add_symbol(self, symbol: str) -> bool:
         """Add a symbol to monitor (case-insensitive)"""
@@ -204,13 +216,20 @@ class DataFeed(QObject):
                                     except Exception as e:
                                         logger.debug(f"Error storing tick in PocketBase: {e}")
                                 
+                                # Update SMC data (once per second per symbol for efficiency)
+                                smc_data = self._update_smc_data(symbol, current_time)
+                                
+                                # Add SMC data to tick for emission
+                                tick_with_smc = tick.copy()
+                                tick_with_smc['smc'] = smc_data
+                                
                                 # Emit Qt signal for real-time update (always emit for latest data)
-                                self.tick_received.emit(symbol, tick)
+                                self.tick_received.emit(symbol, tick_with_smc)
                                 
                                 # Call registered callbacks
                                 for callback in self.callbacks.get(symbol, []):
                                     try:
-                                        callback(tick)
+                                        callback(tick_with_smc)
                                     except Exception as e:
                                         logger.error(f"Error in callback for {symbol}: {e}")
                         
@@ -307,3 +326,78 @@ class DataFeed(QObject):
         except Exception as e:
             logger.debug(f"Error checking M1 bar for {symbol}: {e}")
 
+    def _update_smc_data(self, symbol: str, current_time: float) -> Dict:
+        """
+        Update SMC data for a symbol if needed.
+        Updates once per second per symbol for efficiency.
+        
+        Args:
+            symbol: Trading symbol
+            current_time: Current timestamp
+            
+        Returns:
+            SMC data dictionary
+        """
+        # Check if we need to update (once per second per symbol)
+        last_update = self._last_smc_update_time.get(symbol, 0)
+        
+        if current_time - last_update >= 1.0:
+            # Time to update SMC data
+            try:
+                # Get candles for SMC calculation
+                timeframe = self.smc_tracker.timeframe
+                rates = self.get_rates(symbol, timeframe, 200)
+                
+                if rates:
+                    # Convert rates to candle format
+                    candles = []
+                    for rate in rates:
+                        candles.append({
+                            'time': rate.get('time'),
+                            'open': rate.get('open'),
+                            'high': rate.get('high'),
+                            'low': rate.get('low'),
+                            'close': rate.get('close'),
+                            'volume': rate.get('tick_volume', 0)
+                        })
+                    
+                    # Update SMC tracker
+                    self.smc_tracker.update_candles(symbol, candles)
+                
+                self._last_smc_update_time[symbol] = current_time
+                
+            except Exception as e:
+                logger.debug(f"Error updating SMC data for {symbol}: {e}")
+        
+        # Return current SMC data (even if not updated this tick)
+        return self.smc_tracker.get_smc_data(symbol)
+    
+    def get_smc_data(self, symbol: str) -> Dict:
+        """
+        Get SMC data for a symbol.
+        
+        Args:
+            symbol: Trading symbol
+            
+        Returns:
+            SMC data dictionary with pivot_high, pivot_low, choch_price, bos_price
+        """
+        return self.smc_tracker.get_smc_data(symbol)
+    
+    def set_smc_parameters(self, pivot_left: int = None, pivot_right: int = None,
+                           emit_on: str = None, timeframe: int = None) -> None:
+        """
+        Update SMC tracker parameters.
+        
+        Args:
+            pivot_left: Number of bars to the left for pivot detection
+            pivot_right: Number of bars to the right for pivot detection
+            emit_on: "NONE" (pivots only), "CHoCH", "BOS", "BOTH"
+            timeframe: Timeframe for candle data (5 = M5)
+        """
+        self.smc_tracker.set_parameters(pivot_left, pivot_right, emit_on, timeframe)
+        
+        # Clear last update times to force refresh
+        self._last_smc_update_time.clear()
+        logger.info(f"SMC parameters updated: pivot_left={pivot_left}, pivot_right={pivot_right}, "
+                   f"emit_on={emit_on}, timeframe={timeframe}")

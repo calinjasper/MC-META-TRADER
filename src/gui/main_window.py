@@ -13,6 +13,8 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QAction, QColor
 
+from ..utils.font_utils import get_stylesheet_font_string, apply_font_to_widget, FontSize, FontWeight
+
 from .market_data_panel import MarketDataPanel
 from .user_settings_panel import UserSettingsPanel
 from .chart_widget import ChartWidget
@@ -75,6 +77,11 @@ class MainWindow(QMainWindow):
         # Initialize Telegram bot if enabled
         self.telegram_bot = None
         self._initialize_telegram_bot()
+        
+        # SMMA alert listener disabled - SMMA strategy removed (not working properly)
+        # Initialize MT5 alert listener for SMMA strategies
+        self.alert_listener = None
+        # self._initialize_alert_listener()
         
         logger.info(f"MainWindow: Initialized - MT5 connected={self.mt5.is_connected()}")
         
@@ -156,6 +163,8 @@ class MainWindow(QMainWindow):
         
         # Create central widget
         central_widget = QWidget()
+        # Apply dark theme background
+        central_widget.setStyleSheet("background-color: #1e1e1e;")
         self.setCentralWidget(central_widget)
         
         # Main layout
@@ -166,6 +175,31 @@ class MainWindow(QMainWindow):
         
         # Create tab widget
         self.tab_widget = QTabWidget()
+        # Apply stylish fonts to tab widget with dark theme
+        tab_font_style = get_stylesheet_font_string('medium', 'medium')
+        self.tab_widget.setStyleSheet(f"""
+            QTabWidget::pane {{
+                border: 1px solid #444;
+                background-color: #1e1e1e;
+            }}
+            QTabBar::tab {{
+                {tab_font_style}
+                padding: 8px 20px;
+                margin-right: 2px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                background-color: #2b2b2b;
+                color: #ffffff;
+            }}
+            QTabBar::tab:selected {{
+                background-color: #1e1e1e;
+                color: #2196F3;
+                border-bottom: 2px solid #2196F3;
+            }}
+            QTabBar::tab:hover {{
+                background-color: #3a3a3a;
+            }}
+        """)
         main_layout.addWidget(self.tab_widget)
         
         # Create tabs
@@ -174,15 +208,25 @@ class MainWindow(QMainWindow):
         # Create status bar
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
+        # Apply font to status bar
+        apply_font_to_widget(self.status_bar, 'small', 'regular')
         
         # Add Telegram bot status indicator
         self.telegram_status_label = QLabel("Telegram: Not Configured")
-        self.telegram_status_label.setStyleSheet("padding: 2px 8px; border-radius: 3px; background-color: #666; color: white;")
+        status_font_style = get_stylesheet_font_string('small', 'medium')
+        self.telegram_status_label.setStyleSheet(f"""
+            {status_font_style}
+            padding: 2px 8px; 
+            border-radius: 3px; 
+            background-color: #666; 
+            color: white;
+        """)
         self.status_bar.addPermanentWidget(self.telegram_status_label)
         
         # Add test message button
         self.telegram_test_btn = QPushButton("Test Telegram")
         self.telegram_test_btn.setMaximumWidth(100)
+        apply_font_to_widget(self.telegram_test_btn, 'small', 'medium')
         self.telegram_test_btn.clicked.connect(self.test_telegram_message)
         self.telegram_test_btn.setEnabled(False)
         self.status_bar.addPermanentWidget(self.telegram_test_btn)
@@ -195,6 +239,8 @@ class MainWindow(QMainWindow):
     def create_menu_bar(self):
         """Create menu bar"""
         menubar = self.menuBar()
+        # Apply font to menu bar
+        apply_font_to_widget(menubar, 'normal', 'medium')
         
         # File menu
         file_menu = menubar.addMenu("File")
@@ -650,10 +696,10 @@ class MainWindow(QMainWindow):
             
             if timeframe_rates and len(timeframe_rates) >= 20:
                 try:
-                    from ..strategy.smc_strategy import _fractal_pivot_high, _fractal_pivot_low, _extract_ohlc_arrays
+                    from ..strategy.smc_utils import fractal_pivot_high, fractal_pivot_low, extract_ohlc_arrays
                     
                     # Extract OHLC arrays
-                    _, highs, lows, closes = _extract_ohlc_arrays(timeframe_rates)
+                    _, highs, lows, closes = extract_ohlc_arrays(timeframe_rates)
                     
                     # Calculate pivots (default: 2/2)
                     pivot_left = 2
@@ -666,9 +712,9 @@ class MainWindow(QMainWindow):
                     end = len(highs) - pivot_right
                     
                     for i in range(start, end):
-                        if _fractal_pivot_high(highs, i, pivot_left, pivot_right):
+                        if fractal_pivot_high(highs, i, pivot_left, pivot_right):
                             last_pivot_high = highs[i]
-                        if _fractal_pivot_low(lows, i, pivot_left, pivot_right):
+                        if fractal_pivot_low(lows, i, pivot_left, pivot_right):
                             last_pivot_low = lows[i]
                     
                     # Store SMC pivots in market_data
@@ -1881,6 +1927,9 @@ class MainWindow(QMainWindow):
     
     def closeEvent(self, event):
         """Handle window close event"""
+        # Stop alert listener
+        if hasattr(self, 'alert_listener') and self.alert_listener:
+            self.alert_listener.stop_monitoring()
         # Stop signal server
         self.stop_signal_server()
         
@@ -1969,7 +2018,7 @@ class MainWindow(QMainWindow):
         if not sl_enabled and not tp_enabled:
             return 0.0, 0.0
         
-        # Check if strategy has SL/TP configuration
+        # Check if strategy has SL/TP configuration (custom values)
         if not hasattr(strategy, 'sl_type') or strategy.sl_type is None:
             # Use default risk manager calculation if enabled, otherwise return 0.0
             if sl_enabled and tp_enabled:
@@ -1990,6 +2039,16 @@ class MainWindow(QMainWindow):
         sl_value = getattr(strategy, 'sl_value', 20.0)
         sl_type = strategy.sl_type
         
+        # Safety check: Detect potentially stale sl_value
+        # If sl_value is 0.0 or very small when SL is enabled, it might indicate stale data
+        if sl_enabled and sl_type and "Points" in sl_type:
+            if sl_value <= 0:
+                logger.warning(f"Strategy {strategy.name} has invalid sl_value={sl_value} with SL enabled. "
+                             f"This may indicate stale data. Consider reloading the strategy.")
+            elif sl_value < 1.0:
+                logger.debug(f"Strategy {strategy.name} has very small sl_value={sl_value} points. "
+                           f"This is valid but unusual - verify this is intentional.")
+        
         # Calculate SL distance (needed for TP calculation even if SL is disabled)
         if "Pips" in sl_type:
             # Convert pips to price points (1 pip = 10 points for 5-digit, 1 point for 4-digit)
@@ -2008,6 +2067,10 @@ class MainWindow(QMainWindow):
                 sl = entry_price - sl_distance
             else:  # SELL
                 sl = entry_price + sl_distance
+            # Log calculation details for debugging
+            logger.debug(f"Strategy {strategy.name} SL calculation: entry={entry_price:.5f}, "
+                        f"sl_value={sl_value}, sl_type={sl_type}, sl_distance={sl_distance:.5f}, "
+                        f"calculated_sl={sl:.5f}")
         else:
             sl = 0.0
         
@@ -2038,30 +2101,40 @@ class MainWindow(QMainWindow):
         
         # Validate and adjust SL/TP based on symbol's trade_stops_level (minimum distance requirement)
         trade_stops_level = symbol_info.get('trade_stops_level', 0)
+        
+        # Use trade_stops_level if available, otherwise use a reasonable fallback minimum
+        # For 3-decimal symbols (point=0.001), use 10 points = 0.01 as minimum
+        # For 5-decimal symbols (point=0.00001), use 10 points = 0.0001 as minimum
         if trade_stops_level > 0:
             min_distance = trade_stops_level * point
-            
-            # Validate and adjust SL
-            if sl > 0:
-                sl_distance = abs(entry_price - sl)
-                if sl_distance < min_distance:
-                    logger.warning(f"SL distance ({sl_distance}) is less than minimum required ({min_distance}) for {symbol}. Adjusting SL.")
-                    if signal == 'BUY':
-                        sl = entry_price - min_distance
-                    else:  # SELL
-                        sl = entry_price + min_distance
-                    sl = round(sl, digits)
-            
-            # Validate and adjust TP
-            if tp > 0:
-                tp_distance = abs(tp - entry_price)
-                if tp_distance < min_distance:
-                    logger.warning(f"TP distance ({tp_distance}) is less than minimum required ({min_distance}) for {symbol}. Adjusting TP.")
-                    if signal == 'BUY':
-                        tp = entry_price + min_distance
-                    else:  # SELL
-                        tp = entry_price - min_distance
-                    tp = round(tp, digits)
+        else:
+            # Fallback: Use 10 points as minimum distance (MT5 typically requires at least this)
+            min_distance = 10 * point
+            logger.debug(f"Symbol {symbol} has trade_stops_level=0, using fallback minimum distance: {min_distance:.5f}")
+        
+        # Validate and adjust SL
+        if sl > 0:
+            sl_distance = abs(entry_price - sl)
+            if sl_distance < min_distance:
+                logger.warning(f"SL distance ({sl_distance:.5f}) is less than minimum required ({min_distance:.5f}) for {symbol}. Adjusting SL.")
+                if signal == 'BUY':
+                    sl = entry_price - min_distance
+                else:  # SELL
+                    sl = entry_price + min_distance
+                sl = round(sl, digits)
+                logger.info(f"Adjusted SL to {sl:.5f} to meet minimum distance requirement")
+        
+        # Validate and adjust TP
+        if tp > 0:
+            tp_distance = abs(tp - entry_price)
+            if tp_distance < min_distance:
+                logger.warning(f"TP distance ({tp_distance:.5f}) is less than minimum required ({min_distance:.5f}) for {symbol}. Adjusting TP.")
+                if signal == 'BUY':
+                    tp = entry_price + min_distance
+                else:  # SELL
+                    tp = entry_price - min_distance
+                tp = round(tp, digits)
+                logger.info(f"Adjusted TP to {tp:.5f} to meet minimum distance requirement")
         
         return sl, tp
     
@@ -2082,6 +2155,102 @@ class MainWindow(QMainWindow):
                 except Exception as e:
                     logger.error(f"Error initializing Telegram bot: {e}")
                     self.telegram_bot = None
+    
+    def _initialize_alert_listener(self):
+        """Initialize MT5 alert listener for SMMA strategies"""
+        try:
+            from ..alerts.mt5_alert_listener import MT5AlertListener
+            logger.info("MainWindow: Initializing MT5 Alert Listener...")
+            self.alert_listener = MT5AlertListener(check_interval=0.5)
+            
+            if not self.alert_listener.alert_file_path:
+                logger.warning("MainWindow: Alert listener created but alert file path not found")
+                logger.warning("MainWindow: Alerts will not be monitored until file path is available")
+                self.alert_listener = None
+                return
+            
+            self.alert_listener.alert_received.connect(self._on_alert_received)
+            self.alert_listener.start_monitoring()
+            
+            # Verify listener is running
+            if self.alert_listener.running:
+                logger.info("MainWindow: MT5 Alert Listener initialized and started successfully")
+                logger.info(f"MainWindow: Monitoring alert file: {self.alert_listener.alert_file_path}")
+            else:
+                logger.error("MainWindow: Alert listener failed to start monitoring")
+                self.alert_listener = None
+        except Exception as e:
+            logger.error(f"MainWindow: Error initializing alert listener: {e}", exc_info=True)
+            logger.error("MainWindow: Alert-driven strategies will not receive MT5 indicator alerts")
+            self.alert_listener = None
+    
+    def _on_alert_received(self, alert: Dict):
+        """
+        Handle alert received from MT5 indicator
+        
+        Args:
+            alert: Alert dictionary with symbol, action, price, timeframe, etc.
+        """
+        try:
+            alert_action = alert.get('action', 'UNKNOWN')
+            alert_symbol = alert.get('symbol', 'UNKNOWN')
+            alert_price = alert.get('price', 0.0)
+            alert_timeframe = alert.get('timeframe', 'UNKNOWN')
+            
+            logger.info(f"MainWindow: ===== ALERT RECEIVED =====")
+            logger.info(f"MainWindow: Action: {alert_action} | Symbol: {alert_symbol} | Price: {alert_price:.5f} | TF: {alert_timeframe}")
+            
+            # Process alert through strategy manager
+            signals = self.strategy_manager.process_alert(alert)
+            
+            if not signals:
+                logger.warning(f"MainWindow: No strategies matched alert for {alert_symbol} {alert_action}")
+                logger.warning(f"MainWindow: Check if strategy exists with matching symbol/timeframe/direction")
+            else:
+                logger.info(f"MainWindow: {len(signals)} strategy(ies) matched alert")
+            
+            # Execute trades for strategies that generated signals
+            executed_count = 0
+            for strategy_name, signal in signals.items():
+                if signal:
+                    strategy = self.strategy_manager.get_strategy(strategy_name)
+                    if strategy:
+                        logger.info(f"MainWindow: Executing {signal} signal for strategy {strategy_name} from alert")
+                        success, error_msg = self.execute_strategy_signal(strategy, signal)
+                        if success:
+                            executed_count += 1
+                            logger.info(f"MainWindow: Successfully executed {signal} trade for {strategy_name} from alert")
+                            # Log to system logs
+                            from .system_log_service import system_log_service
+                            system_log_service.log(
+                                log_type="ALERTS",
+                                message=f"Successfully executed {signal} trade for {strategy_name} from alert",
+                                strategy=strategy_name
+                            )
+                        else:
+                            logger.warning(f"MainWindow: Failed to execute {signal} trade for {strategy_name}: {error_msg}")
+                            # Log to system logs
+                            from .system_log_service import system_log_service
+                            system_log_service.log(
+                                log_type="ALERTS",
+                                message=f"Failed to execute {signal} trade for {strategy_name}: {error_msg}",
+                                strategy=strategy_name
+                            )
+            
+            if executed_count > 0:
+                logger.info(f"MainWindow: ===== ALERT PROCESSED: {executed_count} trade(s) executed =====")
+            else:
+                logger.info(f"MainWindow: ===== ALERT PROCESSED: No trades executed =====")
+                
+        except Exception as e:
+            logger.error(f"MainWindow: Error processing alert: {e}", exc_info=True)
+            # Log error to system logs
+            from .system_log_service import system_log_service
+            system_log_service.log(
+                log_type="ERROR",
+                message=f"Error processing alert: {e}",
+                strategy=""
+            )
         else:
             self.telegram_bot = None
     

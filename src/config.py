@@ -97,6 +97,13 @@ class Config:
                 "real_time_updates": True,
                 "symbols": []  # Saved symbols for persistence
             },
+            "market_data": {
+                "show_smc_columns": True,  # Show SMC pivot columns in market data panel
+                "smc_pivot_left": 2,       # Pivot left parameter
+                "smc_pivot_right": 2,      # Pivot right parameter
+                "smc_emit_on": "NONE",     # "NONE" (pivots only), "CHoCH", "BOS", "BOTH"
+                "smc_timeframe": 5         # Timeframe for SMC calculation (5 = M5)
+            },
             "indicators": {
                 "default_period": 14
             },

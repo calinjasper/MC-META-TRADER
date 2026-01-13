@@ -263,6 +263,89 @@ class TradePanel(QWidget):
     
     def setup_ui(self):
         """Setup the UI - STOXXO QTP Style"""
+        # Apply dark theme styling
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            QLabel {
+                color: #ffffff;
+            }
+            QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px;
+            }
+            QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {
+                border: 1px solid #2196F3;
+            }
+            QComboBox::drop-down {
+                border: none;
+                background-color: #2b2b2b;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                selection-background-color: #2196F3;
+                border: 1px solid #444;
+            }
+            QPushButton {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px 15px;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+            }
+            QPushButton:pressed {
+                background-color: #1a1a1a;
+            }
+            QTableWidget {
+                background-color: #1e1e1e;
+                alternate-background-color: #2b2b2b;
+                color: #ffffff;
+                gridline-color: #444;
+                border: 1px solid #444;
+            }
+            QTableWidget::item {
+                padding: 5px;
+            }
+            QTableWidget::item:selected {
+                background-color: #2196F3;
+                color: #ffffff;
+            }
+            QHeaderView::section {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                padding: 8px;
+                border: 1px solid #444;
+                font-weight: bold;
+            }
+            QGroupBox {
+                border: 2px solid #555;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 15px;
+                background-color: #252525;
+                color: #ffffff;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+                color: #ffffff;
+            }
+            QRadioButton {
+                color: #ffffff;
+            }
+        """)
+        
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
         main_layout.setSpacing(5)

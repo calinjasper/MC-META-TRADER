@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 from datetime import time
 
 from .base_strategy import BaseStrategy
-from ..indicators import SMA, EMA, RSI, MACD, BollingerBands, Stochastic
+from ..indicators import SMA, EMA, SMMA, RSI, MACD, BollingerBands, Stochastic
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,9 @@ class StrategyPersistence:
                 
                 if hasattr(indicator, 'period'):
                     ind_config['period'] = indicator.period
-                elif hasattr(indicator, 'fast_period'):  # MACD
+                if hasattr(indicator, 'source_price'):  # SMMA
+                    ind_config['source_price'] = indicator.source_price
+                if hasattr(indicator, 'fast_period'):  # MACD
                     ind_config['fast_period'] = indicator.fast_period
                     ind_config['slow_period'] = indicator.slow_period
                     ind_config['signal_period'] = indicator.signal_period
@@ -187,6 +189,10 @@ class StrategyPersistence:
                 elif ind_type == 'EMA':
                     period = ind_config.get('period', 20)
                     strategy.add_indicator(ind_name, EMA(period))
+                elif ind_type == 'SMMA':
+                    period = ind_config.get('period', 7)
+                    source_price = ind_config.get('source_price', 'close')
+                    strategy.add_indicator(ind_name, SMMA(period=period, source_price=source_price))
                 elif ind_type == 'RSI':
                     period = ind_config.get('period', 14)
                     strategy.add_indicator(ind_name, RSI(period))
@@ -253,6 +259,17 @@ class StrategyPersistence:
             # Load indicators
             indicators_config = strategy_dict.get('indicators_config', {})
             load_indicators_to_strategy(strategy, indicators_config)
+            return strategy
+        elif strategy_dict.get('strategy_type') == 'smma':
+            # SMMA strategy removed - not working properly
+            logger.warning(f"SMMA strategy '{name}' cannot be loaded - SMMA strategy support has been removed")
+            return None
+        elif strategy_dict.get('strategy_type') == 'session_first_candle':
+            # Create SessionFirstCandleStrategy instance
+            from .session_first_candle_strategy import SessionFirstCandleStrategy
+            mt5_connector = strategy_dict.get('_mt5_connector')  # Passed separately (optional)
+            strategy = SessionFirstCandleStrategy.from_dict(strategy_dict, mt5_connector=mt5_connector)
+            strategy.enabled = enabled
             return strategy
         elif strategy_dict.get('strategy_type') == 'simple_condition':
             # Create SimpleConditionStrategy instance

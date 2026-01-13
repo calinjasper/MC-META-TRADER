@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox,
     QPushButton, QGroupBox, QTimeEdit, QMessageBox,
-    QLabel, QScrollArea, QCheckBox, QFrame
+    QLabel, QScrollArea, QCheckBox, QFrame, QDialog
 )
 from PyQt6.QtCore import Qt, QTime, pyqtSignal
 from typing import Dict, Optional, List
@@ -21,9 +21,12 @@ from ..mt5_connector import MT5Connector
 from ..strategy.base_strategy import BaseStrategy
 from ..strategy.ohlc_price_strategy import OHLCPriceStrategy, OHLCPriceCondition
 from ..strategy.vwap_strategy import VWAPStrategy, VWAPCondition
-from ..strategy.smc_strategy import SMCStrategy
 from ..strategy.ema_strategy import EMAStrategy, EMACondition
 from ..strategy.supertrend_strategy import SuperTrendStrategy
+# SMMA strategy removed - not working properly
+# from ..strategy.smma_strategy import SMMAStrategy
+from ..strategy.smc_strategy import SMCStrategy
+from ..strategy.session_first_candle_strategy import SessionFirstCandleStrategy, SessionFirstCandleCondition
 from .system_log_service import system_log_service
 
 logger = logging.getLogger(__name__)
@@ -155,12 +158,110 @@ class StrategyTab(QWidget):
         # Track editing state
         self.editing_strategy_name: Optional[str] = None
         
+        # SMC settings storage (for dialog)
+        self.smc_pivot_left = 2
+        self.smc_pivot_right = 2
+        self.smc_emit_on = "NONE"
+        
         self.setup_ui()
+        self._apply_dark_theme()
         self.update_symbol_list()
         
         # Connect to data feed for symbol updates
         if hasattr(data_feed, 'tick_received'):
             self.data_feed.tick_received.connect(self._on_tick_received)
+    
+    def _apply_dark_theme(self):
+        """Apply dark theme styling to the strategy tab"""
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            QLabel {
+                color: #ffffff;
+            }
+            QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QTimeEdit {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px;
+            }
+            QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QTimeEdit:focus {
+                border: 1px solid #2196F3;
+            }
+            QComboBox::drop-down {
+                border: none;
+                background-color: #2b2b2b;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                selection-background-color: #2196F3;
+                border: 1px solid #444;
+            }
+            QPushButton {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px 15px;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+            }
+            QPushButton:pressed {
+                background-color: #1a1a1a;
+            }
+            QCheckBox {
+                color: #ffffff;
+            }
+            QCheckBox::indicator {
+                background-color: #2b2b2b;
+                border: 1px solid #444;
+                border-radius: 3px;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #2196F3;
+            }
+            QGroupBox {
+                border: 2px solid #555;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 15px;
+                background-color: #252525;
+                color: #ffffff;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+                color: #ffffff;
+            }
+            QTableWidget {
+                background-color: #1e1e1e;
+                alternate-background-color: #2b2b2b;
+                color: #ffffff;
+                gridline-color: #444;
+                border: 1px solid #444;
+            }
+            QTableWidget::item {
+                padding: 5px;
+            }
+            QTableWidget::item:selected {
+                background-color: #2196F3;
+                color: #ffffff;
+            }
+            QHeaderView::section {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                padding: 8px;
+                border: 1px solid #444;
+                font-weight: bold;
+            }
+        """)
     
     def setup_ui(self):
         """Setup the comprehensive UI"""
@@ -238,7 +339,10 @@ class StrategyTab(QWidget):
         self.strategy_type_combo.addItem("VWAP Strategy", "vwap")
         self.strategy_type_combo.addItem("EMA Strategy", "ema")
         self.strategy_type_combo.addItem("SuperTrend Strategy", "supertrend")
-        self.strategy_type_combo.addItem("SMC (Smart Money Concepts)", "smc")
+        # SMMA Strategy removed - not working properly
+        # self.strategy_type_combo.addItem("SMMA Strategy", "smma")
+        self.strategy_type_combo.addItem("SMC Strategy", "smc")
+        self.strategy_type_combo.addItem("Session First Candle Strategy", "session_first_candle")
         self.strategy_type_combo.addItem("No Strategy", "no_strategy")
         self.strategy_type_combo.currentIndexChanged.connect(self._on_strategy_type_changed)
         layout.addRow("Strategy Type:", self.strategy_type_combo)
@@ -287,6 +391,7 @@ class StrategyTab(QWidget):
         self.symbol_combo = QComboBox()
         self.symbol_combo.setEditable(True)
         self.symbol_combo.setPlaceholderText("Select or enter symbol")
+        self.symbol_combo.currentTextChanged.connect(self._update_sl_tp_preview)
         layout.addRow("Symbol:", self.symbol_combo)
         
         # Timeframe
@@ -419,6 +524,7 @@ class StrategyTab(QWidget):
         
         self.sl_type_combo = QComboBox()
         self.sl_type_combo.addItem("Price (Points)", "points")
+        self.sl_type_combo.currentIndexChanged.connect(self._update_sl_tp_preview)
         sl_tp_layout.addRow("SL Type:", self.sl_type_combo)
         
         self.sl_value_spin = QDoubleSpinBox()
@@ -426,6 +532,7 @@ class StrategyTab(QWidget):
         self.sl_value_spin.setMaximum(100000.0)
         self.sl_value_spin.setDecimals(2)
         self.sl_value_spin.setValue(20.0)
+        self.sl_value_spin.valueChanged.connect(self._update_sl_tp_preview)
         sl_tp_layout.addRow("Stop Loss (points):", self.sl_value_spin)
         
         self.tp_value_spin = QDoubleSpinBox()
@@ -433,7 +540,22 @@ class StrategyTab(QWidget):
         self.tp_value_spin.setMaximum(100000.0)
         self.tp_value_spin.setDecimals(2)
         self.tp_value_spin.setValue(40.0)
+        self.tp_value_spin.valueChanged.connect(self._update_sl_tp_preview)
         sl_tp_layout.addRow("Take Profit (points):", self.tp_value_spin)
+        
+        # Add minimum required value display label
+        self.min_required_label = QLabel("(Select symbol to see minimum required)")
+        self.min_required_label.setStyleSheet("color: gray; font-size: 9pt;")
+        sl_tp_layout.addRow("", self.min_required_label)
+        
+        # Add preview labels for SL/TP
+        self.sl_preview_label = QLabel("")
+        self.sl_preview_label.setStyleSheet("color: #888888; font-size: 10px;")
+        sl_tp_layout.addRow("", self.sl_preview_label)
+        
+        self.tp_preview_label = QLabel("")
+        self.tp_preview_label.setStyleSheet("color: #888888; font-size: 10px;")
+        sl_tp_layout.addRow("", self.tp_preview_label)
         
         sl_tp_group.setLayout(sl_tp_layout)
         layout.addWidget(sl_tp_group)
@@ -577,10 +699,142 @@ class StrategyTab(QWidget):
         group.setLayout(layout)
         parent_layout.addWidget(group)
     
+    def _update_sl_tp_preview(self):
+        """Update SL/TP preview labels showing actual price impact"""
+        # Get symbol from combo box
+        symbol = self.symbol_combo.currentText().strip()
+        
+        if not symbol:
+            if hasattr(self, 'sl_preview_label'):
+                self.sl_preview_label.setText("(Select a symbol to see preview)")
+            if hasattr(self, 'tp_preview_label'):
+                self.tp_preview_label.setText("(Select a symbol to see preview)")
+            if hasattr(self, 'min_required_label'):
+                self.min_required_label.setText("(Select symbol to see minimum required)")
+            return
+        
+        sl_type = self.sl_type_combo.currentData()
+        sl_value = self.sl_value_spin.value()
+        tp_value = self.tp_value_spin.value()
+        
+        # Get symbol info and current price
+        try:
+            if not self.mt5 or not self.mt5.is_connected():
+                if hasattr(self, 'sl_preview_label'):
+                    self.sl_preview_label.setText("(Connect to MT5 to see preview)")
+                if hasattr(self, 'tp_preview_label'):
+                    self.tp_preview_label.setText("(Connect to MT5 to see preview)")
+                if hasattr(self, 'min_required_label'):
+                    self.min_required_label.setText("(Connect to MT5 to see minimum required)")
+                return
+            
+            symbol_info = self.mt5.get_symbol_info(symbol)
+            if not symbol_info:
+                if hasattr(self, 'sl_preview_label'):
+                    self.sl_preview_label.setText(f"(Symbol {symbol} not found)")
+                if hasattr(self, 'tp_preview_label'):
+                    self.tp_preview_label.setText(f"(Symbol {symbol} not found)")
+                if hasattr(self, 'min_required_label'):
+                    self.min_required_label.setText(f"(Symbol {symbol} not found)")
+                return
+            
+            point = symbol_info.get('point', 0.0001)
+            digits = symbol_info.get('digits', 5)
+            trade_stops_level = symbol_info.get('trade_stops_level', 0)
+            
+            # Calculate minimum required distance and points
+            min_distance = trade_stops_level * point if trade_stops_level > 0 else 0
+            min_points = trade_stops_level if trade_stops_level > 0 else 0
+            
+            # Update minimum required label
+            if hasattr(self, 'min_required_label'):
+                if min_points > 0:
+                    self.min_required_label.setText(f"Minimum required: {min_points} points for {symbol}")
+                else:
+                    self.min_required_label.setText(f"No minimum requirement for {symbol}")
+            
+            # Get current price
+            tick = self.mt5.get_symbol_info_tick(symbol)
+            if not tick:
+                if hasattr(self, 'sl_preview_label'):
+                    self.sl_preview_label.setText("(Could not get current price)")
+                if hasattr(self, 'tp_preview_label'):
+                    self.tp_preview_label.setText("(Could not get current price)")
+                return
+            
+            current_price = (tick.get('bid', 0) + tick.get('ask', 0)) / 2.0
+            if current_price == 0:
+                return
+            
+            # Calculate SL preview (only "Price (Points)" type supported in StrategyTab)
+            if sl_type == "points" or "Points" in str(sl_type):
+                sl_distance = sl_value * point
+                sl_price_buy = current_price - sl_distance
+                sl_price_sell = current_price + sl_distance
+                
+                # Validate SL value
+                sl_valid = True
+                sl_validation_msg = ""
+                if min_distance > 0 and sl_distance < min_distance:
+                    sl_valid = False
+                    sl_validation_msg = f" ✗ TOO SMALL (min: {min_points} points)"
+                elif min_points > 0:
+                    sl_validation_msg = f" ✓ (min: {min_points} points)"
+                
+                if hasattr(self, 'sl_preview_label'):
+                    validation_color = "color: red;" if not sl_valid else "color: #888888;"
+                    self.sl_preview_label.setStyleSheet(f"{validation_color} font-size: 10px;")
+                    self.sl_preview_label.setText(
+                        f"{sl_value:.2f} points = {sl_distance:.{digits}f} price points | "
+                        f"Min required: {min_points} points{sl_validation_msg} | "
+                        f"BUY SL: {sl_price_buy:.{digits}f} | SELL SL: {sl_price_sell:.{digits}f}"
+                    )
+            else:
+                # Fallback for other types (if added in future)
+                if hasattr(self, 'sl_preview_label'):
+                    self.sl_preview_label.setText("(Preview for this SL type not available)")
+            
+            # Calculate TP preview
+            tp_distance = tp_value * point
+            tp_price_buy = current_price + tp_distance
+            tp_price_sell = current_price - tp_distance
+            
+            # Validate TP value
+            tp_valid = True
+            tp_validation_msg = ""
+            if min_distance > 0 and tp_distance < min_distance:
+                tp_valid = False
+                tp_validation_msg = f" ✗ TOO SMALL (min: {min_points} points)"
+            elif min_points > 0:
+                tp_validation_msg = f" ✓ (min: {min_points} points)"
+            
+            if hasattr(self, 'tp_preview_label'):
+                validation_color = "color: red;" if not tp_valid else "color: #888888;"
+                self.tp_preview_label.setStyleSheet(f"{validation_color} font-size: 10px;")
+                self.tp_preview_label.setText(
+                    f"TP distance: {tp_distance:.{digits}f} price points | "
+                    f"Min required: {min_points} points{tp_validation_msg} | "
+                    f"BUY TP: {tp_price_buy:.{digits}f} | SELL TP: {tp_price_sell:.{digits}f}"
+                )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Error updating SL/TP preview in StrategyTab: {e}")
+            if hasattr(self, 'sl_preview_label'):
+                self.sl_preview_label.setText("(Preview unavailable)")
+            if hasattr(self, 'tp_preview_label'):
+                self.tp_preview_label.setText("(Preview unavailable)")
+    
     def _on_strategy_type_changed(self):
         """Handle strategy type change"""
+        strategy_type = self.strategy_type_combo.currentData()
         self._update_session_type_options()
         self._update_strategy_config_section()
+        
+        # Open SMC settings dialog if SMC strategy is selected
+        if strategy_type == "smc":
+            self._open_smc_settings_dialog()
+        
         self._update_condition_operands()
         self._update_condition_visibility()
     
@@ -594,17 +848,21 @@ class StrategyTab(QWidget):
         strategy_type = self.strategy_type_combo.currentData()
         
         # SuperTrend auto-generates signals - show note but keep sections visible
+        # SMMA strategy removed - not working properly
         if strategy_type == "supertrend":
             self.buy_group.setTitle("5. Buy Conditions (Disabled - SuperTrend auto-generates signals)")
             self.sell_group.setTitle("6. Sell Conditions (Disabled - SuperTrend auto-generates signals)")
+        # elif strategy_type == "smma":
+        #     self.buy_group.setTitle("5. Buy Conditions (Disabled - SMMA listens for MT5 alerts)")
+        #     self.sell_group.setTitle("6. Sell Conditions (Disabled - SMMA listens for MT5 alerts)")
         elif strategy_type == "smc":
-            self.buy_group.setTitle("5. Buy Conditions (Filters - post-filter BOS/CHoCH signals)")
-            self.sell_group.setTitle("6. Sell Conditions (Filters - post-filter BOS/CHoCH signals)")
+            self.buy_group.setTitle("5. Buy Conditions (Filters - can use SMC prices)")
+            self.sell_group.setTitle("6. Sell Conditions (Filters - can use SMC prices)")
         else:
             self.buy_group.setTitle("5. Buy Conditions")
             self.sell_group.setTitle("6. Sell Conditions")
         
-        # Update visibility based on direction
+        # Update visibility based on direction and strategy type
         if direction == "long":
             self.buy_group.setVisible(True)
             self.sell_group.setVisible(False)
@@ -710,25 +968,87 @@ class StrategyTab(QWidget):
             self.st_atr_method_combo.addItem("SMA(TR)", "sma")
             self.config_layout.addRow("ATR Method:", self.st_atr_method_combo)
         
+        # SMMA strategy removed - not working properly
+        # elif strategy_type == "smma":
+        #     # SMMA Configuration (Alert-Driven)
+        #     info_label = QLabel(
+        #         "⚠️ This strategy listens for MT5 SMMA indicator alerts.\n"
+        #         "Add the SMMA indicator to your MT5 chart. When buy/sell entry arrows appear,\n"
+        #         "the indicator will send alerts and this strategy will execute trades with\n"
+        #         "your configured SL/TP and lot size settings."
+        #     )
+        #     info_label.setWordWrap(True)
+        #     info_label.setStyleSheet("color: #FFA500; padding: 10px; background-color: #2a2a2a; border-radius: 5px;")
+        #     self.config_layout.addRow("", info_label)
+        #     
+        #     # Keep length and source price for indicator compatibility (hidden but used)
+        #     self.smma_length_spin = QSpinBox()
+        #     self.smma_length_spin.setMinimum(1)
+        #     self.smma_length_spin.setMaximum(500)
+        #     self.smma_length_spin.setValue(7)
+        #     self.smma_length_spin.setVisible(False)  # Hidden - indicator handles this
+        #     
+        #     self.smma_source_price_combo = QComboBox()
+        #     self.smma_source_price_combo.addItem("Close", "close")
+        #     self.smma_source_price_combo.setVisible(False)  # Hidden - indicator handles this
+        
         elif strategy_type == "smc":
-            # SMC Configuration
-            self.smc_pivot_left_spin = QSpinBox()
-            self.smc_pivot_left_spin.setMinimum(1)
-            self.smc_pivot_left_spin.setMaximum(10)
-            self.smc_pivot_left_spin.setValue(2)
-            self.config_layout.addRow("Pivot Left Bars:", self.smc_pivot_left_spin)
+            # SMC Configuration - Show button to open dialog
+            from .smc_settings_dialog import SMCSettingsDialog
+            smc_button = QPushButton("Configure SMC Settings...")
+            smc_button.clicked.connect(self._open_smc_settings_dialog)
+            smc_button.setToolTip("Click to configure SMC pivot settings and emit_on options")
+            self.config_layout.addRow("SMC Settings:", smc_button)
             
-            self.smc_pivot_right_spin = QSpinBox()
-            self.smc_pivot_right_spin.setMinimum(1)
-            self.smc_pivot_right_spin.setMaximum(10)
-            self.smc_pivot_right_spin.setValue(2)
-            self.config_layout.addRow("Pivot Right Bars:", self.smc_pivot_right_spin)
+            # Display current settings
+            self.smc_settings_label = QLabel("Pivot: 2/2, Emit: NONE")
+            self.smc_settings_label.setStyleSheet("color: #ccc; font-size: 11px;")
+            self.config_layout.addRow("", self.smc_settings_label)
+        
+        elif strategy_type == "session_first_candle":
+            # Session First Candle Configuration
+            from PyQt6.QtWidgets import QSpinBox, QLabel
             
-            self.smc_emit_on_combo = QComboBox()
-            self.smc_emit_on_combo.addItem("CHoCH only (bias flips)", "CHoCH")
-            self.smc_emit_on_combo.addItem("BOS only (continuation)", "BOS")
-            self.smc_emit_on_combo.addItem("Both (BOS + CHoCH)", "BOTH")
-            self.config_layout.addRow("Emit Signals On:", self.smc_emit_on_combo)
+            # Session 1
+            self.sfc_session1_start_spin = QSpinBox()
+            self.sfc_session1_start_spin.setMinimum(0)
+            self.sfc_session1_start_spin.setMaximum(23)
+            self.sfc_session1_start_spin.setValue(0)
+            self.config_layout.addRow("Session 1 Start Hour:", self.sfc_session1_start_spin)
+            
+            self.sfc_session1_end_spin = QSpinBox()
+            self.sfc_session1_end_spin.setMinimum(0)
+            self.sfc_session1_end_spin.setMaximum(23)
+            self.sfc_session1_end_spin.setValue(9)
+            self.config_layout.addRow("Session 1 End Hour:", self.sfc_session1_end_spin)
+            
+            # Session 2
+            self.sfc_session2_start_spin = QSpinBox()
+            self.sfc_session2_start_spin.setMinimum(-1)
+            self.sfc_session2_start_spin.setMaximum(23)
+            self.sfc_session2_start_spin.setValue(8)
+            self.sfc_session2_start_spin.setSpecialValueText("Disabled")
+            self.config_layout.addRow("Session 2 Start Hour (-1=disabled):", self.sfc_session2_start_spin)
+            
+            self.sfc_session2_end_spin = QSpinBox()
+            self.sfc_session2_end_spin.setMinimum(0)
+            self.sfc_session2_end_spin.setMaximum(23)
+            self.sfc_session2_end_spin.setValue(17)
+            self.config_layout.addRow("Session 2 End Hour:", self.sfc_session2_end_spin)
+            
+            # Session 3
+            self.sfc_session3_start_spin = QSpinBox()
+            self.sfc_session3_start_spin.setMinimum(-1)
+            self.sfc_session3_start_spin.setMaximum(23)
+            self.sfc_session3_start_spin.setValue(13)
+            self.sfc_session3_start_spin.setSpecialValueText("Disabled")
+            self.config_layout.addRow("Session 3 Start Hour (-1=disabled):", self.sfc_session3_start_spin)
+            
+            self.sfc_session3_end_spin = QSpinBox()
+            self.sfc_session3_end_spin.setMinimum(0)
+            self.sfc_session3_end_spin.setMaximum(23)
+            self.sfc_session3_end_spin.setValue(22)
+            self.config_layout.addRow("Session 3 End Hour:", self.sfc_session3_end_spin)
         
         # Hide group if no config needed
         if strategy_type in ["ohlc", "no_strategy"]:
@@ -782,9 +1102,21 @@ class StrategyTab(QWidget):
                 ("SuperTrend Lower", "supertrend_lower"),
             ])
         elif strategy_type == "smc":
+            # Always include pivot high/low
             operands.extend([
                 ("SMC Pivot High", "smc_pivot_high"),
                 ("SMC Pivot Low", "smc_pivot_low"),
+            ])
+            # Add event prices based on emit_on setting
+            emit_on = getattr(self, 'smc_emit_on', 'NONE')
+            if emit_on in ("CHoCH", "BOTH"):
+                operands.append(("SMC CHoCH Price", "smc_choch_price"))
+            if emit_on in ("BOS", "BOTH"):
+                operands.append(("SMC BOS Price", "smc_bos_price"))
+        elif strategy_type == "session_first_candle":
+            operands.extend([
+                ("High Line", "session_high_line"),
+                ("Low Line", "session_low_line"),
             ])
         
         # Update all condition rows
@@ -867,11 +1199,6 @@ class StrategyTab(QWidget):
                 ("SuperTrend Value", "supertrend_value"),
                 ("SuperTrend Upper", "supertrend_upper"),
                 ("SuperTrend Lower", "supertrend_lower"),
-            ])
-        elif strategy_type == "smc":
-            operands.extend([
-                ("SMC Pivot High", "smc_pivot_high"),
-                ("SMC Pivot Low", "smc_pivot_low"),
             ])
         
         operators = [
@@ -1002,6 +1329,54 @@ class StrategyTab(QWidget):
             QMessageBox.warning(self, "Validation Error", "Please select or enter a symbol")
             return
         
+        # Validate SL/TP values against symbol's minimum distance requirement
+        if self.mt5 and self.mt5.is_connected():
+            symbol_info = self.mt5.get_symbol_info(symbol)
+            if symbol_info:
+                trade_stops_level = symbol_info.get('trade_stops_level', 0)
+                point = symbol_info.get('point', 0.0001)
+                
+                if trade_stops_level > 0:
+                    min_distance = trade_stops_level * point
+                    min_points = trade_stops_level
+                    
+                    # Get SL/TP values and type
+                    sl_type = self.sl_type_combo.currentData()
+                    sl_value = self.sl_value_spin.value()
+                    tp_value = self.tp_value_spin.value()
+                    sl_enabled = getattr(self, 'sl_enabled_check', None)
+                    tp_enabled = getattr(self, 'tp_enabled_check', None)
+                    
+                    # Check if SL/TP are enabled (default to True if checkboxes don't exist)
+                    check_sl = sl_enabled is None or sl_enabled.isChecked() if hasattr(sl_enabled, 'isChecked') else True
+                    check_tp = tp_enabled is None or tp_enabled.isChecked() if hasattr(tp_enabled, 'isChecked') else True
+                    
+                    # Validate SL value
+                    if check_sl and (sl_type == "points" or "Points" in str(sl_type)):
+                        sl_distance = sl_value * point
+                        if sl_distance < min_distance:
+                            QMessageBox.warning(
+                                self, 
+                                "Validation Error", 
+                                f"Stop Loss value ({sl_value:.2f} points = {sl_distance:.5f} price points) is below minimum required "
+                                f"({min_points} points = {min_distance:.5f} price points) for symbol {symbol}.\n\n"
+                                f"Please increase SL value to at least {min_points} points."
+                            )
+                            return
+                    
+                    # Validate TP value
+                    if check_tp and (sl_type == "points" or "Points" in str(sl_type)):
+                        tp_distance = tp_value * point
+                        if tp_distance < min_distance:
+                            QMessageBox.warning(
+                                self, 
+                                "Validation Error", 
+                                f"Take Profit value ({tp_value:.2f} points = {tp_distance:.5f} price points) is below minimum required "
+                                f"({min_points} points = {min_distance:.5f} price points) for symbol {symbol}.\n\n"
+                                f"Please increase TP value to at least {min_points} points."
+                            )
+                            return
+        
         # Check uniqueness
         existing = self.strategy_manager.get_strategy(name)
         if existing and name != self.editing_strategy_name:
@@ -1022,8 +1397,13 @@ class StrategyTab(QWidget):
                 strategy = self._create_ema_strategy(name, symbol, timeframe)
             elif strategy_type == "supertrend":
                 strategy = self._create_supertrend_strategy(name, symbol, timeframe)
+            # SMMA strategy removed - not working properly
+            # elif strategy_type == "smma":
+            #     strategy = self._create_smma_strategy(name, symbol, timeframe)
             elif strategy_type == "smc":
                 strategy = self._create_smc_strategy(name, symbol, timeframe)
+            elif strategy_type == "session_first_candle":
+                strategy = self._create_session_first_candle_strategy(name, symbol, timeframe)
             elif strategy_type == "no_strategy":
                 strategy = self._create_no_strategy(name, symbol, timeframe)
             else:
@@ -1192,11 +1572,33 @@ class StrategyTab(QWidget):
         
         return strategy
     
+    # SMMA strategy removed - not working properly
+    # def _create_smma_strategy(self, name: str, symbol: str, timeframe: int) -> SMMAStrategy:
+    #     """Create SMMA Strategy"""
+    #     length = self.smma_length_spin.value() if hasattr(self, 'smma_length_spin') else 7
+    #     source_price = self.smma_source_price_combo.currentData() if hasattr(self, 'smma_source_price_combo') else "close"
+    #     
+    #     strategy = SMMAStrategy(
+    #         name, symbol, timeframe,
+    #         length=length,
+    #         source_price=source_price
+    #     )
+    #     
+    #     # Store direction for filtering signals
+    #     direction = self.direction_combo.currentData()
+    #     strategy.trade_direction = direction
+    #     
+    #     # SMMA auto-generates signals, conditions are ignored
+    #     # But we still allow them to be set for potential future use
+    #     
+    #     return strategy
+    
     def _create_smc_strategy(self, name: str, symbol: str, timeframe: int) -> SMCStrategy:
         """Create SMC Strategy"""
-        pivot_left = self.smc_pivot_left_spin.value() if hasattr(self, 'smc_pivot_left_spin') else 2
-        pivot_right = self.smc_pivot_right_spin.value() if hasattr(self, 'smc_pivot_right_spin') else 2
-        emit_on = self.smc_emit_on_combo.currentData() if hasattr(self, 'smc_emit_on_combo') else "CHoCH"
+        # Use stored settings from dialog
+        pivot_left = getattr(self, 'smc_pivot_left', 2)
+        pivot_right = getattr(self, 'smc_pivot_right', 2)
+        emit_on = getattr(self, 'smc_emit_on', 'NONE')
         
         # Parse buy/sell filters from conditions
         buy_filters = self._parse_conditions(self.buy_condition_rows)
@@ -1212,6 +1614,131 @@ class StrategyTab(QWidget):
         )
         
         return strategy
+    
+    def _create_session_first_candle_strategy(self, name: str, symbol: str, timeframe: int) -> SessionFirstCandleStrategy:
+        """Create Session First Candle Strategy"""
+        # Get session configuration
+        session1_start = getattr(self, 'sfc_session1_start_spin', None)
+        session1_end = getattr(self, 'sfc_session1_end_spin', None)
+        session2_start = getattr(self, 'sfc_session2_start_spin', None)
+        session2_end = getattr(self, 'sfc_session2_end_spin', None)
+        session3_start = getattr(self, 'sfc_session3_start_spin', None)
+        session3_end = getattr(self, 'sfc_session3_end_spin', None)
+        
+        session1_start_hour = session1_start.value() if session1_start else 0
+        session1_end_hour = session1_end.value() if session1_end else 9
+        session2_start_hour = session2_start.value() if session2_start else 8
+        session2_end_hour = session2_end.value() if session2_end else 17
+        session3_start_hour = session3_start.value() if session3_start else 13
+        session3_end_hour = session3_end.value() if session3_end else 22
+        
+        strategy = SessionFirstCandleStrategy(
+            name, symbol, timeframe,
+            session1_start_hour=session1_start_hour,
+            session1_end_hour=session1_end_hour,
+            session2_start_hour=session2_start_hour,
+            session2_end_hour=session2_end_hour,
+            session3_start_hour=session3_start_hour,
+            session3_end_hour=session3_end_hour,
+        )
+        
+        strategy.set_mt5_connector(self.mt5)
+        
+        # Parse buy/sell conditions
+        buy_conditions = self._parse_session_first_candle_conditions(self.buy_condition_rows)
+        sell_conditions = self._parse_session_first_candle_conditions(self.sell_condition_rows)
+        
+        for cond in buy_conditions:
+            strategy.add_buy_condition(cond)
+        
+        for cond in sell_conditions:
+            strategy.add_sell_condition(cond)
+        
+        return strategy
+    
+    def _parse_session_first_candle_conditions(self, condition_rows) -> List[SessionFirstCandleCondition]:
+        """Parse condition rows into SessionFirstCandleCondition objects"""
+        conditions = []
+        
+        for row in condition_rows:
+            # Use get_data() method to get condition data
+            data = row.get_data()
+            
+            if not data.get("enabled", True):
+                continue
+            
+            left_operand = data.get("left_operand")
+            operator = data.get("operator")
+            right_operand = data.get("right_operand")
+            connector = data.get("connector", "OR")
+            
+            if not left_operand or not operator or not right_operand:
+                continue
+            
+            # Map operator strings
+            operator_map = {
+                ">": ">",
+                "<": "<",
+                ">=": ">=",
+                "<=": "<=",
+                "==": "==",
+                "crosses_above": "Crosses Above",
+                "crosses_under": "Crosses Under",
+            }
+            
+            mapped_operator = operator_map.get(operator, operator)
+            
+            # Map operand strings to field names
+            field_map = {
+                "current_price": "price",
+                "price": "price",
+                "session_high_line": "session_high_line",
+                "session_low_line": "session_low_line",
+                "high_line": "session_high_line",
+                "low_line": "session_low_line",
+            }
+            
+            left_field = field_map.get(left_operand, left_operand)
+            right_field = field_map.get(right_operand, right_operand)
+            
+            condition = SessionFirstCandleCondition(
+                price_reference="Current Price",  # Default
+                operator=mapped_operator,
+                left_field=left_field,
+                right_field=right_field,
+                connector=connector or "OR",
+            )
+            
+            conditions.append(condition)
+        
+        return conditions
+    
+    def _open_smc_settings_dialog(self):
+        """Open SMC settings dialog"""
+        from .smc_settings_dialog import SMCSettingsDialog
+        from PyQt6.QtWidgets import QDialog
+        
+        dialog = SMCSettingsDialog(self, {
+            'pivot_left': getattr(self, 'smc_pivot_left', 2),
+            'pivot_right': getattr(self, 'smc_pivot_right', 2),
+            'emit_on': getattr(self, 'smc_emit_on', 'NONE')
+        })
+        
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            settings = dialog.get_settings()
+            self.smc_pivot_left = settings['pivot_left']
+            self.smc_pivot_right = settings['pivot_right']
+            self.smc_emit_on = settings['emit_on']
+            
+            # Update settings label if it exists
+            if hasattr(self, 'smc_settings_label'):
+                emit_text = settings['emit_on']
+                self.smc_settings_label.setText(
+                    f"Pivot: {settings['pivot_left']}/{settings['pivot_right']}, Emit: {emit_text}"
+                )
+            
+            # Update operands to reflect new emit_on setting
+            self._update_condition_operands()
     
     def _create_no_strategy(self, name: str, symbol: str, timeframe: int) -> BaseStrategy:
         """Create No Strategy (direct execution)"""
@@ -1337,6 +1864,14 @@ class StrategyTab(QWidget):
                 self.strategy_type_combo.setCurrentIndex(3)  # SuperTrend
             elif isinstance(strategy, SMCStrategy):
                 self.strategy_type_combo.setCurrentIndex(4)  # SMC
+                # Load SMC settings into instance variables
+                self.smc_pivot_left = getattr(strategy, 'pivot_left', 2)
+                self.smc_pivot_right = getattr(strategy, 'pivot_right', 2)
+            # Update settings label if it exists
+                if hasattr(self, 'smc_settings_label'):
+                    self.smc_settings_label.setText(
+                        f"Pivot: {self.smc_pivot_left}/{self.smc_pivot_right}, Emit: {self.smc_emit_on}"
+                    )
             else:
                 self.strategy_type_combo.setCurrentIndex(5)  # No Strategy
             
@@ -1499,15 +2034,34 @@ class StrategyTab(QWidget):
                         self.st_atr_method_combo.setCurrentIndex(idx)
             
             elif isinstance(strategy, SMCStrategy):
-                if hasattr(self, 'smc_pivot_left_spin'):
-                    self.smc_pivot_left_spin.setValue(getattr(strategy, 'pivot_left', 2))
-                if hasattr(self, 'smc_pivot_right_spin'):
-                    self.smc_pivot_right_spin.setValue(getattr(strategy, 'pivot_right', 2))
-                if hasattr(self, 'smc_emit_on_combo'):
-                    emit_on = getattr(strategy, 'emit_on', 'CHoCH')
-                    idx = self.smc_emit_on_combo.findData(emit_on)
-                    if idx >= 0:
-                        self.smc_emit_on_combo.setCurrentIndex(idx)
+                # Load SMC settings into instance variables
+                self.smc_pivot_left = getattr(strategy, 'pivot_left', 2)
+                self.smc_pivot_right = getattr(strategy, 'pivot_right', 2)
+                self.smc_emit_on = getattr(strategy, 'emit_on', 'NONE')
+                
+                # Update settings label if it exists
+                if hasattr(self, 'smc_settings_label'):
+                    self.smc_settings_label.setText(
+                        f"Pivot: {self.smc_pivot_left}/{self.smc_pivot_right}, Emit: {self.smc_emit_on}"
+                    )
+            
+            elif isinstance(strategy, SessionFirstCandleStrategy):
+                # Load Session First Candle settings
+                if hasattr(self, 'sfc_session1_start_spin'):
+                    self.sfc_session1_start_spin.setValue(getattr(strategy, 'session1_start_hour', 0))
+                if hasattr(self, 'sfc_session1_end_spin'):
+                    self.sfc_session1_end_spin.setValue(getattr(strategy, 'session1_end_hour', 9))
+                if hasattr(self, 'sfc_session2_start_spin'):
+                    self.sfc_session2_start_spin.setValue(getattr(strategy, 'session2_start_hour', 8))
+                if hasattr(self, 'sfc_session2_end_spin'):
+                    self.sfc_session2_end_spin.setValue(getattr(strategy, 'session2_end_hour', 17))
+                if hasattr(self, 'sfc_session3_start_spin'):
+                    self.sfc_session3_start_spin.setValue(getattr(strategy, 'session3_start_hour', 13))
+                if hasattr(self, 'sfc_session3_end_spin'):
+                    self.sfc_session3_end_spin.setValue(getattr(strategy, 'session3_end_hour', 22))
+            
+            # Update SL/TP preview after loading values
+            self._update_sl_tp_preview()
             
             QMessageBox.information(self, "Strategy Loaded", f"Strategy '{strategy.name}' loaded successfully")
         

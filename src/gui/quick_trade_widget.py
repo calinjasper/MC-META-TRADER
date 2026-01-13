@@ -32,13 +32,60 @@ class QuickTradeWidget(QWidget):
     
     def setup_ui(self):
         """Setup the quick trade UI"""
+        # Apply dark theme styling
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            QLabel {
+                color: #ffffff;
+            }
+            QComboBox, QDoubleSpinBox {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px;
+            }
+            QComboBox:focus, QDoubleSpinBox:focus {
+                border: 1px solid #2196F3;
+            }
+            QComboBox::drop-down {
+                border: none;
+                background-color: #2b2b2b;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                selection-background-color: #2196F3;
+                border: 1px solid #444;
+            }
+            QPushButton {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px 15px;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+            }
+            QPushButton:pressed {
+                background-color: #1a1a1a;
+            }
+        """)
+        
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
         
         # Symbol selector
         symbol_layout = QHBoxLayout()
-        symbol_layout.addWidget(QLabel("Symbol:"))
+        symbol_label = QLabel("Symbol:")
+        symbol_label.setStyleSheet("color: #ffffff;")
+        symbol_layout.addWidget(symbol_label)
         self.symbol_combo = QComboBox()
         self.symbol_combo.setEditable(True)
         self.symbol_combo.setMinimumWidth(120)

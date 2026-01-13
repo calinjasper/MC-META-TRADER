@@ -7,11 +7,15 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QTableWidgetItem, QLabel, QPushButton, QLineEdit,
                              QHeaderView, QComboBox, QMessageBox)
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor, QBrush
 from typing import Dict, Optional, List
 
 from ..data_feed import DataFeed
 from ..mt5_connector import MT5Connector
 from .custom_indicator_panel import PreviousSessionOHLCCalculator
+from ..indicators.session_first_candle import SessionFirstCandle
+from datetime import datetime
+import MetaTrader5 as mt5_lib
 import logging
 
 logger = logging.getLogger(__name__)
@@ -27,6 +31,19 @@ class MarketDataPanel(QWidget):
         self.ohlc_data = {}  # Store OHLC data: symbol -> {'open': float, 'high': float, 'low': float, 'close': float}
         self.ohlc_calculator = PreviousSessionOHLCCalculator(session_type='daily')
         self.session_type = 'daily'
+        
+        # Session First Candle calculators per symbol
+        # We'll create them on-demand, but store the session config
+        self.session_first_candle_config = {
+            'session1_start_hour': 0,
+            'session1_end_hour': 9,
+            'session2_start_hour': 8,
+            'session2_end_hour': 17,
+            'session3_start_hour': 13,
+            'session3_end_hour': 22
+        }
+        self.session_data = {}  # symbol -> {'high': float, 'low': float}
+        
         self.setup_ui()
         self.setup_connections()
     
@@ -44,11 +61,77 @@ class MarketDataPanel(QWidget):
     
     def setup_ui(self):
         """Setup the UI"""
+        # Apply dark theme styling
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            QLabel {
+                color: #ffffff;
+            }
+            QLineEdit, QComboBox {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px;
+            }
+            QLineEdit:focus, QComboBox:focus {
+                border: 1px solid #2196F3;
+            }
+            QComboBox::drop-down {
+                border: none;
+                background-color: #2b2b2b;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                selection-background-color: #2196F3;
+                border: 1px solid #444;
+            }
+            QPushButton {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px 15px;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+            }
+            QPushButton:pressed {
+                background-color: #1a1a1a;
+            }
+            QTableWidget {
+                background-color: #1e1e1e;
+                alternate-background-color: #2b2b2b;
+                color: #ffffff;
+                gridline-color: #444;
+                border: 1px solid #444;
+            }
+            QTableWidget::item {
+                padding: 5px;
+            }
+            QTableWidget::item:selected {
+                background-color: #2196F3;
+                color: #ffffff;
+            }
+            QHeaderView::section {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                padding: 8px;
+                border: 1px solid #444;
+                font-weight: bold;
+            }
+        """)
+        
         layout = QVBoxLayout(self)
         
         # Account info section
         account_label = QLabel("Account Information")
-        account_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        account_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #ffffff;")
         layout.addWidget(account_label)
         
         self.account_info_layout = QHBoxLayout()
@@ -99,17 +182,15 @@ class MarketDataPanel(QWidget):
         
         # Market data table
         table_label = QLabel("Live Market Data")
-        table_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        table_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #ffffff;")
         layout.addWidget(table_label)
         
         self.data_table = QTableWidget()
-        self.data_table.setColumnCount(10)
-        self.data_table.setHorizontalHeaderLabels([
-            "Symbol", "Bid", "Ask", "Spread", "Last", "Time", 
-            "Prev Open", "Prev High", "Prev Low", "Prev Close"
-        ])
+        self._setup_table_columns()
         self.data_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.data_table.setAlternatingRowColors(True)
+        # Context menu removed since SMC settings are removed
+        # Can be re-enabled if needed: self.data_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         
         layout.addWidget(self.data_table)
         
@@ -125,11 +206,32 @@ class MarketDataPanel(QWidget):
         
         # Refresh button (more prominent)
         refresh_button = QPushButton("🔄 Refresh OHLC Data")
-        refresh_button.setStyleSheet("font-weight: bold; padding: 5px;")
+        refresh_button.setStyleSheet("""
+            font-weight: bold; 
+            padding: 5px;
+            background-color: #2196F3;
+            color: #ffffff;
+            border: none;
+        """)
         refresh_button.clicked.connect(self.refresh_data)
         session_layout.addWidget(refresh_button)
         session_layout.addStretch()
         layout.addLayout(session_layout)
+    
+    def _setup_table_columns(self):
+        """Setup table columns - always 12 columns with Session First Candle High/Low"""
+        self.data_table.setColumnCount(12)
+        self.data_table.setHorizontalHeaderLabels([
+            "Symbol", "Bid", "Ask", "Spread", "Last", "Time", 
+            "Prev Open", "Prev High", "Prev Low", "Prev Close",
+            "High", "Low"
+        ])
+    
+    def _show_table_context_menu(self, position):
+        """Show context menu for table (empty for now, can add other actions later)"""
+        # Context menu disabled since we removed SMC settings
+        # Can be re-enabled if we add other context menu actions later
+        pass
     
     def load_available_symbols(self):
         """Load available symbols from MT5"""
@@ -195,6 +297,8 @@ class MarketDataPanel(QWidget):
             # Fetch OHLC immediately when symbol is added
             if correct_symbol and self.mt5.is_connected():
                 self.fetch_ohlc_for_symbols([correct_symbol])
+                # Calculate session first candle for new symbol
+                self._calculate_session_first_candle(correct_symbol)
             
             self.refresh_data()
         else:
@@ -320,6 +424,83 @@ class MarketDataPanel(QWidget):
             self.data_table.setItem(row, 9, QTableWidgetItem(f"{prev_close:.{digits}f}"))
         else:
             self.data_table.setItem(row, 9, QTableWidgetItem("--"))
+        
+        # Add Session First Candle High/Low data (columns 10-11)
+        session_data = self.session_data.get(symbol, {})
+        self._update_session_cell(row, 10, session_data.get('high'), digits, QColor(30, 60, 30))  # Light green bg for High
+        self._update_session_cell(row, 11, session_data.get('low'), digits, QColor(60, 30, 30))   # Light red bg for Low
+    
+    def _update_session_cell(self, row: int, col: int, value: Optional[float], digits: int, bg_color: QColor):
+        """Update session first candle cell with value and background color"""
+        if value is not None:
+            item = QTableWidgetItem(f"{value:.{digits}f}")
+            item.setBackground(QBrush(bg_color))
+            self.data_table.setItem(row, col, item)
+        else:
+            item = QTableWidgetItem("--")
+            item.setForeground(QBrush(QColor(128, 128, 128)))  # Gray text for empty
+            self.data_table.setItem(row, col, item)
+    
+    def _calculate_session_first_candle(self, symbol: str) -> Dict[str, Optional[float]]:
+        """
+        Calculate session first candle high/low for a symbol using M1 timeframe
+        
+        Args:
+            symbol: Trading symbol to calculate for
+            
+        Returns:
+            Dict with 'high' and 'low' keys, or empty dict if calculation fails
+        """
+        if not self.mt5.is_connected():
+            return {}
+        
+        try:
+            # Fetch M1 rates - request enough bars to cover 3 full days (4320 bars = 3 days * 24 hours * 60 minutes)
+            # MT5 indicator processes all available bars from history, so we need enough to capture all session starts
+            # get_rates returns list of dicts with newest first, need to reverse for chronological order
+            rates = self.mt5.get_rates(symbol, mt5_lib.TIMEFRAME_M1, 4320)  # 3 days worth of M1 bars
+            
+            if not rates or len(rates) == 0:
+                logger.debug(f"No M1 rates available for {symbol}")
+                self.session_data[symbol] = {'high': None, 'low': None}
+                return {'high': None, 'low': None}
+            
+            # MT5 get_rates returns newest first (reverse chronological)
+            # SessionFirstCandle expects oldest to newest (chronological)
+            # Reverse the list to get chronological order
+            rates_list = list(reversed(rates))
+            
+            # Create a fresh calculator instance for clean calculation
+            calculator = SessionFirstCandle(
+                session1_start_hour=self.session_first_candle_config['session1_start_hour'],
+                session1_end_hour=self.session_first_candle_config['session1_end_hour'],
+                session2_start_hour=self.session_first_candle_config['session2_start_hour'],
+                session2_end_hour=self.session_first_candle_config['session2_end_hour'],
+                session3_start_hour=self.session_first_candle_config['session3_start_hour'],
+                session3_end_hour=self.session_first_candle_config['session3_end_hour']
+            )
+            
+            # Update the calculator with rates (will calculate chronologically)
+            calculator.update(rates_list)
+            
+            # Get session high/low values
+            session_high = calculator.get_session_high()
+            session_low = calculator.get_session_low()
+            
+            # Store in session_data
+            self.session_data[symbol] = {
+                'high': session_high,
+                'low': session_low
+            }
+            
+            logger.debug(f"Calculated Session First Candle for {symbol}: High={session_high}, Low={session_low}")
+            
+            return {'high': session_high, 'low': session_low}
+            
+        except Exception as e:
+            logger.error(f"Error calculating session first candle for {symbol}: {e}", exc_info=True)
+            self.session_data[symbol] = {'high': None, 'low': None}
+            return {'high': None, 'low': None}
     
     def on_session_changed(self, session_text: str):
         """Handle session type change"""
@@ -359,6 +540,10 @@ class MarketDataPanel(QWidget):
         # Fetch OHLC for all symbols first
         if self.data_feed.symbols:
             self.fetch_ohlc_for_symbols(list(self.data_feed.symbols))
+            
+            # Calculate session first candle for all symbols
+            for symbol in self.data_feed.symbols:
+                self._calculate_session_first_candle(symbol)
         
         self.data_table.setRowCount(0)
         

@@ -27,7 +27,7 @@ def resolve_operand(field: str, context: Dict) -> Optional[float]:
         context: Dictionary containing:
             - 'price': Current price (float)
             - 'ohlc': OHLC data dict with 'open', 'high', 'low', 'close'
-            - 'smc_pivots': Dict with 'pivot_high', 'pivot_low'
+            - 'smc_pivots': Dict with 'pivot_high', 'pivot_low', 'choch_price', 'bos_price'
             - 'vwap': VWAP data dict
             - 'ema': EMA values dict
             - 'indicators': General indicators dict
@@ -38,11 +38,15 @@ def resolve_operand(field: str, context: Dict) -> Optional[float]:
     if not field:
         return None
     
-    # Price field
-    if field == "price":
+    # Price fields (support multiple names)
+    if field in ("price", "current_price"):
         price = context.get("price")
         if price is not None:
             return float(price)
+        # Fallback: try to get from ohlc close
+        ohlc = context.get("ohlc")
+        if ohlc and ohlc.get("close") is not None:
+            return float(ohlc.get("close"))
         return None
     
     # OHLC fields
@@ -79,7 +83,7 @@ def resolve_operand(field: str, context: Dict) -> Optional[float]:
             if o is not None and h is not None and l is not None and c is not None:
                 return (float(o) + float(h) + float(l) + float(c)) / 4.0
     
-    # SMC pivot fields
+    # SMC pivot and event fields
     smc_pivots = context.get("smc_pivots")
     if smc_pivots:
         if field == "smc_pivot_high":
@@ -87,6 +91,12 @@ def resolve_operand(field: str, context: Dict) -> Optional[float]:
             return float(val) if val is not None else None
         if field == "smc_pivot_low":
             val = smc_pivots.get("pivot_low")
+            return float(val) if val is not None else None
+        if field == "smc_choch_price":
+            val = smc_pivots.get("choch_price")
+            return float(val) if val is not None else None
+        if field == "smc_bos_price":
+            val = smc_pivots.get("bos_price")
             return float(val) if val is not None else None
     
     # VWAP fields
@@ -119,6 +129,16 @@ def resolve_operand(field: str, context: Dict) -> Optional[float]:
     if ema_data:
         if field.startswith("ema_"):
             val = ema_data.get(field)
+            return float(val) if val is not None else None
+    
+    # Session First Candle fields
+    session_first_candle = context.get("session_first_candle")
+    if session_first_candle:
+        if field in ("session_high_line", "session_high", "high_line"):
+            val = session_first_candle.get("session_high")
+            return float(val) if val is not None else None
+        if field in ("session_low_line", "session_low", "low_line"):
+            val = session_first_candle.get("session_low")
             return float(val) if val is not None else None
     
     # General indicators from market_data['indicators']

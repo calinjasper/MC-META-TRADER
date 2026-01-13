@@ -374,6 +374,53 @@ class TradeMonitor:
             # Update trailing SL
             new_sl = trailing_sl.update_price(current_price)
             
+            # Validate and adjust SL to ensure it's valid for MT5
+            symbol = position.get('symbol')
+            if symbol and new_sl != current_sl:
+                # Get current market prices
+                tick = self.mt5.get_symbol_info_tick(symbol)
+                symbol_info = self.mt5.get_symbol_info(symbol)
+                
+                if tick and symbol_info:
+                    bid = tick.get('bid', 0.0)
+                    ask = tick.get('ask', 0.0)
+                    point = symbol_info.get('point', 0.0001)
+                    trade_stops_level = symbol_info.get('trade_stops_level', 0)
+                    min_distance = trade_stops_level * point if trade_stops_level > 0 else 0
+                    
+                    # Validate and adjust SL
+                    if pos_type == 0:  # BUY position
+                        # SL must be below bid
+                        if new_sl >= bid:
+                            # Adjust to valid level
+                            if min_distance > 0:
+                                new_sl = bid - min_distance
+                            else:
+                                # Fallback: use reasonable default (e.g., 0.1% of price or 10 points)
+                                new_sl = bid - max(bid * 0.001, point * 10)
+                            logger.warning(f"Adjusted trailing SL for BUY position {ticket}: SL was above bid ({bid:.5f}), set to {new_sl:.5f}")
+                        elif min_distance > 0 and (bid - new_sl) < min_distance:
+                            # Ensure minimum distance
+                            new_sl = bid - min_distance
+                            logger.debug(f"Adjusted trailing SL for BUY position {ticket} to meet minimum distance: {new_sl:.5f}")
+                    else:  # SELL position
+                        # SL must be above ask
+                        if new_sl <= ask:
+                            # Adjust to valid level
+                            if min_distance > 0:
+                                new_sl = ask + min_distance
+                            else:
+                                # Fallback: use reasonable default
+                                new_sl = ask + max(ask * 0.001, point * 10)
+                            logger.warning(f"Adjusted trailing SL for SELL position {ticket}: SL was below ask ({ask:.5f}), set to {new_sl:.5f}")
+                        elif min_distance > 0 and (new_sl - ask) < min_distance:
+                            # Ensure minimum distance
+                            new_sl = ask + min_distance
+                            logger.debug(f"Adjusted trailing SL for SELL position {ticket} to meet minimum distance: {new_sl:.5f}")
+                    
+                    # Update trailing_sl's internal stop_loss to match validated value
+                    trailing_sl.stop_loss = new_sl
+            
             # Only update if SL has changed significantly (avoid too frequent updates)
             # Use 0.01% change threshold or minimum 0.1 points
             if new_sl != current_sl:

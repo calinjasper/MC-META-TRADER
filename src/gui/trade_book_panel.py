@@ -32,13 +32,59 @@ class TradeBookPanel(QWidget):
     
     def setup_ui(self):
         """Setup the UI"""
+        # Apply dark theme styling
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            QLabel {
+                color: #ffffff;
+            }
+            QPushButton {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px 15px;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+            }
+            QPushButton:pressed {
+                background-color: #1a1a1a;
+            }
+            QTableWidget {
+                background-color: #1e1e1e;
+                alternate-background-color: #2b2b2b;
+                color: #ffffff;
+                gridline-color: #444;
+                border: 1px solid #444;
+            }
+            QTableWidget::item {
+                padding: 5px;
+            }
+            QTableWidget::item:selected {
+                background-color: #2196F3;
+                color: #ffffff;
+            }
+            QHeaderView::section {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                padding: 8px;
+                border: 1px solid #444;
+                font-weight: bold;
+            }
+        """)
+        
         layout = QVBoxLayout(self)
         
         # Title and buttons
         header_layout = QHBoxLayout()
         
         title = QLabel("Trade Book")
-        title.setStyleSheet("font-weight: bold; font-size: 16px;")
+        title.setStyleSheet("font-weight: bold; font-size: 16px; color: #ffffff;")
         header_layout.addWidget(title)
         
         header_layout.addStretch()

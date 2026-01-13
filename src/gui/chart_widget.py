@@ -19,6 +19,7 @@ from PyQt6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtGui import QIcon
 from ..utils.symbol_mapper import SymbolMapper
+from ..utils.font_utils import get_stylesheet_font_string, apply_font_to_widget, FontSize, FontWeight
 from .indicator_settings_dialog import IndicatorSettingsDialog
 import uuid
 
@@ -189,10 +190,60 @@ class ChartWidget(QWidget):
         layout = QHBoxLayout(panel)
         layout.setContentsMargins(5, 5, 5, 5)
         
+        # Apply dark theme styling to control panel
+        panel.setStyleSheet("""
+            QWidget {
+                background-color: #1e1e1e;
+            }
+            QLabel {
+                color: #ffffff;
+            }
+            QComboBox {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px;
+            }
+            QComboBox:hover {
+                border: 1px solid #555;
+            }
+            QComboBox:focus {
+                border: 1px solid #2196F3;
+            }
+            QComboBox::drop-down {
+                border: none;
+                background-color: #2b2b2b;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                selection-background-color: #2196F3;
+                border: 1px solid #444;
+            }
+            QCheckBox {
+                color: #ffffff;
+            }
+            QCheckBox::indicator {
+                background-color: #2b2b2b;
+                border: 1px solid #444;
+                border-radius: 3px;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #2196F3;
+            }
+        """)
+        
+        # Apply font styling to control panel
+        control_font_style = get_stylesheet_font_string('normal', 'medium')
+        
         # Symbol selector
-        layout.addWidget(QLabel("Symbol:"))
+        symbol_label = QLabel("Symbol:")
+        apply_font_to_widget(symbol_label, 'normal', 'medium')
+        layout.addWidget(symbol_label)
         self.symbol_combo = QComboBox()
         self.symbol_combo.setMinimumWidth(120)
+        apply_font_to_widget(self.symbol_combo, 'normal', 'regular')
         self.symbol_combo.addItems(["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", 
                                      "USDCAD", "NZDUSD", "XAUUSD", "US30"])
         self.symbol_combo.setCurrentText(self.current_symbol)
@@ -202,8 +253,11 @@ class ChartWidget(QWidget):
         layout.addSpacing(20)
         
         # Timeframe selector
-        layout.addWidget(QLabel("Timeframe:"))
+        timeframe_label = QLabel("Timeframe:")
+        apply_font_to_widget(timeframe_label, 'normal', 'medium')
+        layout.addWidget(timeframe_label)
         self.timeframe_combo = QComboBox()
+        apply_font_to_widget(self.timeframe_combo, 'normal', 'regular')
         self.timeframe_combo.addItems(["M1", "M5", "M15", "M30", "H1", "H4", "D1"])
         self.timeframe_combo.setCurrentText("M15")
         self.timeframe_combo.currentTextChanged.connect(self.on_timeframe_changed)
@@ -212,8 +266,11 @@ class ChartWidget(QWidget):
         layout.addSpacing(20)
         
         # Chart Type selector
-        layout.addWidget(QLabel("Chart Type:"))
+        chart_type_label = QLabel("Chart Type:")
+        apply_font_to_widget(chart_type_label, 'normal', 'medium')
+        layout.addWidget(chart_type_label)
         self.chart_type_combo = QComboBox()
+        apply_font_to_widget(self.chart_type_combo, 'normal', 'regular')
         self.chart_type_combo.addItems(["Candles", "Line", "Area", "Bars", "Hollow Candles", "Heikin Ashi"])
         self.chart_type_combo.setCurrentText("Candles")
         self.chart_type_combo.currentTextChanged.connect(self.on_chart_type_changed)
@@ -222,8 +279,11 @@ class ChartWidget(QWidget):
         layout.addSpacing(20)
         
         # Theme selector
-        layout.addWidget(QLabel("Theme:"))
+        theme_label = QLabel("Theme:")
+        apply_font_to_widget(theme_label, 'normal', 'medium')
+        layout.addWidget(theme_label)
         self.theme_combo = QComboBox()
+        apply_font_to_widget(self.theme_combo, 'normal', 'regular')
         from ..config.chart_themes import get_available_themes
         self.theme_combo.addItems(get_available_themes())
         self.theme_combo.setCurrentText("Dark")
@@ -233,9 +293,12 @@ class ChartWidget(QWidget):
         layout.addSpacing(20)
         
         # Add Indicator dropdown
-        layout.addWidget(QLabel("Indicator:"))
+        indicator_label = QLabel("Indicator:")
+        apply_font_to_widget(indicator_label, 'normal', 'medium')
+        layout.addWidget(indicator_label)
         self.add_indicator_combo = QComboBox()
         self.add_indicator_combo.setMinimumWidth(150)
+        apply_font_to_widget(self.add_indicator_combo, 'normal', 'regular')
         self.add_indicator_combo.addItems([
             "Add Indicator...",
             "EMA",
@@ -299,7 +362,7 @@ class ChartWidget(QWidget):
         
         # Label
         label = QLabel("Active Indicators:")
-        label.setStyleSheet("font-weight: bold;")
+        apply_font_to_widget(label, 'normal', 'semi_bold')
         container_layout.addWidget(label)
         
         # Scroll area for indicator list
@@ -1413,7 +1476,7 @@ class ChartWidget(QWidget):
                 emit_mode = 'Both'
             
             # Import fractal pivot functions
-            from ..strategy.smc_strategy import _fractal_pivot_high, _fractal_pivot_low
+            from ..strategy.smc_utils import fractal_pivot_high, fractal_pivot_low
             
             # Extract high, low, and close price arrays from rates
             highs = []
@@ -1474,7 +1537,7 @@ class ChartWidget(QWidget):
             for i in range(start_idx, end_idx):
                 if _fractal_pivot_high(highs, i, pivot_left, pivot_right):
                     all_pivot_highs.append((i, highs[i]))
-                if _fractal_pivot_low(lows, i, pivot_left, pivot_right):
+                if fractal_pivot_low(lows, i, pivot_left, pivot_right):
                     all_pivot_lows.append((i, lows[i]))
             
             # Track structure for filtering

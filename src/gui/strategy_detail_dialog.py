@@ -12,6 +12,12 @@ import MetaTrader5 as mt5
 from ..strategy.base_strategy import BaseStrategy
 from ..strategy.ohlc_price_strategy import OHLCPriceStrategy
 from ..strategy.vwap_strategy import VWAPStrategy
+from ..strategy.ema_strategy import EMAStrategy
+from ..strategy.supertrend_strategy import SuperTrendStrategy
+# SMMA strategy removed - not working properly
+# from ..strategy.smma_strategy import SMMAStrategy
+from ..strategy.smc_strategy import SMCStrategy
+from ..strategy.session_first_candle_strategy import SessionFirstCandleStrategy
 from ..tools.vwap_validator import VWAPValidator
 from datetime import datetime
 import logging
@@ -65,9 +71,48 @@ class StrategyDetailDialog(QDialog):
         basic_group = QGroupBox("Basic Information")
         basic_layout = QVBoxLayout()
         
+        # Get strategy type
+        strategy_type = getattr(self.strategy, 'strategy_type', None)
+        if not strategy_type:
+            # Try to infer from class type
+            if isinstance(self.strategy, OHLCPriceStrategy):
+                strategy_type = "OHLC Price Strategy"
+            elif isinstance(self.strategy, VWAPStrategy):
+                strategy_type = "VWAP Strategy"
+            elif isinstance(self.strategy, EMAStrategy):
+                strategy_type = "EMA Strategy"
+            elif isinstance(self.strategy, SuperTrendStrategy):
+                strategy_type = "SuperTrend Strategy"
+            # SMMA strategy removed - not working properly
+            # elif isinstance(self.strategy, SMMAStrategy):
+            #     strategy_type = "SMMA Strategy"
+            elif isinstance(self.strategy, SMCStrategy):
+                strategy_type = "SMC Strategy"
+            else:
+                strategy_type = "Unknown Strategy"
+        
+        # Get trade direction
+        trade_direction = getattr(self.strategy, 'trade_direction', 'both')
+        direction_display = {
+            'long': 'Long-only (BUY trades only)',
+            'short': 'Short-only (SELL trades only)',
+            'both': 'Long & Short (Both BUY and SELL trades)'
+        }.get(trade_direction, trade_direction)
+        
+        # Determine active directions
+        if trade_direction == 'long':
+            active_directions = "[ACTIVE] LONG | [INACTIVE] SHORT"
+        elif trade_direction == 'short':
+            active_directions = "[INACTIVE] LONG | [ACTIVE] SHORT"
+        else:  # both
+            active_directions = "[ACTIVE] LONG | [ACTIVE] SHORT"
+        
         basic_info = [
             ("Name:", self.strategy.name),
             ("Symbol:", self.strategy.symbol),
+            ("Strategy Type:", strategy_type),
+            ("Trade Direction:", direction_display),
+            ("Active Directions:", active_directions),
             ("Status:", "Enabled" if self.strategy.enabled else "Disabled"),
             ("Timeframe:", self._format_timeframe(getattr(self.strategy, 'timeframe', mt5.TIMEFRAME_M1))),
         ]
@@ -87,12 +132,33 @@ class StrategyDetailDialog(QDialog):
             self._load_ohlc_details()
         elif isinstance(self.strategy, VWAPStrategy):
             self._load_vwap_details()
+        elif isinstance(self.strategy, EMAStrategy):
+            self._load_ema_details()
+        elif isinstance(self.strategy, SuperTrendStrategy):
+            self._load_supertrend_details()
+        # SMMA strategy removed - not working properly
+        # elif isinstance(self.strategy, SMMAStrategy):
+        #     self._load_smma_details()
+        elif isinstance(self.strategy, SMCStrategy):
+            self._load_smc_details()
+        elif isinstance(self.strategy, SessionFirstCandleStrategy):
+            self._load_session_first_candle_details()
         
         # Buy Conditions
         buy_group = QGroupBox("Buy Conditions")
         buy_layout = QVBoxLayout()
         
-        if hasattr(self.strategy, 'buy_conditions') and self.strategy.buy_conditions:
+        # Check if strategy auto-generates signals
+        # SMMA strategy removed - not working properly
+        is_auto_signal = isinstance(self.strategy, SuperTrendStrategy)  # Removed SMMAStrategy
+        # is_auto_signal = isinstance(self.strategy, (SuperTrendStrategy, SMMAStrategy))
+        
+        if is_auto_signal:
+            if isinstance(self.strategy, SuperTrendStrategy):
+                buy_layout.addWidget(QLabel("<i>Disabled - SuperTrend auto-generates BUY signals based on trend flips</i>"))
+            # elif isinstance(self.strategy, SMMAStrategy):
+            #     buy_layout.addWidget(QLabel("<i>Disabled - SMMA auto-generates BUY Entry signals when price crosses above High of crossover candle</i>"))
+        elif hasattr(self.strategy, 'buy_conditions') and self.strategy.buy_conditions:
             for i, condition in enumerate(self.strategy.buy_conditions, 1):
                 condition_text = self._format_condition(condition, "BUY")
                 label = QLabel(f"<b>Condition {i}:</b> {condition_text}")
@@ -109,7 +175,13 @@ class StrategyDetailDialog(QDialog):
         sell_group = QGroupBox("Sell Conditions")
         sell_layout = QVBoxLayout()
         
-        if hasattr(self.strategy, 'sell_conditions') and self.strategy.sell_conditions:
+        if is_auto_signal:
+            if isinstance(self.strategy, SuperTrendStrategy):
+                sell_layout.addWidget(QLabel("<i>Disabled - SuperTrend auto-generates SELL signals based on trend flips</i>"))
+            # SMMA strategy removed - not working properly
+            # elif isinstance(self.strategy, SMMAStrategy):
+            #     sell_layout.addWidget(QLabel("<i>Disabled - SMMA auto-generates SELL Entry signals when price crosses below Low of crossunder candle</i>"))
+        elif hasattr(self.strategy, 'sell_conditions') and self.strategy.sell_conditions:
             for i, condition in enumerate(self.strategy.sell_conditions, 1):
                 condition_text = self._format_condition(condition, "SELL")
                 label = QLabel(f"<b>Condition {i}:</b> {condition_text}")
@@ -158,11 +230,20 @@ class StrategyDetailDialog(QDialog):
             else:
                 tp_value_str = f"{tp_value:.2f}"
         
+        sl_enabled = getattr(self.strategy, 'sl_enabled', True)
+        tp_enabled = getattr(self.strategy, 'tp_enabled', True)
+        lot_size = getattr(self.strategy, 'lot_size', None)
+        trade_monitoring_mode = getattr(self.strategy, 'trade_monitoring_mode', 'LTP')
+        
         sl_tp_info = [
+            ("SL Enabled:", "Yes" if sl_enabled else "No"),
             ("SL Type:", sl_type_display),
             ("SL Value:", sl_value_str),
+            ("TP Enabled:", "Yes" if tp_enabled else "No"),
             ("Use Ratio:", "Yes" if use_ratio else "No"),
             ("TP Value:", tp_value_str),
+            ("Lot Size:", f"{lot_size:.2f}" if lot_size else "Default (from settings)"),
+            ("Trade Monitoring Mode:", trade_monitoring_mode),
         ]
         
         for label, value in sl_tp_info:
@@ -551,4 +632,183 @@ class StrategyDetailDialog(QDialog):
             mt5.TIMEFRAME_D1: "D1 (Daily)",
         }
         return timeframe_map.get(timeframe, f"Unknown ({timeframe})")
+    
+    def _load_ema_details(self):
+        """Load EMA-specific details"""
+        if not isinstance(self.strategy, EMAStrategy):
+            return
+        
+        ema_group = QGroupBox("EMA Strategy Settings")
+        ema_layout = QVBoxLayout()
+        
+        ema_periods = getattr(self.strategy, 'ema_periods', {})
+        
+        ema_info = [
+            ("EMA 1 Period:", str(ema_periods.get('ema_1', 20))),
+            ("EMA 2 Period:", str(ema_periods.get('ema_2', 50))),
+            ("EMA 3 Period:", str(ema_periods.get('ema_3', 100))),
+            ("EMA 4 Period:", str(ema_periods.get('ema_4', 200))),
+        ]
+        
+        for label, value in ema_info:
+            row = QHBoxLayout()
+            row.addWidget(QLabel(f"<b>{label}</b>"))
+            row.addWidget(QLabel(str(value)))
+            row.addStretch()
+            ema_layout.addLayout(row)
+        
+        ema_group.setLayout(ema_layout)
+        self.content_layout.addWidget(ema_group)
+    
+    def _load_supertrend_details(self):
+        """Load SuperTrend-specific details"""
+        if not isinstance(self.strategy, SuperTrendStrategy):
+            return
+        
+        st_group = QGroupBox("SuperTrend Strategy Settings")
+        st_layout = QVBoxLayout()
+        
+        period = getattr(self.strategy, 'period', 10)
+        multiplier = getattr(self.strategy, 'multiplier', 3.0)
+        use_wilder_atr = getattr(self.strategy, 'use_wilder_atr', True)
+        atr_method = "Wilder ATR" if use_wilder_atr else "SMA(TR)"
+        
+        st_info = [
+            ("ATR Period:", str(period)),
+            ("ATR Multiplier:", f"{multiplier:.1f}"),
+            ("ATR Method:", atr_method),
+        ]
+        
+        for label, value in st_info:
+            row = QHBoxLayout()
+            row.addWidget(QLabel(f"<b>{label}</b>"))
+            row.addWidget(QLabel(str(value)))
+            row.addStretch()
+            st_layout.addLayout(row)
+        
+        st_layout.addWidget(QLabel("<i>Note: SuperTrend auto-generates signals based on trend flips</i>"))
+        
+        st_group.setLayout(st_layout)
+        self.content_layout.addWidget(st_group)
+    
+    # SMMA strategy removed - not working properly
+    # def _load_smma_details(self):
+    #     """Load SMMA-specific details"""
+    #     if not isinstance(self.strategy, SMMAStrategy):
+    #         return
+    #     
+    #     smma_group = QGroupBox("SMMA Strategy Settings")
+    #     smma_layout = QVBoxLayout()
+    #     
+    #     length = getattr(self.strategy, 'length', 7)
+    #     source_price = getattr(self.strategy, 'source_price', 'close')
+    #     
+    #     # Format source price display
+    #     source_price_display = {
+    #         'close': 'Close',
+    #         'open': 'Open',
+    #         'high': 'High',
+    #         'low': 'Low',
+    #         'median': 'Median (H+L)/2',
+    #         'typical': 'Typical (H+L+C)/3',
+    #         'weighted': 'Weighted (H+L+C+C)/4'
+    #     }.get(source_price.lower(), source_price.title())
+    #     
+    #     smma_info = [
+    #         ("SMMA Length:", str(length)),
+    #         ("Source Price:", source_price_display),
+    #     ]
+    #     
+    #     for label, value in smma_info:
+    #         row = QHBoxLayout()
+    #         row.addWidget(QLabel(f"<b>{label}</b>"))
+    #         row.addWidget(QLabel(str(value)))
+    #         row.addStretch()
+    #         smma_layout.addLayout(row)
+    #     
+    #     smma_layout.addWidget(QLabel("<i>Note: SMMA auto-generates signals based on Buy Entry/Sell Entry detection</i>"))
+    #     smma_layout.addWidget(QLabel("<i>Buy Entry: Price crosses above High of crossover candle</i>"))
+    #     smma_layout.addWidget(QLabel("<i>Sell Entry: Price crosses below Low of crossunder candle</i>"))
+    #     
+    #     smma_group.setLayout(smma_layout)
+    #     self.content_layout.addWidget(smma_group)
+    
+    def _load_smc_details(self):
+        """Load SMC-specific details"""
+        if not isinstance(self.strategy, SMCStrategy):
+            return
+        
+        smc_group = QGroupBox("SMC Strategy Settings")
+        smc_layout = QVBoxLayout()
+        
+        pivot_left = getattr(self.strategy, 'pivot_left', 2)
+        pivot_right = getattr(self.strategy, 'pivot_right', 2)
+        emit_on = getattr(self.strategy, 'emit_on', 'NONE')
+        
+        smc_info = [
+            ("Pivot Left:", str(pivot_left)),
+            ("Pivot Right:", str(pivot_right)),
+            ("Emit On:", emit_on),
+        ]
+        
+        for label, value in smc_info:
+            row = QHBoxLayout()
+            row.addWidget(QLabel(f"<b>{label}</b>"))
+            row.addWidget(QLabel(str(value)))
+            row.addStretch()
+            smc_layout.addLayout(row)
+        
+        smc_layout.addWidget(QLabel("<i>Note: SMC generates signals based on BOS/CHoCH events</i>"))
+        smc_layout.addWidget(QLabel("<i>Buy/Sell conditions act as filters, not signal generators</i>"))
+        
+        smc_group.setLayout(smc_layout)
+        self.content_layout.addWidget(smc_group)
+    
+    def _load_session_first_candle_details(self):
+        """Load Session First Candle-specific details"""
+        if not isinstance(self.strategy, SessionFirstCandleStrategy):
+            return
+        
+        from PyQt6.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel
+        
+        sfc_group = QGroupBox("Session First Candle Strategy Settings")
+        sfc_layout = QVBoxLayout()
+        
+        # Session configuration
+        session1_start = getattr(self.strategy, 'session1_start_hour', 0)
+        session1_end = getattr(self.strategy, 'session1_end_hour', 9)
+        session2_start = getattr(self.strategy, 'session2_start_hour', 8)
+        session2_end = getattr(self.strategy, 'session2_end_hour', 17)
+        session3_start = getattr(self.strategy, 'session3_start_hour', 13)
+        session3_end = getattr(self.strategy, 'session3_end_hour', 22)
+        
+        # Get current session high/low if available
+        session_high = None
+        session_low = None
+        active_session = 0
+        if hasattr(self.strategy, 'session_first_candle'):
+            session_high = self.strategy.session_first_candle.get_session_high()
+            session_low = self.strategy.session_first_candle.get_session_low()
+            active_session = self.strategy.session_first_candle.get_current_session()
+        
+        sfc_info = [
+            ("Session 1", f"{session1_start:02d}:00 - {session1_end:02d}:00"),
+            ("Session 2", f"{session2_start:02d}:00 - {session2_end:02d}:00" if session2_start >= 0 else "Disabled"),
+            ("Session 3", f"{session3_start:02d}:00 - {session3_end:02d}:00" if session3_start >= 0 else "Disabled"),
+            ("Active Session", str(active_session) if active_session > 0 else "None"),
+            ("Current High Line", f"{session_high:.5f}" if session_high is not None else "N/A"),
+            ("Current Low Line", f"{session_low:.5f}" if session_low is not None else "N/A"),
+        ]
+        
+        for label, value in sfc_info:
+            row = QHBoxLayout()
+            row.addWidget(QLabel(f"<b>{label}:</b>"))
+            row.addWidget(QLabel(str(value)))
+            row.addStretch()
+            sfc_layout.addLayout(row)
+        
+        sfc_layout.addWidget(QLabel("<i>Note: High/Low lines are calculated from the first candle of each session</i>"))
+        
+        sfc_group.setLayout(sfc_layout)
+        self.content_layout.addWidget(sfc_group)
 

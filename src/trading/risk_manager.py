@@ -16,7 +16,7 @@ class RiskManager:
     def __init__(self, mt5_connector: MT5Connector):
         self.mt5 = mt5_connector
         self.max_risk_per_trade = 0.02  # 2% of account balance
-        self.max_positions = 10
+        self.max_positions = None  # No position limit (was 10)
         self.min_lot_size = 0.01
         self.max_lot_size = 1.0
     
@@ -125,6 +125,10 @@ class RiskManager:
         if not self.mt5.is_connected():
             return False
         
+        # No position limit if max_positions is None
+        if self.max_positions is None:
+            return True
+        
         positions = self.mt5.get_positions(symbol)
         return len(positions) < self.max_positions
     
@@ -143,7 +147,8 @@ class RiskManager:
         Returns:
             Dictionary with 'valid' (bool) and 'message' (str) keys
         """
-        if not self.can_open_position():
+        # Skip position limit check if max_positions is None
+        if self.max_positions is not None and not self.can_open_position():
             return {
                 'valid': False,
                 'message': f'Maximum positions ({self.max_positions}) reached'

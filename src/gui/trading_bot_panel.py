@@ -19,9 +19,9 @@ from ..mt5_connector import MT5Connector
 from ..strategy.base_strategy import BaseStrategy
 from ..strategy.ohlc_price_strategy import OHLCPriceStrategy, OHLCPriceCondition
 from ..strategy.vwap_strategy import VWAPStrategy, VWAPCondition
-from ..strategy.smc_strategy import SMCStrategy
 from ..strategy.ema_strategy import EMAStrategy, EMACondition
 from ..strategy.supertrend_strategy import SuperTrendStrategy
+from ..strategy.smc_strategy import SMCStrategy
 from ..strategy.mixed_condition import MixedCondition
 from .market_data_panel import MarketDataPanel
 from .system_log_service import system_log_service
@@ -171,6 +171,8 @@ class TradingBotPanel(QWidget):
         self.strategy_type_combo.addItem("VWAP Strategy", "vwap")
         self.strategy_type_combo.addItem("EMA Strategy", "ema")
         self.strategy_type_combo.addItem("SuperTrend Strategy", "supertrend")
+        # SMMA Strategy removed - not working properly
+        # self.strategy_type_combo.addItem("SMMA Strategy", "smma")
         self.strategy_type_combo.addItem("SMC (Smart Money Concepts)", "smc")
         self.strategy_type_combo.addItem("No Strategy", "no_strategy")
         self.strategy_type_combo.currentIndexChanged.connect(self._on_strategy_type_changed)
@@ -343,41 +345,6 @@ class TradingBotPanel(QWidget):
         self.supertrend_config_group.setVisible(False)
         layout.addWidget(self.supertrend_config_group)
 
-        # SMC-specific configuration (initially hidden)
-        self.smc_config_group = QGroupBox("SMC Configuration")
-        smc_config_layout = QFormLayout()
-
-        self.smc_pivot_left_spin = QDoubleSpinBox()
-        self.smc_pivot_left_spin.setMinimum(1)
-        self.smc_pivot_left_spin.setMaximum(10)
-        self.smc_pivot_left_spin.setDecimals(0)
-        self.smc_pivot_left_spin.setValue(2)
-        smc_config_layout.addRow("Pivot Left Bars:", self.smc_pivot_left_spin)
-
-        self.smc_pivot_right_spin = QDoubleSpinBox()
-        self.smc_pivot_right_spin.setMinimum(1)
-        self.smc_pivot_right_spin.setMaximum(10)
-        self.smc_pivot_right_spin.setDecimals(0)
-        self.smc_pivot_right_spin.setValue(2)
-        smc_config_layout.addRow("Pivot Right Bars:", self.smc_pivot_right_spin)
-
-        self.smc_emit_on_combo = QComboBox()
-        self.smc_emit_on_combo.addItem("CHoCH only (bias flips)", "CHoCH")
-        self.smc_emit_on_combo.addItem("BOS only (continuation)", "BOS")
-        self.smc_emit_on_combo.addItem("Both (BOS + CHoCH)", "BOTH")
-        smc_config_layout.addRow("Emit Signals On:", self.smc_emit_on_combo)
-
-        smc_help = QLabel(
-            "SMC is a market-structure engine.\n"
-            "This bot auto-generates signals from pivots + BOS/CHoCH state.\n"
-            "Manual Buy/Sell condition lists are disabled for SMC."
-        )
-        smc_help.setStyleSheet("color: #ccc; font-size: 11px;")
-        smc_config_layout.addRow("", smc_help)
-
-        self.smc_config_group.setLayout(smc_config_layout)
-        self.smc_config_group.setVisible(False)
-        layout.addWidget(self.smc_config_group)
         
         basic_group.setLayout(basic_layout)
         layout.addWidget(basic_group)
@@ -723,10 +690,6 @@ class TradingBotPanel(QWidget):
         self.ohlc_label = QLabel("Previous Session OHLC: --")
         control_layout.addWidget(self.ohlc_label)
 
-        # SMC display (for SMC strategy, initially hidden)
-        self.smc_status_label = QLabel("SMC: --")
-        self.smc_status_label.setVisible(False)
-        control_layout.addWidget(self.smc_status_label)
         
         # VWAP display (for VWAP strategy, initially hidden)
         self.vwap_display_group = QGroupBox("Live VWAP Data")
@@ -855,10 +818,6 @@ class TradingBotPanel(QWidget):
             self.session_combo.addItem("Asia Session (05:30–14:30 IST)", "Asia")
             self.session_combo.addItem("All Sessions", "All")
             self.session_combo.setCurrentIndex(0)  # Default to NY
-        elif self.strategy_type == 'smc':
-            # SMC doesn't need session boundaries, but keep a slot for future extensions.
-            self.session_combo.addItem("All Sessions", "All")
-            self.session_combo.setCurrentIndex(0)
         elif self.strategy_type == 'ema':
             # EMA is calculated on candle history; no explicit session boundaries.
             self.session_combo.addItem("All Candles", "All")
@@ -867,6 +826,12 @@ class TradingBotPanel(QWidget):
             # SuperTrend is calculated on candle history; no explicit session boundaries.
             self.session_combo.addItem("All Candles", "All")
             self.session_combo.setCurrentIndex(0)
+        elif self.strategy_type == 'smc':
+            # SMC doesn't need session boundaries
+            self.session_combo.addItem("All Candles", "All")
+            self.session_combo.setCurrentIndex(0)
+            # Open SMC settings dialog
+            self._open_smc_settings_dialog()
         elif self.strategy_type == 'no_strategy':
             # No Strategy doesn't use session boundaries
             self.session_combo.addItem("All Candles", "All")
@@ -913,9 +878,9 @@ class TradingBotPanel(QWidget):
         """Update UI visibility based on strategy type"""
         # Show/hide VWAP-specific UI
         is_vwap = self.strategy_type == 'vwap'
-        is_smc = self.strategy_type == 'smc'
         is_ema = self.strategy_type == 'ema'
         is_supertrend = self.strategy_type == 'supertrend'
+        is_smc = self.strategy_type == 'smc'
         is_no_strategy = self.strategy_type == 'no_strategy'
         self.vwap_config_group.setVisible(is_vwap)
         self.vwap_display_group.setVisible(is_vwap)
@@ -924,10 +889,9 @@ class TradingBotPanel(QWidget):
         self.supertrend_config_group.setVisible(is_supertrend)
         self.supertrend_display_group.setVisible(is_supertrend)
         self.smc_config_group.setVisible(is_smc)
-        self.smc_status_label.setVisible(is_smc)
         self.ohlc_label.setVisible((not is_vwap) and (not is_smc) and (not is_ema) and (not is_supertrend) and (not is_no_strategy))
 
-        # Hide manual condition builders for SuperTrend (SMC now can use filters)
+        # Hide manual condition builders for SuperTrend
         # Show buy/sell conditions for no_strategy
         self.buy_group.setVisible((not is_supertrend))
         self.sell_group.setVisible((not is_supertrend))
@@ -1007,11 +971,25 @@ class TradingBotPanel(QWidget):
             ("VWAP Lower 2.0σ", "vwap_lower_2.0"),
         ])
         
-        # Add SMC
-        operands.extend([
-            ("SMC Pivot High", "smc_pivot_high"),
-            ("SMC Pivot Low", "smc_pivot_low"),
-        ])
+        # Add SMC operands if SMC strategy
+        if self.strategy_type == 'smc':
+            # Always include pivot high/low
+            operands.extend([
+                ("SMC Pivot High", "smc_pivot_high"),
+                ("SMC Pivot Low", "smc_pivot_low"),
+            ])
+            # Add event prices based on emit_on setting
+            emit_on = None
+            if hasattr(self, 'smc_emit_on_combo'):
+                emit_on = self.smc_emit_on_combo.currentData()
+            # Fallback to stored value if combo not available
+            if emit_on is None:
+                emit_on = getattr(self, 'smc_emit_on', 'NONE')
+            
+            if emit_on in ("CHoCH", "BOTH"):
+                operands.append(("SMC CHoCH Price", "smc_choch_price"))
+            if emit_on in ("BOS", "BOTH"):
+                operands.append(("SMC BOS Price", "smc_bos_price"))
         
         return operands
 
@@ -1199,7 +1177,7 @@ class TradingBotPanel(QWidget):
             active_sell = [r for r in self.sell_rows if r.get_data().get("enabled")]
             # No Strategy: Conditions are optional - if no conditions, will execute directly based on direction
             # So we skip validation for no_strategy - it can have 0 conditions for direct execution
-            if strategy_type != 'no_strategy' and strategy_type != 'smc':
+            if strategy_type != 'no_strategy':
                 if direction in ("both", None):
                     if len(active_buy) == 0 and len(active_sell) == 0:
                         QMessageBox.warning(self, "Validation Error", "Please add at least one buy or sell condition")
@@ -1251,16 +1229,6 @@ class TradingBotPanel(QWidget):
                 }
                 bot = EMAStrategy(name=strategy_name, symbol=symbol, timeframe=timeframe, ema_periods=periods)
                 bot.set_mt5_connector(self.mt5)
-            elif strategy_type == 'smc':
-                bot = SMCStrategy(
-                    name=strategy_name,
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    pivot_left=int(self.smc_pivot_left_spin.value()),
-                    pivot_right=int(self.smc_pivot_right_spin.value()),
-                    emit_on=self.smc_emit_on_combo.currentData(),
-                )
-                bot.set_mt5_connector(self.mt5)
             elif strategy_type == 'supertrend':
                 bot = SuperTrendStrategy(
                     name=strategy_name,
@@ -1271,6 +1239,16 @@ class TradingBotPanel(QWidget):
                     use_wilder_atr=bool(self.supertrend_atr_method_combo.currentData()),
                 )
                 bot.set_mt5_connector(self.mt5)
+            elif strategy_type == 'smc':
+                bot = SMCStrategy(
+                    name=strategy_name,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    pivot_left=int(self.smc_pivot_left_spin.value()),
+                    pivot_right=int(self.smc_pivot_right_spin.value()),
+                    emit_on=self.smc_emit_on_combo.currentData(),
+                )
+                bot.set_mt5_connector(self.mt5)
             elif strategy_type == 'no_strategy':
                 from ..strategy.simple_condition_strategy import SimpleConditionStrategy
                 bot = SimpleConditionStrategy(name=strategy_name, symbol=symbol, timeframe=timeframe)
@@ -1279,15 +1257,16 @@ class TradingBotPanel(QWidget):
                 bot = OHLCPriceStrategy(strategy_name, symbol, session_type, timeframe)
                 bot.set_market_data_panel(self.market_data_panel)
         
-        # Clear existing conditions (not used by SMC)
+        # Clear existing conditions
         if hasattr(bot, 'buy_conditions'):
             bot.buy_conditions.clear()
         if hasattr(bot, 'sell_conditions'):
             bot.sell_conditions.clear()
         
-        # Add buy/sell conditions (only for VWAP / OHLC / EMA / no_strategy). For SMC we store filters below.
-        smc_filters = {"buy": [], "sell": []}
-        if strategy_type not in ('smc', 'supertrend'):
+        # Add buy/sell conditions (only for VWAP / OHLC / EMA / no_strategy)
+        # SuperTrend doesn't use manual conditions (auto-generates signals)
+        # SMC uses filters (handled separately below)
+        if strategy_type not in ('supertrend', 'smc'):
             def _add_conditions(rows, add_func):
                 added = 0
                 for idx, row in enumerate(rows):
@@ -1339,7 +1318,8 @@ class TradingBotPanel(QWidget):
             added_sell = _add_conditions(self.sell_rows, bot.add_sell_condition)
             # No Strategy: Conditions are optional - if no conditions added, will execute directly based on direction
             # So we skip validation for no_strategy here as well
-            if strategy_type != 'no_strategy':
+            # SMC: Uses filters, validation handled separately
+            if strategy_type not in ('no_strategy', 'smc'):
                 if direction in ("both", None):
                     if added_buy == 0 and added_sell == 0:
                         QMessageBox.warning(self, "Validation Error", "No valid conditions added. Please complete the fields.")
@@ -1352,24 +1332,29 @@ class TradingBotPanel(QWidget):
                     if added_sell == 0:
                         QMessageBox.warning(self, "Validation Error", "No valid sell conditions added for Short-only direction.")
                         return
-        else:
-            # Collect SMC filter conditions for post-filtering
-            def _collect(rows, target_key):
+        # SuperTrend doesn't use manual conditions (auto-generates signals)
+        
+        # Handle SMC filters (SMC uses filters, not conditions)
+        if strategy_type == 'smc':
+            def _parse_filters(rows):
+                filters = []
                 for row in rows:
                     data = row.get_data()
                     if not data.get("enabled"):
                         continue
                     if not data.get("left_field") or not data.get("right_field") or not data.get("operator"):
                         continue
-                    smc_filters[target_key].append({
+                    filters.append({
                         "left_field": data.get("left_field"),
                         "right_field": data.get("right_field"),
                         "operator": data.get("operator"),
-                        "connector": data.get("connector", "AND"),
+                        "connector": data.get("connector", "OR")
                     })
-
-            _collect(self.buy_rows, "buy")
-            _collect(self.sell_rows, "sell")
+                return filters
+            
+            buy_filters = _parse_filters(self.buy_rows)
+            sell_filters = _parse_filters(self.sell_rows)
+            bot.set_filters(buy_filters, sell_filters)
         
         # Set risk management configuration
         bot.enable_trailing_sl = self.enable_trailing_sl_check.currentData()
@@ -1490,12 +1475,61 @@ class TradingBotPanel(QWidget):
                 )
                 QMessageBox.warning(self, "Error", f"Strategy '{strategy_name}' already exists")
         
-        # Attach SMC filters if applicable
-        if strategy_type == 'smc' and hasattr(bot, "set_filters"):
-            bot.set_filters(smc_filters.get("buy", []), smc_filters.get("sell", []))
-        
         self.current_bot = bot
         self.update_status()
+    
+    def _open_smc_settings_dialog(self):
+        """Open SMC settings dialog for trading bot"""
+        from .smc_settings_dialog import SMCSettingsDialog
+        from PyQt6.QtWidgets import QDialog
+        
+        dialog = SMCSettingsDialog(self, {
+            'pivot_left': self.smc_pivot_left_spin.value() if hasattr(self, 'smc_pivot_left_spin') else 2,
+            'pivot_right': self.smc_pivot_right_spin.value() if hasattr(self, 'smc_pivot_right_spin') else 2,
+            'emit_on': self.smc_emit_on_combo.currentData() if hasattr(self, 'smc_emit_on_combo') else 'NONE'
+        })
+        
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            settings = dialog.get_settings()
+            if hasattr(self, 'smc_pivot_left_spin'):
+                self.smc_pivot_left_spin.setValue(settings['pivot_left'])
+            if hasattr(self, 'smc_pivot_right_spin'):
+                self.smc_pivot_right_spin.setValue(settings['pivot_right'])
+            if hasattr(self, 'smc_emit_on_combo'):
+                emit_idx = self.smc_emit_on_combo.findData(settings['emit_on'])
+                if emit_idx >= 0:
+                    self.smc_emit_on_combo.setCurrentIndex(emit_idx)
+            # Update operands when settings change
+            self._update_operand_options()
+    
+    def _on_smc_emit_on_changed(self):
+        """Update operands when SMC emit_on changes"""
+        if self.strategy_type == 'smc':
+            self._update_operand_options()
+    
+    def _update_operand_options(self):
+        """Update operand options for all condition rows"""
+        operands = self._get_operand_options()
+        operators = [
+            ("Greater_Than", ">"),
+            ("Lower_Than", "<"),
+            ("Equals", "=="),
+            ("Crossover", "Crosses Above"),
+            ("Crossunder", "Crosses Under"),
+            ("Any_Cross", "Any_Cross"),
+            ("Within_Band", "Within Band"),
+            ("Outside_Band", "Outside Band"),
+        ] if self.strategy_type == 'vwap' else [
+            ("Greater_Than", ">"),
+            ("Lower_Than", "<"),
+            ("Equals", "=="),
+            ("Crossover", "Crosses Above"),
+            ("Crossunder", "Crosses Under"),
+            ("Any_Cross", "Any_Cross"),
+        ]
+        
+        for row in self.buy_rows + self.sell_rows:
+            row.set_options(operands, operators)
     
     def update_status(self):
         """Update status display"""
@@ -1663,19 +1697,6 @@ class TradingBotPanel(QWidget):
             else:
                 self.ohlc_label.setText("Previous Session OHLC: Not available (fetching...)")
 
-        # Update SMC display
-        if self.strategy_type == 'smc':
-            if self.current_bot and isinstance(self.current_bot, SMCStrategy):
-                ph = self.current_bot.last_pivot_high.price if self.current_bot.last_pivot_high else None
-                pl = self.current_bot.last_pivot_low.price if self.current_bot.last_pivot_low else None
-                ph_txt = f"{ph:.5f}" if ph is not None else "--"
-                pl_txt = f"{pl:.5f}" if pl is not None else "--"
-                bias = self.current_bot.bias or "--"
-                ev = self.current_bot.last_structure_event or "--"
-                self.smc_status_label.setText(f"SMC: Bias={bias} | Last={ev} | PH={ph_txt} | PL={pl_txt}")
-            else:
-                self.smc_status_label.setText("SMC: -- (No active bot)")
-        
         # Check if bot is active
         if self.current_bot and self.current_bot.enabled:
             self.status_label.setText(f"Status: Active - {self.current_bot.name}")

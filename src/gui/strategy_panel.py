@@ -13,6 +13,7 @@ from ..strategy.base_strategy import BaseStrategy
 from ..trading.order_manager import OrderManager
 from .system_logs_panel import SystemLogsPanel
 from .system_log_service import system_log_service
+from ..strategy.session_first_candle_strategy import SessionFirstCandleStrategy
 
 
 class StrategyPanel(QWidget):
@@ -35,11 +36,57 @@ class StrategyPanel(QWidget):
     
     def setup_ui(self):
         """Setup the UI"""
+        # Apply dark theme styling
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            QLabel {
+                color: #ffffff;
+            }
+            QPushButton {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px 15px;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+            }
+            QPushButton:pressed {
+                background-color: #1a1a1a;
+            }
+            QTableWidget {
+                background-color: #1e1e1e;
+                alternate-background-color: #2b2b2b;
+                color: #ffffff;
+                gridline-color: #444;
+                border: 1px solid #444;
+            }
+            QTableWidget::item {
+                padding: 5px;
+            }
+            QTableWidget::item:selected {
+                background-color: #2196F3;
+                color: #ffffff;
+            }
+            QHeaderView::section {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                padding: 8px;
+                border: 1px solid #444;
+                font-weight: bold;
+            }
+        """)
+        
         layout = QVBoxLayout(self)
         
         # Title
         title = QLabel("Active Strategies")
-        title.setStyleSheet("font-weight: bold; font-size: 16px;")
+        title.setStyleSheet("font-weight: bold; font-size: 16px; color: #ffffff;")
         layout.addWidget(title)
         
         # Buttons
@@ -111,15 +158,121 @@ class StrategyPanel(QWidget):
             
             # Current indicator value (show RSI if available, or first indicator)
             current_indicator_value = "--"
+            # #region agent log
+            import json
+            try:
+                with open(r'd:\DEV__PHASE---2 MC-META-TRADER-----\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"strategy_panel.py:160","message":"Strategy type check","data":{"strategy_name":strategy.name,"strategy_type":type(strategy).__name__,"is_session_first_candle":isinstance(strategy, SessionFirstCandleStrategy)},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+            except: pass
+            # #endregion
             if self.data_feed and self.mt5 and self.mt5.is_connected():
+                # #region agent log
+                try:
+                    with open(r'd:\DEV__PHASE---2 MC-META-TRADER-----\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"strategy_panel.py:162","message":"MT5 connection check passed","data":{"strategy_name":strategy.name,"data_feed_exists":self.data_feed is not None,"mt5_connected":self.mt5.is_connected() if self.mt5 else False},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                except: pass
+                # #endregion
                 try:
                     import MetaTrader5 as mt5
                     
                     # Get strategy's timeframe
                     timeframe = getattr(strategy, 'timeframe', mt5.TIMEFRAME_M1)
                     
-                    if strategy.indicators:
-                        # For RSI, use MT5's built-in indicator directly
+                    # Check if this is a SessionFirstCandleStrategy - handle it specially
+                    if isinstance(strategy, SessionFirstCandleStrategy):
+                        # #region agent log
+                        try:
+                            with open(r'd:\DEV__PHASE---2 MC-META-TRADER-----\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                                f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"strategy_panel.py:182","message":"SessionFirstCandleStrategy detected","data":{"strategy_name":strategy.name,"symbol":strategy.symbol,"timeframe":timeframe},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                        except: pass
+                        # #endregion
+                        try:
+                            # Get rates for Session First Candle calculation
+                            rates = self.data_feed.get_rates(strategy.symbol, timeframe, 500)
+                            # #region agent log
+                            try:
+                                with open(r'd:\DEV__PHASE---2 MC-META-TRADER-----\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                                    f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"strategy_panel.py:191","message":"Rates fetch from data_feed","data":{"strategy_name":strategy.name,"symbol":strategy.symbol,"rates_count":len(rates) if rates else 0,"rates_is_none":rates is None},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                            except: pass
+                            # #endregion
+                            if not rates and self.mt5:
+                                rates = self.mt5.get_rates(strategy.symbol, timeframe, 500)
+                                # #region agent log
+                                try:
+                                    with open(r'd:\DEV__PHASE---2 MC-META-TRADER-----\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                                        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"strategy_panel.py:198","message":"Rates fetch from MT5 fallback","data":{"strategy_name":strategy.name,"symbol":strategy.symbol,"rates_count":len(rates) if rates else 0,"rates_is_none":rates is None},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                                except: pass
+                                # #endregion
+                            if rates:
+                                # Convert to list of dicts for SessionFirstCandle
+                                from datetime import datetime
+                                rates_list = []
+                                for i in range(len(rates)):
+                                    rates_list.append({
+                                        'time': datetime.fromtimestamp(rates[i][0]),
+                                        'open': rates[i][1],
+                                        'high': rates[i][2],
+                                        'low': rates[i][3],
+                                        'close': rates[i][4],
+                                        'tick_volume': rates[i][5],
+                                    })
+                                
+                                # Update the indicator
+                                # #region agent log
+                                try:
+                                    with open(r'd:\DEV__PHASE---2 MC-META-TRADER-----\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                                        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"strategy_panel.py:227","message":"Checking session_first_candle attribute","data":{"strategy_name":strategy.name,"has_session_first_candle":hasattr(strategy, 'session_first_candle'),"session_first_candle_exists":hasattr(strategy, 'session_first_candle') and strategy.session_first_candle is not None,"rates_list_count":len(rates_list)},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                                except: pass
+                                # #endregion
+                                if hasattr(strategy, 'session_first_candle') and strategy.session_first_candle:
+                                    strategy.session_first_candle.update(rates_list)
+                                    session_high = strategy.session_first_candle.get_session_high()
+                                    session_low = strategy.session_first_candle.get_session_low()
+                                    # #region agent log
+                                    try:
+                                        with open(r'd:\DEV__PHASE---2 MC-META-TRADER-----\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                                            f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"strategy_panel.py:230","message":"Session high/low values retrieved","data":{"strategy_name":strategy.name,"session_high":session_high,"session_low":session_low,"high_is_none":session_high is None,"low_is_none":session_low is None},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                                    except: pass
+                                    # #endregion
+                                    
+                                    if session_high is not None and session_low is not None:
+                                        current_indicator_value = f"High: {session_high:.2f} | Low: {session_low:.2f}"
+                                    elif session_high is not None:
+                                        current_indicator_value = f"High: {session_high:.2f} | Low: --"
+                                    elif session_low is not None:
+                                        current_indicator_value = f"High: -- | Low: {session_low:.2f}"
+                                    # #region agent log
+                                    try:
+                                        with open(r'd:\DEV__PHASE---2 MC-META-TRADER-----\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                                            f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"strategy_panel.py:239","message":"Final indicator value set","data":{"strategy_name":strategy.name,"current_indicator_value":current_indicator_value},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                                    except: pass
+                                    # #endregion
+                                else:
+                                    # #region agent log
+                                    try:
+                                        with open(r'd:\DEV__PHASE---2 MC-META-TRADER-----\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                                            f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"strategy_panel.py:250","message":"session_first_candle attribute missing or None","data":{"strategy_name":strategy.name,"has_attr":hasattr(strategy, 'session_first_candle'),"attr_value":str(strategy.session_first_candle) if hasattr(strategy, 'session_first_candle') else "N/A"},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                                    except: pass
+                                    # #endregion
+                            else:
+                                # #region agent log
+                                try:
+                                    with open(r'd:\DEV__PHASE---2 MC-META-TRADER-----\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                                        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"strategy_panel.py:257","message":"No rates available","data":{"strategy_name":strategy.name,"symbol":strategy.symbol},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                                except: pass
+                                # #endregion
+                        except Exception as e:
+                            # #region agent log
+                            try:
+                                with open(r'd:\DEV__PHASE---2 MC-META-TRADER-----\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                                    f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"strategy_panel.py:264","message":"Exception in SessionFirstCandle block","data":{"strategy_name":strategy.name,"error":str(e),"error_type":type(e).__name__},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                            except: pass
+                            # #endregion
+                            import logging
+                            logger = logging.getLogger(__name__)
+                            logger.debug(f"Error getting SessionFirstCandle values for strategy panel: {e}")
+                    elif strategy.indicators:
+                        # For other strategies, show RSI if available, or first indicator
                         for ind_name, indicator in strategy.indicators.items():
                             try:
                                 if ind_name.upper() == "RSI" or "RSI" in ind_name.upper():
@@ -162,6 +315,13 @@ class StrategyPanel(QWidget):
                     logger = logging.getLogger(__name__)
                     logger.debug(f"Error in strategy panel update: {e}")
                     pass
+            else:
+                # #region agent log
+                try:
+                    with open(r'd:\DEV__PHASE---2 MC-META-TRADER-----\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"strategy_panel.py:274","message":"MT5 connection check failed","data":{"strategy_name":strategy.name,"data_feed_exists":self.data_feed is not None,"mt5_exists":self.mt5 is not None,"mt5_connected":self.mt5.is_connected() if self.mt5 else False},"timestamp":int(__import__('time').time()*1000)}) + '\n')
+                except: pass
+                # #endregion
             
             self.strategies_table.setItem(row, 5, QTableWidgetItem(current_indicator_value))
             
